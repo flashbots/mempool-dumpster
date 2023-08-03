@@ -7,7 +7,7 @@
 1. Connects to EL nodes (websocket)
 2. Listens for new pending transactions
 3. Can write summary to JSON file (incl. timestamp in milliseconds, hash, raw tx and various transaction details - see [example here](docs/example-tx-summary.json))
-4. TODO: Write to S3, possibly gzip JSON file
+4. TODO: Write to S3, possibly gzip JSON files
 
 Default JSON filename: `<storage_path>/<date>/transactions/<tx_hash>.json`
 
