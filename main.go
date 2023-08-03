@@ -1,69 +1,73 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	"github.com/cenkalti/backoff/v4"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/rpc"
-	"log"
+	"flag"
 	"os"
-	"sync"
-	"time"
+	"os/signal"
+	"strings"
+	"syscall"
+
+	"github.com/flashbots/mempool-archiver/collector"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
-func handleHash(ctx context.Context, rpcClient *rpc.Client, hash common.Hash, wg *sync.WaitGroup) {
-	defer wg.Done() // Signal that this goroutine is done when this function returns
-	now := time.Now()
-	var rawtx string
-	b := backoff.NewExponentialBackOff()
+var (
+	version = "dev" // is set during build process
 
-	// the client might not know the raw tx yet. so we back off and retry (for up to 15 minutes).
-	err := backoff.Retry(func() error {
-		// TODO: use debug_getRawTransaction for reth
-		err := rpcClient.CallContext(ctx, &rawtx, "eth_getRawTransactionByHash", hash)
-		if err != nil {
-			return backoff.Permanent(err)
-		}
-		if rawtx == "0x" {
-			return fmt.Errorf("data not ready")
-		}
-		return nil
-	}, b)
-	if err != nil {
-		// If there is still an error after the retries, we log it and continue
-		log.Printf("Failed to get raw transaction for hash %s: %v\n", hash.String(), err)
-		return
-	}
-	fmt.Printf("%d.%09d,%s,%s\n", now.Unix(), now.UnixNano() % 1e9, hash.String(), rawtx)
-}
+	// Default values
+	defaultDebug      = os.Getenv("DEBUG") == "1"
+	defaultLogProd    = os.Getenv("LOG_PROD") == "1"
+	defaultLogService = os.Getenv("LOG_SERVICE")
 
+	// Flags
+	debugPtr      = flag.Bool("debug", defaultDebug, "print debug output")
+	logProdPtr    = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
+	logServicePtr = flag.String("log-service", defaultLogService, "'service' tag to logs")
+	nodesPtr      = flag.String("nodes", "ws://localhost:8546", "comma separated list of EL nodes")
+	outDirPtr     = flag.String("out-dir", "", "path to write raw transactions to (default: disabled)")
+)
 
 func main() {
-        if len(os.Args) != 2 {
-		log.Fatalf("Usage: %s <node endpoint>\n", os.Args[0])
-        }
-	rpcClient, err := rpc.Dial(os.Args[1])
-	if err != nil {
-		log.Fatalln(err)
+	flag.Parse()
+
+	// Logger setup
+	var logger *zap.Logger
+	zapLevel := zap.NewAtomicLevel()
+	if *debugPtr {
+		zapLevel.SetLevel(zap.DebugLevel)
+	}
+	if *logProdPtr {
+		encoderCfg := zap.NewProductionEncoderConfig()
+		encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+		logger = zap.New(zapcore.NewCore(
+			zapcore.NewJSONEncoder(encoderCfg),
+			zapcore.Lock(os.Stdout),
+			zapLevel,
+		))
+	} else {
+		logger = zap.New(zapcore.NewCore(
+			zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
+			zapcore.Lock(os.Stdout),
+			zapLevel,
+		))
 	}
 
-	ctx := context.Background()
-	hashes := make(chan common.Hash)
-	_, err = gethclient.New(rpcClient).SubscribePendingTransactions(ctx, hashes)
-	if err != nil {
-		log.Fatalln(err)
+	defer func() { _ = logger.Sync() }()
+	log := logger.Sugar()
+
+	if *logServicePtr != "" {
+		log = log.With("service", *logServicePtr)
 	}
 
-	defer func() {
-		rpcClient.Close()
-	}()
+	log.Infow("Starting mempool-archiver", "version", version)
 
-	var wg sync.WaitGroup // WaitGroup to wait for all goroutines to finish
-	for hash := range hashes {
-		wg.Add(1) // Increment WaitGroup counter
-		go handleHash(ctx, rpcClient, hash, &wg) // Start a goroutine for each transaction
-	}
-	wg.Wait() // Wait for all goroutines to finish
+	// Start service components
+	collector.Start(log, strings.Split(*nodesPtr, ","), *outDirPtr)
+
+	// Wwait for termination signal
+	exit := make(chan os.Signal, 1)
+	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
+	<-exit
+	log.Info("bye")
 }
