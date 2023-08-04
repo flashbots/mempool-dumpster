@@ -88,6 +88,12 @@ func (nc *TxProcessor) processTx(txIn *TxIn) {
 		to = txIn.tx.To().Hex()
 	}
 
+	// prepare '4 bytes' of data (function name)
+	data4Bytes := ""
+	if len(txIn.tx.Data()) >= 4 {
+		data4Bytes = hexutil.Encode(txIn.tx.Data()[:4])
+	}
+
 	// build the summary
 	txSummary := TxSummaryJSON{
 		Timestamp: txIn.t.UnixMilli(),
@@ -104,10 +110,12 @@ func (nc *TxProcessor) processTx(txIn *TxIn) {
 		GasTipCap: txIn.tx.GasTipCap().String(),
 		GasFeeCap: txIn.tx.GasFeeCap().String(),
 
-		DataSize: int64(len(txIn.tx.Data())),
-		V:        v.String(),
-		R:        r.String(),
-		S:        s.String(),
+		DataSize:   int64(len(txIn.tx.Data())),
+		Data4Bytes: data4Bytes,
+
+		V: v.String(),
+		R: r.String(),
+		S: s.String(),
 	}
 
 	// write json to file

@@ -28,7 +28,8 @@ type TxSummaryJSON struct {
 	GasTipCap string `json:"gasTipCap"`
 	GasFeeCap string `json:"gasFeeCap"`
 
-	DataSize int64 `json:"dataSize"`
+	DataSize   int64  `json:"dataSize"`
+	Data4Bytes string `json:"data4Bytes"`
 	// AccessList string `json:"accessList"`
 	// BlobGas       string `json:"blobGas"`
 	// BlobGasFeeCap string `json:"blobGasFeeCap"`
