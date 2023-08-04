@@ -2,7 +2,6 @@ package collector
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -135,6 +135,8 @@ func (nc *TxProcessor) processTx(txIn *TxIn) {
 
 		// write json to file
 		log.Debugf("writing to: %s", fn)
+		json := jsoniter.ConfigCompatibleWithStandardLibrary
+
 		content, err := json.MarshalIndent(txSummary, "", "  ")
 		if err != nil {
 			log.Errorw("json.MarshalIndent", "error", err)

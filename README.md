@@ -12,7 +12,7 @@
 3. Can write summary to JSON file (incl. timestamp in milliseconds, hash, raw tx and various transaction details - see [example here](docs/example-tx-summary.json))
 4. TODO: Write to S3
 
-Default JSON filename: `<out_dir>/<date>/transactions/h<hour><tx_hash>.json`
+Default JSON filename: `<out_dir>/<date>/transactions/h<hour>/<tx_hash>.json`
 
 **Running the mempool collector:**
 
@@ -67,9 +67,8 @@ Running `go run . -out-dir ./out` will store files like this: `out/2023-08-03/tr
 ## Todo
 
 - next: Write to S3
-- later: new service to process a day of jsons
-  - create a parquet summary file
-  - gzip the whole day
+- later: archiver service (to process a day of jsons, see [scripts/archiver/](scripts/archiver/))
+  - create a CSV/Parquet summary file
 
 ---
 
@@ -91,3 +90,14 @@ make lint
 make test
 make fmt
 ```
+
+---
+
+Storage choices:
+
+1. Summary files (CSV, Parquet)
+    a. Store with or without signature (~160b which is often about 50% of an entry)
+    b. Compress? (might impact usability as Clickhouse backend or S3 Select)
+2. Raw transaction files:
+    a. Keep all meta fields in JSON as-is, or strip down to _only_ raw tx? (usually between 50%-80% of the JSON bytes)
+    b. Compress the whole transactions folder (should do that)
