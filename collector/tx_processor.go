@@ -3,6 +3,7 @@ package collector
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
 
@@ -22,20 +24,20 @@ type TxProcessor struct {
 
 	txn     map[common.Hash]time.Time
 	txnLock sync.RWMutex
+	txCnt   atomic.Uint64
 }
 
 func NewTxProcessor(log *zap.SugaredLogger, outDir string) *TxProcessor {
-	return &TxProcessor{
-		log:     log, //.With("module", "tx_processor"),
-		txC:     make(chan TxIn, 100),
-		outDir:  outDir,
-		txn:     make(map[common.Hash]time.Time),
-		txnLock: sync.RWMutex{},
+	return &TxProcessor{ //nolint:exhaustruct
+		log:    log,
+		txC:    make(chan TxIn, 100),
+		outDir: outDir,
+		txn:    make(map[common.Hash]time.Time),
 	}
 }
 
 func (nc *TxProcessor) Start() {
-	nc.log.Info("Waiting for transactions...")
+	nc.log.Debug("Waiting for transactions...")
 
 	// start the txn map cleaner background task
 	go nc.cleanTxnMap()
@@ -49,16 +51,18 @@ func (nc *TxProcessor) Start() {
 func (nc *TxProcessor) processTx(txIn *TxIn) {
 	txHash := txIn.tx.Hash()
 	log := nc.log.With("tx_hash", txHash.Hex())
-	log.Info("processTx")
+	log.Debug("processTx")
 
 	// process transactions only once
 	nc.txnLock.RLock()
 	_, ok := nc.txn[txHash]
 	nc.txnLock.RUnlock()
 	if ok {
-		log.Infof("transaction already processed")
+		log.Debug("transaction already processed")
 		return
 	}
+
+	nc.txCnt.Inc()
 
 	// prepare rlp rawtx
 	buf := new(bytes.Buffer)
@@ -74,7 +78,8 @@ func (nc *TxProcessor) processTx(txIn *TxIn) {
 	// prepare 'from' address, fails often because of unsupported tx type
 	from, err := types.Sender(types.NewEIP155Signer(txIn.tx.ChainId()), txIn.tx)
 	if err != nil {
-		log.Debugw("failed to get sender", "error", err)
+		_ = err
+		// log.Debugw("failed to get sender", "error", err)
 	}
 
 	// prepare 'to' address
@@ -108,7 +113,7 @@ func (nc *TxProcessor) processTx(txIn *TxIn) {
 	// write json to file
 	if nc.outDir != "" {
 		// prepare path and ensure it exists
-		dir := filepath.Join(nc.outDir, txIn.t.Format(datePath), "transactions")
+		dir := filepath.Join(nc.outDir, txIn.t.Format(time.DateOnly), "transactions", fmt.Sprintf("h%02d", txIn.t.Hour()))
 		err := os.MkdirAll(dir, os.ModePerm)
 		if err != nil {
 			log.Error(err)
@@ -121,7 +126,7 @@ func (nc *TxProcessor) processTx(txIn *TxIn) {
 		// TODO: check if file already exists, in which case either overwrite or skip
 
 		// write json to file
-		log.Infof("writing to: %s", fn)
+		log.Debugf("writing to: %s", fn)
 		content, err := json.MarshalIndent(txSummary, "", "  ")
 		if err != nil {
 			log.Errorw("json.MarshalIndent", "error", err)
@@ -155,6 +160,9 @@ func (nc *TxProcessor) cleanTxnMap() {
 			}
 		}
 		nc.txnLock.Unlock()
-		nc.log.Infow("cleanTxnMap", "n_before", nBefore, "n_after", len(nc.txn), "n_removed", nBefore-len(nc.txn), "goroutines", runtime.NumGoroutine())
+
+		// Print stats
+		nc.log.Infow("cleanTxnMap", "n_before", nBefore, "n_after", len(nc.txn), "n_removed", nBefore-len(nc.txn), "goroutines", runtime.NumGoroutine(), "tx_per_min", nc.txCnt.Load())
+		nc.txCnt.Store(0)
 	}
 }

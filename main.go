@@ -60,7 +60,7 @@ func main() {
 		log = log.With("service", *logServicePtr)
 	}
 
-	log.Infow("Starting mempool-archiver", "version", version)
+	log.Infow("Starting mempool-collector", "version", version, "outDir", *outDirPtr)
 
 	// Start service components
 	collector.Start(log, strings.Split(*nodesPtr, ","), *outDirPtr)

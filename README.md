@@ -1,5 +1,8 @@
 # Mempool Archiver
 
+[![Goreport status](https://goreportcard.com/badge/github.com/flashbots/mempool-archiver)](https://goreportcard.com/report/github.com/flashbots/mempool-archiver)
+[![Test status](https://github.com/flashbots/mempool-archiver/workflows/Checks/badge.svg)](https://github.com/flashbots/mempool-archiver/actions?query=workflow%3A%22Checks%22)
+
 ## Getting started
 
 ### Mempool Collector
@@ -7,11 +10,9 @@
 1. Connects to EL nodes (websocket)
 2. Listens for new pending transactions
 3. Can write summary to JSON file (incl. timestamp in milliseconds, hash, raw tx and various transaction details - see [example here](docs/example-tx-summary.json))
-4. TODO: Write to S3, possibly gzip JSON files
+4. TODO: Write to S3
 
-Default JSON filename: `<storage_path>/<date>/transactions/<tx_hash>.json`
-
-
+Default JSON filename: `<out_dir>/<date>/transactions/h<hour><tx_hash>.json`
 
 **Running the mempool collector:**
 
@@ -26,7 +27,7 @@ go run . -out-dir ./out
 go run . -nodes ws://server1.com:8546,ws://server2.com:8546
 ```
 
-Running `go run . -out-dir ./out` will store files like this: `out/2023-08-03/transactions/0xa342b33104151418155d6bcb25d44ee99fa175f5ef3998f5b3e94eeb3ad38503.json`
+Running `go run . -out-dir ./out` will store files like this: `out/2023-08-03/transactions/h14/0xa342b33104151418155d6bcb25d44ee99fa175f5ef3998f5b3e94eeb3ad38503.json`
 
 ```json
 {
@@ -49,8 +50,6 @@ Running `go run . -out-dir ./out` will store files like this: `out/2023-08-03/tr
 }
 ```
 
-Note: you can quick&dirty switch to hourly storage directories by [uncommenting this line](https://github.com/flashbots/mempool-archiver/blob/203224af6f6cd2ad4c1ddbbb1cd7f908b9e0fb1d/collector/consts.go#L7-L8).
-
 ---
 
 ## Architecture
@@ -66,9 +65,10 @@ Note: you can quick&dirty switch to hourly storage directories by [uncommenting 
 
 ## Todo
 
-- Write to S3
-- New service to parse a day of jsons and create a parquet summary file
-- Reconnect on broken EL connection
+- next: Write to S3
+- later: new service to process a day of jsons
+  - create a parquet summary file
+  - gzip the whole day
 
 ---
 
@@ -88,5 +88,5 @@ Lint, test, format
 ```bash
 make lint
 make test
-make test-race
+make fmt
 ```
