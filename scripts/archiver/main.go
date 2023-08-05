@@ -28,6 +28,7 @@ var (
 	dirPtr        = flag.String("dir", "", "which path to archive")
 	outDirPtr     = flag.String("out", "", "where to save output files")
 	saveCSV       = flag.Bool("csv", false, "save a csv summary")
+	withSig       = flag.Bool("with-sig", false, "save signature in summary")
 )
 
 func main() {
@@ -114,6 +115,7 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 		}
 	}
 
+	log.Infof("Counting files...")
 	cnt := 0
 	err = filepath.Walk(inDir, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
@@ -130,7 +132,34 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 		}
 
 		cnt += 1
+		return nil
+	})
+	if err != nil {
+		log.Errorw("filepath.Walk", "error", err)
+	}
+	log.Infof("Found %d files", cnt)
+
+	// Process files
+	cntProcessed := 0
+	err = filepath.Walk(inDir, func(file string, fi os.FileInfo, err error) error {
+		if err != nil {
+			log.Errorw("filepath.Walk", "error", err)
+			return nil
+		}
+
+		if fi.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(file) != ".json" {
+			return nil
+		}
+
 		log.Debug(file)
+		cntProcessed += 1
+		if cntProcessed%10000 == 0 {
+			log.Infof("Processing file %d/%d", cntProcessed, cnt)
+		}
 
 		fn := strings.Replace(file, inDir, "", 1)
 		_, err = fFileList.WriteString(fn + "\n")
@@ -157,7 +186,7 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 		}
 
 		if writeCSV {
-			err = csvWriter.Write(tx.ToCSV())
+			err = csvWriter.Write(tx.ToCSV(*withSig))
 			if err != nil {
 				log.Errorw("csvWriter.Write", "error", err)
 			}

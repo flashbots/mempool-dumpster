@@ -67,8 +67,8 @@ var TxSummaryCSVHeader []string = []string{
 	"s",
 }
 
-func (t TxSummaryJSON) ToCSV() []string {
-	return []string{
+func (t TxSummaryJSON) ToCSV(withSignature bool) []string {
+	ret := []string{
 		fmt.Sprint(t.Timestamp),
 		t.Hash,
 		// t.RawTx,
@@ -86,9 +86,11 @@ func (t TxSummaryJSON) ToCSV() []string {
 
 		fmt.Sprint(t.DataSize),
 		t.Data4Bytes,
-
-		t.V,
-		t.R,
-		t.S,
 	}
+
+	if withSignature {
+		ret = append(ret, t.V, t.R, t.S)
+	}
+
+	return ret
 }

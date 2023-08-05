@@ -44,11 +44,11 @@ func (nc *TxProcessor) Start() {
 
 	// start listening for transactions coming in through the channel
 	for txIn := range nc.txC {
-		go nc.processTx(&txIn)
+		go nc.processTx(txIn)
 	}
 }
 
-func (nc *TxProcessor) processTx(txIn *TxIn) {
+func (nc *TxProcessor) processTx(txIn TxIn) {
 	txHash := txIn.tx.Hash()
 	log := nc.log.With("tx_hash", txHash.Hex())
 	log.Debug("processTx")
@@ -172,7 +172,7 @@ func (nc *TxProcessor) cleanTxnMap() {
 		nc.txnLock.Unlock()
 
 		// Print stats
-		nc.log.Infow("cleanTxnMap", "n_before", nBefore, "n_after", len(nc.txn), "n_removed", nBefore-len(nc.txn), "goroutines", runtime.NumGoroutine(), "tx_per_min", nc.txCnt.Load())
+		nc.log.Infow("stats", "known_before", nBefore, "known_after", len(nc.txn), "known_removed", nBefore-len(nc.txn), "goroutines", runtime.NumGoroutine(), "tx_per_min", nc.txCnt.Load())
 		nc.txCnt.Store(0)
 	}
 }
