@@ -95,7 +95,7 @@ func (nc *TxProcessor) processTx(txIn TxIn) {
 	}
 
 	// build the summary
-	txSummary := TxSummaryJSON{
+	txSummary := TxDetail{
 		Timestamp: txIn.t.UnixMilli(),
 		Hash:      txHash.Hex(),
 		RawTx:     hexutil.Encode(buf.Bytes()),

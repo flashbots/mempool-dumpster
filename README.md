@@ -3,6 +3,8 @@
 [![Goreport status](https://goreportcard.com/badge/github.com/flashbots/mempool-archiver)](https://goreportcard.com/report/github.com/flashbots/mempool-archiver)
 [![Test status](https://github.com/flashbots/mempool-archiver/workflows/Checks/badge.svg)](https://github.com/flashbots/mempool-archiver/actions?query=workflow%3A%22Checks%22)
 
+Note: this is work in progress - some parts work (i.e. collector) and others are under heavy development (i.e. summarizer).
+
 ## Getting started
 
 ### Mempool Collector
@@ -93,11 +95,14 @@ make fmt
 
 ---
 
-Storage choices:
+## Open questions
+
+Storage & compression:
 
 1. Summary files (CSV, Parquet)
     a. Store with or without signature (~160b which is often about 50% of an entry)
     b. Compress? (might impact usability as Clickhouse backend or S3 Select)
+1. Parquet files: store with fields as strings (like in JSON), or in native data types? (native might be smaller size, but harder to query/parse)
 2. Raw transaction files:
     a. Keep all meta fields in JSON as-is, or strip down to _only_ raw tx? (usually between 50%-80% of the JSON bytes)
     b. Compress the whole transactions folder (should do that)
@@ -105,15 +110,9 @@ Storage choices:
 
 ---
 
-Errors:
+## TODO
 
-```bash
-panic: runtime error: slice bounds out of range [:4] with capacity 0
-
-goroutine 233424 [running]:
-github.com/flashbots/mempool-archiver/collector.(*TxProcessor).processTx(0xc00007e640, 0xc0000a8000)
-        /root/mempool-archiver/collector/tx_processor.go:94 +0x13d2
-created by github.com/flashbots/mempool-archiver/collector.(*TxProcessor).Start
-        /root/mempool-archiver/collector/tx_processor.go:47 +0x105
-exit status 2
-```
+1. Write to S3
+2. `eth_subscribe` for `newPendingTransactions` which only returns the hash (i.e. [Infura](https://docs.infura.io/networks/ethereum/json-rpc-methods/subscription-methods/eth_subscribe) -> wait a second or two, check if local node hasn't found it, and then request the hash)
+3. Parquet writer (in progress)
+4. Summarizer service

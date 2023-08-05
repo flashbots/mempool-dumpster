@@ -2,13 +2,18 @@ package main
 
 import (
 	"encoding/csv"
+	"errors"
 	"flag"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/flashbots/mempool-archiver/collector"
+	"github.com/flashbots/mempool-archiver/summarizer"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/parquet"
+	"github.com/xitongsys/parquet-go/writer"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -29,6 +34,9 @@ var (
 	outDirPtr     = flag.String("out", "", "where to save output files")
 	saveCSV       = flag.Bool("csv", false, "save a csv summary")
 	withSig       = flag.Bool("with-sig", false, "save signature in summary")
+	limit         = flag.Int("limit", 0, "max number of txs to process")
+
+	errLimitReached = errors.New("limit reached")
 )
 
 func main() {
@@ -108,12 +116,27 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 			return
 		}
 		csvWriter = csv.NewWriter(fCSV)
-		err = csvWriter.Write(collector.TxSummaryCSVHeader)
+		err = csvWriter.Write(summarizer.CSVHeader)
 		if err != nil {
 			log.Errorw("csvWriter.Write", "error", err)
 			return
 		}
 	}
+
+	// Setup parquet writer
+	fnParquet := filepath.Join(outDir, "summary.parquet")
+	log.Infof("Writing parquet to %s", fnParquet)
+	fw, err := local.NewLocalFileWriter(fnParquet)
+	if err != nil {
+		log.Fatal("Can't create parquet file", "error", err)
+	}
+	pw, err := writer.NewParquetWriter(fw, new(summarizer.TxSummaryParquetEntry), 4)
+	if err != nil {
+		log.Fatal("Can't create parquet writer", "error", err)
+	}
+	pw.RowGroupSize = 128 * 1024 * 1024 // 128M
+	pw.PageSize = 8 * 1024              // 8K
+	pw.CompressionType = parquet.CompressionCodec_SNAPPY
 
 	log.Infof("Counting files...")
 	cnt := 0
@@ -123,11 +146,7 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 			return nil
 		}
 
-		if fi.IsDir() {
-			return nil
-		}
-
-		if filepath.Ext(file) != ".json" {
+		if fi.IsDir() || filepath.Ext(file) != ".json" {
 			return nil
 		}
 
@@ -147,11 +166,7 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 			return nil
 		}
 
-		if fi.IsDir() {
-			return nil
-		}
-
-		if filepath.Ext(file) != ".json" {
+		if fi.IsDir() || filepath.Ext(file) != ".json" {
 			return nil
 		}
 
@@ -174,7 +189,7 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 		}
 
 		json := jsoniter.ConfigCompatibleWithStandardLibrary
-		var tx collector.TxSummaryJSON
+		var tx collector.TxDetail
 		err = json.Unmarshal(dat, &tx)
 		if err != nil {
 			if strings.HasPrefix(err.Error(), "Unmarshal: there are bytes left after unmarshal") { // this error still unmarshals correctly
@@ -186,21 +201,35 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 		}
 
 		if writeCSV {
-			err = csvWriter.Write(tx.ToCSV(*withSig))
+			err = csvWriter.Write(summarizer.TxDetailToCSV(tx, *withSig))
 			if err != nil {
 				log.Errorw("csvWriter.Write", "error", err)
 			}
 		}
 
+		// p := summarizer.TxSummaryParquetEntry{123, "0x123"}
+		// if err = pw.Write(p); err != nil {
+		if err = pw.Write(summarizer.TxDetailToParquet(tx)); err != nil {
+			log.Errorw("parquet.Write", "error", err)
+		}
+
+		if *limit > 0 && cntProcessed%*limit == 0 {
+			return errLimitReached
+		}
 		return nil
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, errLimitReached) {
 		log.Errorw("filepath.Walk", "error", err)
 	}
+
+	if err = pw.WriteStop(); err != nil {
+		log.Errorw("parquet.WriteStop", "error", err)
+	}
+	fw.Close()
 
 	if writeCSV {
 		csvWriter.Flush()
 	}
 
-	log.Infof("Finished processing %d JSON files", cnt)
+	log.Infof("Finished processing %d JSON files", cntProcessed)
 }
