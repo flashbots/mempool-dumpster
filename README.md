@@ -3,15 +3,24 @@
 [![Goreport status](https://goreportcard.com/badge/github.com/flashbots/mempool-archiver)](https://goreportcard.com/report/github.com/flashbots/mempool-archiver)
 [![Test status](https://github.com/flashbots/mempool-archiver/workflows/Checks/badge.svg)](https://github.com/flashbots/mempool-archiver/actions?query=workflow%3A%22Checks%22)
 
-Note: this is work in progress - some parts work (i.e. collector) and others are under heavy development (i.e. summarizer).
+Save mempool transactions from one or more EL nodes, and archive them in JSON, CSV and Parquet format.
 
-## Getting started
+---
 
-### Mempool Collector
+**Notes:**
+
+- This is work in progress - some parts work (i.e. collector) and others are under heavy development (i.e. summarizer).
+- See also discussion about storage size and considerations here: https://github.com/flashbots/mempool-archiver/issues/1
+
+---
+
+# Getting started
+
+## Mempool Collector
 
 1. Connects to EL nodes (websocket)
 2. Listens for new pending transactions
-3. Can write summary to JSON file (incl. timestamp in milliseconds, hash, raw tx and various transaction details - see [example here](docs/example-tx-summary.json))
+3. Writes a JSON file for each transaction (incl. timestamp in milliseconds, hash, raw tx and various transaction details - see [example here](docs/example-tx-summary.json))
 4. TODO: Write to S3
 
 Default JSON filename: `<out_dir>/<date>/transactions/h<hour>/<tx_hash>.json`
@@ -20,16 +29,16 @@ Default JSON filename: `<out_dir>/<date>/transactions/h<hour>/<tx_hash>.json`
 
 ```bash
 # Connect to ws://localhost:8546 and only print hashes
-go run .
+go run cmd/collector/main.go
 
 # Connect to ws://localhost:8546 and write to JSON files
-go run . -out-dir ./out
+go run cmd/collector/main.go -out-dir ./out
 
 # Connect to multiple nodes
-go run . -nodes ws://server1.com:8546,ws://server2.com:8546
+go run cmd/collector/main.go -nodes ws://server1.com:8546,ws://server2.com:8546
 ```
 
-Running `go run . -out-dir ./out` will store files like this: `out/2023-08-03/transactions/h14/0xa342b33104151418155d6bcb25d44ee99fa175f5ef3998f5b3e94eeb3ad38503.json`
+Running `go run cmd/collector/main.go -out-dir ./out` will store files like this: `out/2023-08-03/transactions/h14/0xa342b33104151418155d6bcb25d44ee99fa175f5ef3998f5b3e94eeb3ad38503.json`
 
 ```json
 {
@@ -53,11 +62,27 @@ Running `go run . -out-dir ./out` will store files like this: `out/2023-08-03/tr
 }
 ```
 
+## Summarizer
+
+Iterates over an collector output directory, and creates summary file in Parquet / CSV format.
+
+```bash
+go run cmd/summarizer/main.go -h
+```
+
 ---
 
-## Architecture
+# Architecture
 
-#### Mempool Collector
+## General design goals
+
+- Keep it simple and stupid
+- Vendor-agnostic (main flow should work on any server, independent of a cloud provider)
+- Downtime-resilience to minimize any gaps in the archive
+- A collector instance can connect to many EL nodes
+- Multiple collector instances can run concurrently without getting into each others way
+
+## Mempool Collector
 
 - `NodeConnection`
     - One for each EL connection
@@ -65,12 +90,6 @@ Running `go run . -out-dir ./out` will store files like this: `out/2023-08-03/tr
 - `TxProcessor`
     - Check if it already processed that tx
     - Store it in the output directory
-
-## Todo
-
-- next: Write to S3
-- later: archiver service (to process a day of jsons, see [scripts/archiver/](scripts/archiver/))
-  - create a CSV/Parquet summary file
 
 ---
 

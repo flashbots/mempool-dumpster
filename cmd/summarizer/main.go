@@ -4,8 +4,10 @@ import (
 	"encoding/csv"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/flashbots/mempool-archiver/collector"
@@ -22,21 +24,22 @@ var (
 	version = "dev" // is set during build process
 
 	// Default values
-	defaultDebug      = os.Getenv("DEBUG") == "1"
-	defaultLogProd    = os.Getenv("LOG_PROD") == "1"
-	defaultLogService = os.Getenv("LOG_SERVICE")
+	defaultDebug   = os.Getenv("DEBUG") == "1"
+	defaultLogProd = os.Getenv("LOG_PROD") == "1"
 
 	// Flags
-	debugPtr      = flag.Bool("debug", defaultDebug, "print debug output")
-	logProdPtr    = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
-	logServicePtr = flag.String("log-service", defaultLogService, "'service' tag to logs")
-	dirPtr        = flag.String("dir", "", "which path to archive")
-	outDirPtr     = flag.String("out", "", "where to save output files")
-	saveCSV       = flag.Bool("csv", false, "save a csv summary")
-	withSig       = flag.Bool("with-sig", false, "save signature in summary")
-	limit         = flag.Int("limit", 0, "max number of txs to process")
+	debugPtr   = flag.Bool("debug", defaultDebug, "print debug output")
+	logProdPtr = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
+	dirPtr     = flag.String("dir", "", "which path to archive")
+	outDirPtr  = flag.String("out", "", "where to save output files")
+	saveCSV    = flag.Bool("csv", false, "save a csv summary")
+	limit      = flag.Int("limit", 0, "max number of txs to process")
 
+	// Errors
 	errLimitReached = errors.New("limit reached")
+
+	// Helpers
+	log *zap.SugaredLogger
 )
 
 func main() {
@@ -65,40 +68,38 @@ func main() {
 	}
 
 	defer func() { _ = logger.Sync() }()
-	log := logger.Sugar()
-
-	if *logServicePtr != "" {
-		log = log.With("service", *logServicePtr)
-	}
+	log = logger.Sugar()
 
 	log.Infow("Starting mempool-archiver", "version", version, "dir", *dirPtr)
 
 	if *dirPtr == "" {
 		log.Fatal("-dir argument is required")
 	}
+
 	if *outDirPtr == "" {
-		log.Fatal("-outDir argument is required")
+		*outDirPtr = *dirPtr
+		log.Infof("Using %s as output directory", *outDirPtr)
 	}
 
-	archiveDirectory(log, *dirPtr, *outDirPtr, *saveCSV)
+	archiveDirectory()
 }
 
 // archiveDirectory extracts the relevant information from all JSON files in the directory into text files
-func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV bool) { //nolint:gocognit
+func archiveDirectory() { //nolint:gocognit
 	// Ensure the input directory exists
-	if _, err := os.Stat(inDir); os.IsNotExist(err) {
-		log.Fatalw("dir does not exist", "dir", inDir)
+	if _, err := os.Stat(*dirPtr); os.IsNotExist(err) {
+		log.Fatalw("dir does not exist", "dir", *dirPtr)
 	}
 
 	// Ensure the output directory exists
-	err := os.MkdirAll(outDir, os.ModePerm)
+	err := os.MkdirAll(*outDirPtr, os.ModePerm)
 	if err != nil {
 		log.Errorw("os.MkdirAll", "error", err)
 		return
 	}
 
 	// Create output files
-	fnFileList := filepath.Join(outDir, "filelist.txt")
+	fnFileList := filepath.Join(*outDirPtr, "filelist.txt")
 	log.Infof("Writing file list to %s", fnFileList)
 	fFileList, err := os.Create(fnFileList)
 	if err != nil {
@@ -107,8 +108,8 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 	}
 
 	var csvWriter *csv.Writer
-	if writeCSV {
-		fnCSV := filepath.Join(outDir, "summary.csv")
+	if *saveCSV {
+		fnCSV := filepath.Join(*outDirPtr, "summary.csv")
 		log.Infof("Writing CSV to %s", fnCSV)
 		fCSV, err := os.Create(fnCSV)
 		if err != nil {
@@ -124,7 +125,7 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 	}
 
 	// Setup parquet writer
-	fnParquet := filepath.Join(outDir, "summary.parquet")
+	fnParquet := filepath.Join(*outDirPtr, "summary.parquet")
 	log.Infof("Writing parquet to %s", fnParquet)
 	fw, err := local.NewLocalFileWriter(fnParquet)
 	if err != nil {
@@ -140,7 +141,7 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 
 	log.Infof("Counting files...")
 	cnt := 0
-	err = filepath.Walk(inDir, func(file string, fi os.FileInfo, err error) error {
+	err = filepath.Walk(*dirPtr, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
 			log.Errorw("filepath.Walk", "error", err)
 			return nil
@@ -160,7 +161,7 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 
 	// Process files
 	cntProcessed := 0
-	err = filepath.Walk(inDir, func(file string, fi os.FileInfo, err error) error {
+	err = filepath.Walk(*dirPtr, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
 			log.Errorw("filepath.Walk", "error", err)
 			return nil
@@ -175,8 +176,11 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 		if cntProcessed%10000 == 0 {
 			log.Infof("Processing file %d/%d", cntProcessed, cnt)
 		}
+		if cntProcessed%100000 == 0 {
+			PrintMemUsage()
+		}
 
-		fn := strings.Replace(file, inDir, "", 1)
+		fn := strings.Replace(file, *dirPtr, "", 1)
 		_, err = fFileList.WriteString(fn + "\n")
 		if err != nil {
 			log.Errorw("fFileList.WriteString", "error", err)
@@ -200,8 +204,8 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 			}
 		}
 
-		if writeCSV {
-			err = csvWriter.Write(summarizer.TxDetailToCSV(tx, *withSig))
+		if *saveCSV {
+			err = csvWriter.Write(summarizer.TxDetailToCSV(tx, false))
 			if err != nil {
 				log.Errorw("csvWriter.Write", "error", err)
 			}
@@ -227,9 +231,16 @@ func archiveDirectory(log *zap.SugaredLogger, inDir, outDir string, writeCSV boo
 	}
 	fw.Close()
 
-	if writeCSV {
+	if *saveCSV {
 		csvWriter.Flush()
 	}
 
 	log.Infof("Finished processing %d JSON files", cntProcessed)
+}
+
+func PrintMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	s := fmt.Sprintf("Alloc = %v MiB, tTotalAlloc = %v MiB, Sys = %v MiB, tNumGC = %v", m.Alloc/1024/1024, m.TotalAlloc/1024/1024, m.Sys/1024/1024, m.NumGC)
+	log.Info(s)
 }

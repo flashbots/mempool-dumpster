@@ -19,7 +19,7 @@ import (
 
 type TxProcessor struct {
 	log    *zap.SugaredLogger
-	txC    chan TxIn
+	txC    chan TxIn // important that value is sent in here, otherwise there are memory race conditions
 	outDir string
 
 	txn     map[common.Hash]time.Time
