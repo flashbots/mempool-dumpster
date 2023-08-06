@@ -25,6 +25,7 @@ type TxSummaryParquetEntry struct {
 	DataSize   int64  `parquet:"name=dataSize, type=INT64"`
 	Data4Bytes string `parquet:"name=data4Bytes, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
 
+	// RawTx string `parquet:"name=rawTx, type=BYTE_ARRAY"`
 	// R string `parquet:"name=r, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
 	// S string `parquet:"name=s, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
 	// V string `parquet:"name=v, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
@@ -49,6 +50,7 @@ func TxDetailToParquet(t collector.TxDetail) TxSummaryParquetEntry {
 		DataSize:   t.DataSize,
 		Data4Bytes: t.Data4Bytes,
 
+		// RawTx: t.RawTx,
 		// R: t.R,
 		// S: t.S,
 		// V: t.V,

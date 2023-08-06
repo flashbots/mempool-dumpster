@@ -95,7 +95,7 @@ func (nc *TxProcessor) processTx(txIn TxIn) {
 	}
 
 	// build the summary
-	txSummary := TxDetail{
+	txDetail := TxDetail{
 		Timestamp: txIn.t.UnixMilli(),
 		Hash:      txHash.Hex(),
 		RawTx:     hexutil.Encode(buf.Bytes()),
@@ -137,7 +137,7 @@ func (nc *TxProcessor) processTx(txIn TxIn) {
 		log.Debugf("writing to: %s", fn)
 		json := jsoniter.ConfigCompatibleWithStandardLibrary
 
-		content, err := json.MarshalIndent(txSummary, "", "  ")
+		content, err := json.MarshalIndent(txDetail, "", "  ")
 		if err != nil {
 			log.Errorw("json.MarshalIndent", "error", err)
 			return

@@ -85,7 +85,7 @@ func main() {
 }
 
 // archiveDirectory extracts the relevant information from all JSON files in the directory into text files
-func archiveDirectory() { //nolint:gocognit
+func archiveDirectory() { //nolint:gocognit,gocyclo
 	// Ensure the input directory exists
 	if _, err := os.Stat(*dirPtr); os.IsNotExist(err) {
 		log.Fatalw("dir does not exist", "dir", *dirPtr)
