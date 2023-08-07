@@ -1,17 +1,20 @@
-# Mempool Archiver
+# Mempool Dumpster 🗑️♻️
 
 [![Goreport status](https://goreportcard.com/badge/github.com/flashbots/mempool-archiver)](https://goreportcard.com/report/github.com/flashbots/mempool-archiver)
 [![Test status](https://github.com/flashbots/mempool-archiver/workflows/Checks/badge.svg?branch=main)](https://github.com/flashbots/mempool-archiver/actions?query=workflow%3A%22Checks%22)
 
-Collect mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format)/CSV/JSON format.
+Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
+
+- Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, most relevant attributes)
+- CSV: Raw transactions (RLP hex + timestamp in millis + tx hash)
 
 ---
 
 **Notes:**
 
 - This is work in progress and under heavy development.
-- Seeing about 80k - 100k unique new mempool transactions per hour, on average ~1.2kb per rawTx (as of 2023-08-07).
-- See also: [discussion about storage size and other considerations](https://github.com/flashbots/mempool-archiver/issues/1)
+- Seeing about 90k - 140k unique new mempool transactions per hour, on average ~1.2kb per rawTx (as of 2023-08-07).
+- See also: [discussion about compression](https://github.com/flashbots/mempool-archiver/issues/2) and [storage](https://github.com/flashbots/mempool-archiver/issues/1)
 
 ---
 
@@ -25,7 +28,7 @@ Collect mempool transactions from EL nodes, and archive them in [Parquet](https:
 
 Default filename:
 
-- Schema: `<out_dir>/<date>/transactions/tx-txs-<bucket_start_datetime>.csv`
+- Schema: `<out_dir>/<date>/transactions/txs-<datetime>.csv`
 - Example: `out/2023-08-07/transactions/txs-2023-08-07-10-00.csv`
 
 **Running the mempool collector:**
@@ -40,9 +43,11 @@ go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server
 
 ## Summarizer
 
-(not yet working)
+WIP
 
-Iterates over an collector output directory, and creates summary file in Parquet / CSV format with extracted transaction data: `Timestamp`, `Hash`, `ChainID`, `From`, `To`, `Value`, `Nonce`, `Gas`, `GasPrice`, `GasTipCap`, `GasFeeCap`, `DataSize`, `Data4Bytes`
+- Iterates over collector output directory
+- Creates summary file in Parquet format with [key transaction attributes](summarizer/types.go)
+- TODO: create archive from output of multiple collectors
 
 ```bash
 go run cmd/summarizer/main.go -h
@@ -58,7 +63,12 @@ go run cmd/summarizer/main.go -h
 - Keep it simple and stupid
 - Vendor-agnostic (main flow should work on any server, independent of a cloud provider)
 - Downtime-resilience to minimize any gaps in the archive
-- Multiple collector instances can run concurrently without getting into each others way
+- Multiple collector instances can run concurrently, without getting into each others way
+- Summarizer script produces the final archive (based on the input of multiple collector outputs)
+- The final archive:
+  - Includes (1) parquet file with transaction metadata, and (2) compressed file of raw transaction CSV files
+  - Compatible with [Clickhouse](https://clickhouse.com/docs/en/integrations/s3) and [S3 Select](https://docs.aws.amazon.com/AmazonS3/latest/userguide/selecting-content-from-objects.html) (Parquet using gzip compression)
+  - Easily distributable as torrent
 
 ## Mempool Collector
 
@@ -96,18 +106,25 @@ make fmt
 
 ---
 
-## Open questions
-
-Storage & compression:
-
-1. Summary files (CSV, Parquet)
-    a. Store with or without signature (~160b which is often about 50% of an entry)
-    b. Compress? (might impact usability as Clickhouse backend or S3 Select)
-1. Parquet files: store with fields as strings (like in JSON), or in native data types? (native might be smaller size, but harder to query/parse)
-
-
----
-
 ## TODO
 
 Lots, this is WIP
+
+maybe:
+
+- http server to add/remove nodes, see stats?
+- built-in torrent seeder?
+- built-in p2p mempool listener?
+
+---
+
+## License
+
+MIT
+
+---
+
+## Maintainers
+
+- [metachris](https://twitter.com/metachris)
+- [0x416e746f6e](https://github.com/0x416e746f6e)

@@ -2,21 +2,20 @@ package main
 
 import (
 	"bufio"
-	"compress/gzip"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/flashbots/mempool-archiver/collector"
 	"github.com/flashbots/mempool-archiver/summarizer"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/parquet"
 	"github.com/xitongsys/parquet-go/writer"
@@ -74,16 +73,18 @@ func main() {
 	defer func() { _ = logger.Sync() }()
 	log = logger.Sugar()
 
-	log.Infow("Starting mempool-archiver", "version", version, "dir", *dirPtr)
+	log.Infow("Starting mempool-summarizer", "version", version)
 
 	if *dirPtr == "" {
 		log.Fatal("-dir argument is required")
 	}
+	log.Infof("Input directory:  %s", *dirPtr)
 
 	if *outDirPtr == "" {
 		*outDirPtr = *dirPtr
-		log.Infof("Using %s as output directory", *outDirPtr)
+		// log.Infof("Using %s as output directory", *outDirPtr)
 	}
+	log.Infof("Output directory: %s", *outDirPtr)
 
 	archiveDirectory()
 }
@@ -102,37 +103,9 @@ func archiveDirectory() { //nolint:gocognit
 		return
 	}
 
-	// Create output files
-	fnFileList := filepath.Join(*outDirPtr, "filelist.txt.gz")
-	log.Infof("Writing file list to %s", fnFileList)
-	_fFileList, err := os.Create(fnFileList)
-	if err != nil {
-		log.Errorw("os.Create", "error", err)
-		return
-	}
-	_fFileListGz := gzip.NewWriter(_fFileList)
-	fFileListGz := bufio.NewWriter(_fFileListGz)
-
-	// var csvWriter *csv.Writer
-	// if *saveCSV {
-	// 	fnCSV := filepath.Join(*outDirPtr, "summary.csv")
-	// 	log.Infof("Writing CSV to %s", fnCSV)
-	// 	fCSV, err := os.Create(fnCSV)
-	// 	if err != nil {
-	// 		log.Errorw("os.Create", "error", err)
-	// 		return
-	// 	}
-	// 	csvWriter = csv.NewWriter(fCSV)
-	// 	err = csvWriter.Write(summarizer.CSVHeader)
-	// 	if err != nil {
-	// 		log.Errorw("csvWriter.Write", "error", err)
-	// 		return
-	// 	}
-	// }
-
 	// Setup parquet writer
-	fnParquet := filepath.Join(*outDirPtr, "summary.parquet")
-	log.Infof("Writing parquet to %s", fnParquet)
+	fnParquet := filepath.Join(*outDirPtr, "transactions.parquet")
+	log.Infof("Parquet output:   %s", fnParquet)
 	fw, err := local.NewLocalFileWriter(fnParquet)
 	if err != nil {
 		log.Fatal("Can't create parquet file", "error", err)
@@ -141,93 +114,73 @@ func archiveDirectory() { //nolint:gocognit
 	if err != nil {
 		log.Fatal("Can't create parquet writer", "error", err)
 	}
+
+	// Parquet config: https://parquet.apache.org/docs/file-format/configurations/
 	pw.RowGroupSize = 128 * 1024 * 1024 // 128M
 	pw.PageSize = 8 * 1024              // 8K
-	pw.CompressionType = parquet.CompressionCodec_SNAPPY
 
-	log.Infof("Counting files...")
-	cnt := 0
-	err = filepath.Walk(*dirPtr, func(file string, fi os.FileInfo, err error) error {
-		if err != nil {
-			log.Errorw("filepath.Walk", "error", err)
-			return nil
-		}
-
-		if fi.IsDir() || filepath.Ext(file) != ".json" {
-			return nil
-		}
-
-		cnt += 1
-		return nil
-	})
-	if err != nil {
-		log.Errorw("filepath.Walk", "error", err)
-	}
-	log.Infof("Found %d files", cnt)
+	// Parquet compression: must be gzip for compatibility with both Clickhouse and S3 Select
+	pw.CompressionType = parquet.CompressionCodec_GZIP
 
 	// Process files
-	cntProcessed := 0
+	cntProcessedFiles := 0
+	cntProcessedTx := 0
 	err = filepath.Walk(*dirPtr, func(file string, fi os.FileInfo, err error) error {
 		if err != nil {
 			log.Errorw("filepath.Walk", "error", err)
 			return nil
 		}
 
-		if fi.IsDir() || filepath.Ext(file) != ".json" {
+		if fi.IsDir() || filepath.Ext(file) != ".csv" {
 			return nil
 		}
 
-		log.Debug(file)
-		cntProcessed += 1
-		if cntProcessed%10000 == 0 {
-			log.Infof("Processing file %d/%d", cntProcessed, cnt)
-		}
-		if cntProcessed%100000 == 0 {
-			PrintMemUsage()
-		}
+		log.Infof("Processing: %s", file)
+		cntProcessedFiles += 1
 
-		fn := strings.Replace(file, *dirPtr, "", 1)
-		_, err = fFileListGz.WriteString(fn + "\n")
+		readFile, err := os.Open(file)
 		if err != nil {
-			log.Errorw("fFileList.WriteString", "error", err)
-		}
-
-		dat, err := os.ReadFile(file)
-		if err != nil {
-			log.Errorw("os.ReadFile", "error", err)
+			log.Errorw("os.Open", "error", err, "file", file)
 			return nil
 		}
+		defer readFile.Close()
 
-		json := jsoniter.ConfigCompatibleWithStandardLibrary
-		var tx collector.TxDetail
-		err = json.Unmarshal(dat, &tx)
-		if err != nil {
-			if strings.HasPrefix(err.Error(), "Unmarshal: there are bytes left after unmarshal") { // this error still unmarshals correctly
-				log.Warnw("json.Unmarshal", "error", err, "fn", file)
-			} else {
-				log.Errorw("json.Unmarshal", "error", err, "fn", file)
-				return nil
+		fileReader := bufio.NewReader(readFile)
+		for {
+			l, err := fileReader.ReadString('\n')
+			if len(l) == 0 && err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				log.Errorw("fileReader.ReadString", "error", err)
+				break
 			}
+
+			l = strings.Trim(l, "\n")
+			items := strings.Split(l, ",")
+			if len(items) != 3 {
+				log.Errorw("invalid line", "line", l)
+				continue
+			}
+
+			txSummary, err := parseTx(items[0], items[1], items[2])
+			if err != nil {
+				log.Errorw("parseTx", "error", err, "line", l)
+				continue
+			}
+
+			if err = pw.Write(txSummary); err != nil {
+				log.Errorw("parquet.Write", "error", err)
+			}
+
+			cntProcessedTx += 1
 		}
 
-		txSummary, err := parseTx(tx)
-		if err != nil {
-			log.Errorw("parseTx", "error", err, "fn", file)
-			return nil
-		}
-
-		// if *saveCSV {
-		// 	err = csvWriter.Write(summarizer.TxDetailToCSV(tx, false))
-		// 	if err != nil {
-		// 		log.Errorw("csvWriter.Write", "error", err)
-		// 	}
+		// if err := fileScanner.Err(); err != nil {
+		// 	log.Errorw("fileScanner.Scan", "error", err)
 		// }
 
-		if err = pw.Write(txSummary); err != nil {
-			log.Errorw("parquet.Write", "error", err)
-		}
-
-		if *limit > 0 && cntProcessed%*limit == 0 {
+		if *limit > 0 && cntProcessedFiles%*limit == 0 {
 			return errLimitReached
 		}
 		return nil
@@ -241,15 +194,7 @@ func archiveDirectory() { //nolint:gocognit
 	}
 	fw.Close()
 
-	fFileListGz.Flush()
-	_fFileListGz.Close()
-	_fFileList.Close()
-
-	// if *saveCSV {
-	// 	csvWriter.Flush()
-	// }
-
-	log.Infof("Finished processing %d JSON files", cntProcessed)
+	log.Infof("Finished processing %d CSV files, %d transactions", cntProcessedFiles, cntProcessedTx)
 }
 
 func PrintMemUsage() {
@@ -259,8 +204,13 @@ func PrintMemUsage() {
 	log.Info(s)
 }
 
-func parseTx(txDetail collector.TxDetail) (summarizer.TxSummaryEntry, error) {
-	rawTxBytes, err := hexutil.Decode(txDetail.RawTx)
+func parseTx(timestampMs, hash, rawTx string) (summarizer.TxSummaryEntry, error) {
+	ts, err := strconv.Atoi(timestampMs)
+	if err != nil {
+		return summarizer.TxSummaryEntry{}, err
+	}
+
+	rawTxBytes, err := hexutil.Decode(rawTx)
 	if err != nil {
 		return summarizer.TxSummaryEntry{}, err
 	}
@@ -290,7 +240,7 @@ func parseTx(txDetail collector.TxDetail) (summarizer.TxSummaryEntry, error) {
 	}
 
 	return summarizer.TxSummaryEntry{
-		Timestamp: txDetail.Timestamp,
+		Timestamp: int64(ts),
 		Hash:      tx.Hash().Hex(),
 
 		ChainID:   tx.ChainId().String(),
