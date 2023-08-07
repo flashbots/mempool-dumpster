@@ -25,7 +25,7 @@ var (
 	logProdPtr    = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
 	logServicePtr = flag.String("log-service", defaultLogService, "'service' tag to logs")
 	nodesPtr      = flag.String("nodes", "ws://localhost:8546", "comma separated list of EL nodes")
-	outDirPtr     = flag.String("out-dir", "", "path to write raw transactions to (default: disabled)")
+	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
 )
 
 func main() {

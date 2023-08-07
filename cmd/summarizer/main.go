@@ -1,7 +1,8 @@
 package main
 
 import (
-	"encoding/csv"
+	"bufio"
+	"compress/gzip"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +11,9 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/flashbots/mempool-archiver/collector"
 	"github.com/flashbots/mempool-archiver/summarizer"
 	jsoniter "github.com/json-iterator/go"
@@ -44,7 +48,7 @@ var (
 
 func main() {
 	flag.Parse()
-
+	_ = *saveCSV
 	// Logger setup
 	var logger *zap.Logger
 	zapLevel := zap.NewAtomicLevel()
@@ -85,7 +89,7 @@ func main() {
 }
 
 // archiveDirectory extracts the relevant information from all JSON files in the directory into text files
-func archiveDirectory() { //nolint:gocognit,gocyclo
+func archiveDirectory() { //nolint:gocognit
 	// Ensure the input directory exists
 	if _, err := os.Stat(*dirPtr); os.IsNotExist(err) {
 		log.Fatalw("dir does not exist", "dir", *dirPtr)
@@ -99,30 +103,32 @@ func archiveDirectory() { //nolint:gocognit,gocyclo
 	}
 
 	// Create output files
-	fnFileList := filepath.Join(*outDirPtr, "filelist.txt")
+	fnFileList := filepath.Join(*outDirPtr, "filelist.txt.gz")
 	log.Infof("Writing file list to %s", fnFileList)
-	fFileList, err := os.Create(fnFileList)
+	_fFileList, err := os.Create(fnFileList)
 	if err != nil {
 		log.Errorw("os.Create", "error", err)
 		return
 	}
+	_fFileListGz := gzip.NewWriter(_fFileList)
+	fFileListGz := bufio.NewWriter(_fFileListGz)
 
-	var csvWriter *csv.Writer
-	if *saveCSV {
-		fnCSV := filepath.Join(*outDirPtr, "summary.csv")
-		log.Infof("Writing CSV to %s", fnCSV)
-		fCSV, err := os.Create(fnCSV)
-		if err != nil {
-			log.Errorw("os.Create", "error", err)
-			return
-		}
-		csvWriter = csv.NewWriter(fCSV)
-		err = csvWriter.Write(summarizer.CSVHeader)
-		if err != nil {
-			log.Errorw("csvWriter.Write", "error", err)
-			return
-		}
-	}
+	// var csvWriter *csv.Writer
+	// if *saveCSV {
+	// 	fnCSV := filepath.Join(*outDirPtr, "summary.csv")
+	// 	log.Infof("Writing CSV to %s", fnCSV)
+	// 	fCSV, err := os.Create(fnCSV)
+	// 	if err != nil {
+	// 		log.Errorw("os.Create", "error", err)
+	// 		return
+	// 	}
+	// 	csvWriter = csv.NewWriter(fCSV)
+	// 	err = csvWriter.Write(summarizer.CSVHeader)
+	// 	if err != nil {
+	// 		log.Errorw("csvWriter.Write", "error", err)
+	// 		return
+	// 	}
+	// }
 
 	// Setup parquet writer
 	fnParquet := filepath.Join(*outDirPtr, "summary.parquet")
@@ -131,7 +137,7 @@ func archiveDirectory() { //nolint:gocognit,gocyclo
 	if err != nil {
 		log.Fatal("Can't create parquet file", "error", err)
 	}
-	pw, err := writer.NewParquetWriter(fw, new(summarizer.TxSummaryParquetEntry), 4)
+	pw, err := writer.NewParquetWriter(fw, new(summarizer.TxSummaryEntry), 4)
 	if err != nil {
 		log.Fatal("Can't create parquet writer", "error", err)
 	}
@@ -181,7 +187,7 @@ func archiveDirectory() { //nolint:gocognit,gocyclo
 		}
 
 		fn := strings.Replace(file, *dirPtr, "", 1)
-		_, err = fFileList.WriteString(fn + "\n")
+		_, err = fFileListGz.WriteString(fn + "\n")
 		if err != nil {
 			log.Errorw("fFileList.WriteString", "error", err)
 		}
@@ -197,23 +203,27 @@ func archiveDirectory() { //nolint:gocognit,gocyclo
 		err = json.Unmarshal(dat, &tx)
 		if err != nil {
 			if strings.HasPrefix(err.Error(), "Unmarshal: there are bytes left after unmarshal") { // this error still unmarshals correctly
-				log.Warnw("json.Unmarshal", "error", err, "fn", file, "txh", tx.Hash)
+				log.Warnw("json.Unmarshal", "error", err, "fn", file)
 			} else {
-				log.Errorw("json.Unmarshal", "error", err, "fn", file, "txh", tx.Hash)
+				log.Errorw("json.Unmarshal", "error", err, "fn", file)
 				return nil
 			}
 		}
 
-		if *saveCSV {
-			err = csvWriter.Write(summarizer.TxDetailToCSV(tx, false))
-			if err != nil {
-				log.Errorw("csvWriter.Write", "error", err)
-			}
+		txSummary, err := parseTx(tx)
+		if err != nil {
+			log.Errorw("parseTx", "error", err, "fn", file)
+			return nil
 		}
 
-		// p := summarizer.TxSummaryParquetEntry{123, "0x123"}
-		// if err = pw.Write(p); err != nil {
-		if err = pw.Write(summarizer.TxDetailToParquet(tx)); err != nil {
+		// if *saveCSV {
+		// 	err = csvWriter.Write(summarizer.TxDetailToCSV(tx, false))
+		// 	if err != nil {
+		// 		log.Errorw("csvWriter.Write", "error", err)
+		// 	}
+		// }
+
+		if err = pw.Write(txSummary); err != nil {
 			log.Errorw("parquet.Write", "error", err)
 		}
 
@@ -231,9 +241,13 @@ func archiveDirectory() { //nolint:gocognit,gocyclo
 	}
 	fw.Close()
 
-	if *saveCSV {
-		csvWriter.Flush()
-	}
+	fFileListGz.Flush()
+	_fFileListGz.Close()
+	_fFileList.Close()
+
+	// if *saveCSV {
+	// 	csvWriter.Flush()
+	// }
 
 	log.Infof("Finished processing %d JSON files", cntProcessed)
 }
@@ -243,4 +257,53 @@ func PrintMemUsage() {
 	runtime.ReadMemStats(&m)
 	s := fmt.Sprintf("Alloc = %v MiB, tTotalAlloc = %v MiB, Sys = %v MiB, tNumGC = %v", m.Alloc/1024/1024, m.TotalAlloc/1024/1024, m.Sys/1024/1024, m.NumGC)
 	log.Info(s)
+}
+
+func parseTx(txDetail collector.TxDetail) (summarizer.TxSummaryEntry, error) {
+	rawTxBytes, err := hexutil.Decode(txDetail.RawTx)
+	if err != nil {
+		return summarizer.TxSummaryEntry{}, err
+	}
+
+	var tx types.Transaction
+	err = rlp.DecodeBytes(rawTxBytes, &tx)
+	if err != nil {
+		return summarizer.TxSummaryEntry{}, err
+	}
+
+	// prepare 'from' address, fails often because of unsupported tx type
+	from, err := types.Sender(types.NewEIP155Signer(tx.ChainId()), &tx)
+	if err != nil {
+		_ = err
+	}
+
+	// prepare 'to' address
+	to := ""
+	if tx.To() != nil {
+		to = tx.To().Hex()
+	}
+
+	// prepare '4 bytes' of data (function name)
+	data4Bytes := ""
+	if len(tx.Data()) >= 4 {
+		data4Bytes = hexutil.Encode(tx.Data()[:4])
+	}
+
+	return summarizer.TxSummaryEntry{
+		Timestamp: txDetail.Timestamp,
+		Hash:      tx.Hash().Hex(),
+
+		ChainID:   tx.ChainId().String(),
+		From:      from.Hex(),
+		To:        to,
+		Value:     tx.Value().String(),
+		Nonce:     tx.Nonce(),
+		Gas:       tx.Gas(),
+		GasPrice:  tx.GasPrice().String(),
+		GasTipCap: tx.GasTipCap().String(),
+		GasFeeCap: tx.GasFeeCap().String(),
+
+		DataSize:   int64(len(tx.Data())),
+		Data4Bytes: data4Bytes,
+	}, nil
 }

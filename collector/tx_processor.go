@@ -11,8 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -22,6 +20,9 @@ type TxProcessor struct {
 	txC    chan TxIn // important that value is sent in here, otherwise there are memory race conditions
 	outDir string
 
+	outFiles     map[int64]*os.File // batches for 10 min intervals (key is lower 10min timestamp)
+	outFilesLock sync.RWMutex
+
 	txn     map[common.Hash]time.Time
 	txnLock sync.RWMutex
 	txCnt   atomic.Uint64
@@ -29,40 +30,83 @@ type TxProcessor struct {
 
 func NewTxProcessor(log *zap.SugaredLogger, outDir string) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
-		log:    log,
-		txC:    make(chan TxIn, 100),
-		outDir: outDir,
-		txn:    make(map[common.Hash]time.Time),
+		log:      log,
+		txC:      make(chan TxIn, 100),
+		outDir:   outDir,
+		outFiles: make(map[int64]*os.File),
+		txn:      make(map[common.Hash]time.Time),
 	}
 }
 
-func (nc *TxProcessor) Start() {
-	nc.log.Debug("Waiting for transactions...")
+func (p *TxProcessor) Start() {
+	// Ensure output directory exists
+	err := os.MkdirAll(p.outDir, os.ModePerm)
+	if err != nil {
+		p.log.Error(err)
+		return
+	}
+
+	p.log.Debug("Waiting for transactions...")
 
 	// start the txn map cleaner background task
-	go nc.cleanTxnMap()
+	go p.cleanupBackgroundTask()
 
 	// start listening for transactions coming in through the channel
-	for txIn := range nc.txC {
-		go nc.processTx(txIn)
+	for txIn := range p.txC {
+		go p.processTx(txIn)
 	}
 }
 
-func (nc *TxProcessor) processTx(txIn TxIn) {
+func (p *TxProcessor) getOutputCSVFile(timestamp int64) (*os.File, error) {
+	sec := int64(bucketMinutes * 60)
+	bucketTS := timestamp / sec * sec // down-round timestamp to last 10 minutes
+	t := time.Unix(bucketTS, 0).UTC()
+
+	// return if already open
+	p.outFilesLock.RLock()
+	f, ok := p.outFiles[bucketTS]
+	p.outFilesLock.RUnlock()
+	if ok {
+		return f, nil
+	}
+
+	// create new file
+	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
+	err := os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		p.log.Error(err)
+		return nil, err
+	}
+
+	_fn := fmt.Sprintf("txs-%s.csv", t.Format("2006-01-02-15-04"))
+	fn := filepath.Join(dir, _fn)
+	f, err = os.Create(fn)
+	if err != nil {
+		p.log.Errorw("os.Create", "error", err)
+		return nil, err
+	}
+
+	p.outFilesLock.Lock()
+	p.outFiles[bucketTS] = f
+	p.outFilesLock.Unlock()
+	return f, nil
+}
+
+func (p *TxProcessor) processTx(txIn TxIn) {
 	txHash := txIn.tx.Hash()
-	log := nc.log.With("tx_hash", txHash.Hex())
+	log := p.log.With("tx_hash", txHash.Hex())
 	log.Debug("processTx")
 
 	// process transactions only once
-	nc.txnLock.RLock()
-	_, ok := nc.txn[txHash]
-	nc.txnLock.RUnlock()
+	p.txnLock.RLock()
+	_, ok := p.txn[txHash]
+	p.txnLock.RUnlock()
 	if ok {
 		log.Debug("transaction already processed")
 		return
 	}
 
-	nc.txCnt.Inc()
+	p.txCnt.Inc()
 
 	// prepare rlp rawtx
 	buf := new(bytes.Buffer)
@@ -72,107 +116,69 @@ func (nc *TxProcessor) processTx(txIn TxIn) {
 		return
 	}
 
-	// prepare signature values
-	v, r, s := txIn.tx.RawSignatureValues()
-
-	// prepare 'from' address, fails often because of unsupported tx type
-	from, err := types.Sender(types.NewEIP155Signer(txIn.tx.ChainId()), txIn.tx)
-	if err != nil {
-		_ = err
-		// log.Debugw("failed to get sender", "error", err)
-	}
-
-	// prepare 'to' address
-	to := ""
-	if txIn.tx.To() != nil {
-		to = txIn.tx.To().Hex()
-	}
-
-	// prepare '4 bytes' of data (function name)
-	data4Bytes := ""
-	if len(txIn.tx.Data()) >= 4 {
-		data4Bytes = hexutil.Encode(txIn.tx.Data()[:4])
-	}
-
 	// build the summary
 	txDetail := TxDetail{
 		Timestamp: txIn.t.UnixMilli(),
 		Hash:      txHash.Hex(),
 		RawTx:     hexutil.Encode(buf.Bytes()),
-
-		ChainID:   txIn.tx.ChainId().String(),
-		From:      from.Hex(),
-		To:        to,
-		Value:     txIn.tx.Value().String(),
-		Nonce:     txIn.tx.Nonce(),
-		Gas:       txIn.tx.Gas(),
-		GasPrice:  txIn.tx.GasPrice().String(),
-		GasTipCap: txIn.tx.GasTipCap().String(),
-		GasFeeCap: txIn.tx.GasFeeCap().String(),
-
-		DataSize:   int64(len(txIn.tx.Data())),
-		Data4Bytes: data4Bytes,
-
-		V: v.String(),
-		R: r.String(),
-		S: s.String(),
 	}
 
-	// write json to file
-	if nc.outDir != "" {
-		// prepare path and ensure it exists
-		dir := filepath.Join(nc.outDir, txIn.t.Format(time.DateOnly), "transactions", fmt.Sprintf("h%02d", txIn.t.Hour()))
-		err := os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			log.Error(err)
-			return
-		}
-
-		// final filename
-		fn := filepath.Join(dir, txHash.Hex()+".json")
-
-		// TODO: check if file already exists, in which case either overwrite or skip
-
-		// write json to file
-		log.Debugf("writing to: %s", fn)
-		json := jsoniter.ConfigCompatibleWithStandardLibrary
-
-		content, err := json.MarshalIndent(txDetail, "", "  ")
-		if err != nil {
-			log.Errorw("json.MarshalIndent", "error", err)
-			return
-		}
-		err = os.WriteFile(fn, content, 0o600)
-		if err != nil {
-			log.Errorw("os.WriteFile", "error", err)
-			return
-		}
+	// Write to CSV file
+	f, err := p.getOutputCSVFile(txIn.t.Unix())
+	if err != nil {
+		log.Errorw("getOutputCSVFile", "error", err)
+		return
 	}
 
-	// todo: write json to S3
+	_, err = fmt.Fprintf(f, "%d,%s,%s\n", txDetail.Timestamp, txDetail.Hash, txDetail.RawTx)
+	if err != nil {
+		log.Errorw("fmt.Fprintf", "error", err)
+		return
+	}
 
 	// Remember that this transaction was processed
-	nc.txnLock.Lock()
-	nc.txn[txHash] = txIn.t
-	nc.txnLock.Unlock()
+	p.txnLock.Lock()
+	p.txn[txHash] = txIn.t
+	p.txnLock.Unlock()
 }
 
-func (nc *TxProcessor) cleanTxnMap() {
+func (p *TxProcessor) cleanupBackgroundTask() {
 	for {
 		time.Sleep(time.Minute)
 
-		// Check now and remove any old transactions
-		nBefore := len(nc.txn)
-		nc.txnLock.Lock()
-		for k, v := range nc.txn {
+		// Remove old transactions from cache
+		cachedBefore := len(p.txn)
+		p.txnLock.Lock()
+		for k, v := range p.txn {
 			if time.Since(v) > txCacheTime {
-				delete(nc.txn, k)
+				delete(p.txn, k)
 			}
 		}
-		nc.txnLock.Unlock()
+		p.txnLock.Unlock()
+
+		// Remove old files from cache
+		filesBefore := len(p.outFiles)
+		p.outFilesLock.Lock()
+		for k, f := range p.outFiles {
+			usageSec := bucketMinutes * 60 * 2
+			if time.Now().UTC().Unix()-k > int64(usageSec) { // remove all handles from 2x usage seconds ago
+				_fn := fmt.Sprintf("txs-%s.csv", time.Unix(k, 0).Format("2006-01-02-15-04"))
+				p.log.Infow("closing file", "timestamp", k, "filename", _fn)
+				delete(p.outFiles, k)
+				_ = f.Close()
+			}
+		}
+		p.outFilesLock.Unlock()
 
 		// Print stats
-		nc.log.Infow("stats", "known_before", nBefore, "known_after", len(nc.txn), "known_removed", nBefore-len(nc.txn), "goroutines", runtime.NumGoroutine(), "tx_per_min", nc.txCnt.Load())
-		nc.txCnt.Store(0)
+		p.log.Infow("stats",
+			"txcache_before", cachedBefore,
+			"txcache_after", len(p.txn),
+			"txcache_removed", cachedBefore-len(p.txn),
+			"files_before", filesBefore,
+			"files_after", len(p.outFiles),
+			"goroutines", runtime.NumGoroutine(),
+			"tx_per_min", p.txCnt.Load())
+		p.txCnt.Store(0)
 	}
 }
