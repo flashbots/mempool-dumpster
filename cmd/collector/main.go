@@ -60,6 +60,10 @@ func main() {
 		log = log.With("service", *logServicePtr)
 	}
 
+	if *outDirPtr == "" {
+		log.Fatal("No output directory not set (use -out <path>)")
+	}
+
 	log.Infow("Starting mempool-collector", "version", version, "outDir", *outDirPtr)
 
 	// Start service components

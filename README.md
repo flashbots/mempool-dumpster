@@ -31,14 +31,11 @@ Default filename:
 **Running the mempool collector:**
 
 ```bash
-# Connect to ws://localhost:8546 and only print hashes
-go run cmd/collector/main.go
-
-# Connect to ws://localhost:8546 and write to JSON files
+# Connect to ws://localhost:8546 and write CSVs into ./out
 go run cmd/collector/main.go -out ./out
 
 # Connect to multiple nodes
-go run cmd/collector/main.go -nodes ws://server1.com:8546,ws://server2.com:8546
+go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server2.com:8546
 ```
 
 ## Summarizer
@@ -103,9 +100,6 @@ make fmt
 
 Storage & compression:
 
-1. Mempool collector
-    a. Tx detail JSON files: strip down to _only_ raw tx + timestamp? (would save a lot of space)
-    a. Save only in batches - i.e. in JSONL format with a instance-uid as part of the filename? Would be useful to compress the data
 1. Summary files (CSV, Parquet)
     a. Store with or without signature (~160b which is often about 50% of an entry)
     b. Compress? (might impact usability as Clickhouse backend or S3 Select)
