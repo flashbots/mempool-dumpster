@@ -171,6 +171,10 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		}
 		p.outFilesLock.Unlock()
 
+		// Get memory stats
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+
 		// Print stats
 		p.log.Infow("stats",
 			"txcache_before", cachedBefore,
@@ -179,7 +183,11 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 			"files_before", filesBefore,
 			"files_after", len(p.outFiles),
 			"goroutines", runtime.NumGoroutine(),
-			"tx_per_min", p.txCnt.Load())
+			"alloc_mb", m.Alloc/1024/1024,
+			"num_gc", m.NumGC,
+			"tx_per_min", p.txCnt.Load(),
+		)
+
 		p.txCnt.Store(0)
 	}
 }

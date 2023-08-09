@@ -18,3 +18,4 @@
 /test
 /*.internal
 /run.sh
+/.env*

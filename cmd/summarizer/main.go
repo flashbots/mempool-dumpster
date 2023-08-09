@@ -193,7 +193,7 @@ func archiveDirectory() { //nolint:gocognit
 	}
 	fw.Close()
 
-	log.Infof("Finished processing %d CSV files, %d transactions", printer.Sprintf("%d", cntProcessedFiles), printer.Sprintf("%d", cntProcessedTx))
+	log.Infof("Finished processing %s CSV files, %s transactions", printer.Sprintf("%d", cntProcessedFiles), printer.Sprintf("%d", cntProcessedTx))
 }
 
 func PrintMemUsage() {

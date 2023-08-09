@@ -112,9 +112,7 @@ Lots, this is WIP
 
 maybe:
 
-- http server to add/remove nodes, see stats?
-- built-in torrent seeder?
-- built-in p2p mempool listener?
+- http server to add/remove nodes, see stats, pprof?
 
 ---
 
