@@ -5,16 +5,10 @@
 
 Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
-- Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, most relevant attributes)
-- CSV: Raw transactions (RLP hex + timestamp in millis + tx hash)
-
----
-
-**Notes:**
-
-- This is work in progress and under heavy development (mempool collector is relatively stable now though!)
-- Seeing about 90k - 140k unique new mempool transactions per hour, on average ~1.2kb per rawTx (as of 2023-08-07).
-- See also: [discussion about compression](https://github.com/flashbots/mempool-archiver/issues/2) and [storage](https://github.com/flashbots/mempool-archiver/issues/1)
+- Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, [attributes](summarizer/types.go); about 150MB / day)
+- CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1-1.5GB compressed / day)
+- Observing about 2-3M mempool transactions per day
+- This is **work in progress** and under heavy development (mempool collector is relatively stable now though!)
 
 ---
 
@@ -118,6 +112,12 @@ could:
 
 - stats about which node saw how many tx first
 - http server to add/remove nodes, see stats, pprof?
+
+---
+
+## Further notes
+
+- See also: [discussion about compression](https://github.com/flashbots/mempool-archiver/issues/2) and [storage](https://github.com/flashbots/mempool-archiver/issues/1)
 
 ---
 

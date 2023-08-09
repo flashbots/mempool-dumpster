@@ -2,11 +2,14 @@
 #
 # print stats (lines and disk usage) for all CSV files in a directory/subdirectory
 #
+set -o errexit
+set -o nounset
+set -o pipefail
 
 # requires directory as argument
 if [ $# -eq 0 ]
   then
-    echo "No arguments supplied"
+    echo "Usage: $0 <directory>"
     exit 1
 fi
 

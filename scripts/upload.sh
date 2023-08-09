@@ -3,11 +3,17 @@
 # This is a quick and dirty script to create a daily archive and upload to S3.
 # Only meant for development purposes, not production
 #
+set -o errexit
+set -o nounset
+set -o pipefail
+if [[ "${TRACE-0}" == "1" ]]; then
+    set -o xtrace
+fi
 
 # requires directory as argument
 if [ $# -eq 0 ]
   then
-    echo "No arguments supplied"
+    echo "Usage: $0 <directory>"
     exit 1
 fi
 
@@ -26,7 +32,7 @@ read -p "Are you sure? " -n 1 -r
 echo
 if [[ ! $REPLY =~ ^[Yy]$ ]]
 then
-  exit 0
+  exit 1
 fi
 
 # summarize raw transactions
@@ -45,3 +51,12 @@ aws s3 cp "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${
 
 echo "Uploading transactions file..."
 aws s3 cp "${date}_transactions.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${date}/"
+
+read -p "Upload successful. Remove the raw transactions directory? " -n 1 -r
+echo
+if [[ ! $REPLY =~ ^[Yy]$ ]]
+then
+  exit 0
+fi
+
+rm -rf "${date}_transactions"
