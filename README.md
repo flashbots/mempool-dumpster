@@ -112,6 +112,7 @@ Lots, this is WIP
 
 maybe:
 
+- stats about which node saw how many tx first
 - http server to add/remove nodes, see stats, pprof?
 
 ---

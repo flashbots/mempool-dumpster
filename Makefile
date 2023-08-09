@@ -8,8 +8,11 @@ v:
 clean:
 	rm -rf build/ out/
 
+.PHONY: build
 build:
-	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o your-project main.go
+	@mkdir ./build || true
+	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/collector cmd/collector/main.go
+	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/summerizer cmd/summarizer/main.go
 
 test:
 	go test ./...
