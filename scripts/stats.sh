@@ -1,15 +1,25 @@
 #!/bin/bash
+#
+# print stats (lines and disk usage) for all CSV files in a directory/subdirectory
+#
 
-# Iterate over files in current directory, and print filename, lines and size
-for x in $(ls -1); do
+# requires directory as argument
+if [ $# -eq 0 ]
+  then
+    echo "No arguments supplied"
+    exit 1
+fi
+
+# requires directory to exist
+if [ ! -d "$1" ]; then
+  echo "Directory $1 does not exist"
+  exit 1
+fi
+
+# iterate over all CSV files in any subdirectory
+for x in $(ls -1 -- $1/**/*.csv); do
 	size=$( du --si -s $x | cut -f1 )
-	size_app=$( du --si -s --apparent-size $x | cut -f1 )
 	lines=$( cat $x | wc -l )
-	printf "%s \t %'10d \t %s \t %s \n" $x $lines $size $size_app
+	printf "%s \t %'10d \t %8s \n" $x $lines $size
 done
 
-#for x in $(ls -d -1 -- */); do
-#	size=$( du --si -s $x | cut -f1 )
-#	files=$( find $x -type f | wc -l )
-#	echo -e "$x \t $size \t $files"
-#done

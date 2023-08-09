@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"strings"
@@ -21,6 +22,7 @@ var (
 	defaultLogService = os.Getenv("LOG_SERVICE")
 
 	// Flags
+	printVersion  = flag.Bool("version", false, "only print version")
 	debugPtr      = flag.Bool("debug", defaultDebug, "print debug output")
 	logProdPtr    = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
 	logServicePtr = flag.String("log-service", defaultLogService, "'service' tag to logs")
@@ -30,6 +32,12 @@ var (
 
 func main() {
 	flag.Parse()
+
+	// perhaps only print the version
+	if *printVersion {
+		fmt.Printf("mempool-collector %s\n", version)
+		return
+	}
 
 	// Logger setup
 	var logger *zap.Logger

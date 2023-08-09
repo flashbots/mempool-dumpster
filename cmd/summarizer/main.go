@@ -33,10 +33,11 @@ var (
 	defaultLogProd = os.Getenv("LOG_PROD") == "1"
 
 	// Flags
-	debugPtr   = flag.Bool("debug", defaultDebug, "print debug output")
-	logProdPtr = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
-	dirPtr     = flag.String("dir", "", "which path to archive")
-	outDirPtr  = flag.String("out", "", "where to save output files")
+	printVersion = flag.Bool("version", false, "only print version")
+	debugPtr     = flag.Bool("debug", defaultDebug, "print debug output")
+	logProdPtr   = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
+	dirPtr       = flag.String("dir", "", "which path to archive")
+	outDirPtr    = flag.String("out", "", "where to save output files")
 	// saveCSV    = flag.Bool("csv", false, "save a csv summary")
 	// limit = flag.Int("limit", 0, "max number of txs to process")
 
@@ -50,6 +51,12 @@ var (
 
 func main() {
 	flag.Parse()
+
+	// perhaps only print the version
+	if *printVersion {
+		fmt.Printf("mempool-summarizer %s\n", version)
+		return
+	}
 
 	// Logger setup
 	var logger *zap.Logger

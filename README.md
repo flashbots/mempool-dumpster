@@ -12,7 +12,7 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 **Notes:**
 
-- This is work in progress and under heavy development.
+- This is work in progress and under heavy development (mempool collector is relatively stable now though!)
 - Seeing about 90k - 140k unique new mempool transactions per hour, on average ~1.2kb per rawTx (as of 2023-08-07).
 - See also: [discussion about compression](https://github.com/flashbots/mempool-archiver/issues/2) and [storage](https://github.com/flashbots/mempool-archiver/issues/1)
 
@@ -110,8 +110,13 @@ make fmt
 
 Lots, this is WIP
 
-maybe:
+should:
 
+- collector support multiple `-node` cli args (like [mev-boost](https://github.com/flashbots/mev-boost/blob/ci-fix/cli/main.go#L87))
+
+could:
+
+- stats about which node saw how many tx first
 - http server to add/remove nodes, see stats, pprof?
 
 ---

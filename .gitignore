@@ -19,3 +19,4 @@
 /*.internal
 /run.sh
 /.env*
+/build
