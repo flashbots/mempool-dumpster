@@ -21,6 +21,8 @@ import (
 	"github.com/xitongsys/parquet-go/writer"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 var (
@@ -35,19 +37,20 @@ var (
 	logProdPtr = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
 	dirPtr     = flag.String("dir", "", "which path to archive")
 	outDirPtr  = flag.String("out", "", "where to save output files")
-	saveCSV    = flag.Bool("csv", false, "save a csv summary")
-	limit      = flag.Int("limit", 0, "max number of txs to process")
+	// saveCSV    = flag.Bool("csv", false, "save a csv summary")
+	// limit = flag.Int("limit", 0, "max number of txs to process")
 
 	// Errors
 	errLimitReached = errors.New("limit reached")
 
 	// Helpers
-	log *zap.SugaredLogger
+	log     *zap.SugaredLogger
+	printer = message.NewPrinter(language.English)
 )
 
 func main() {
 	flag.Parse()
-	_ = *saveCSV
+
 	// Logger setup
 	var logger *zap.Logger
 	zapLevel := zap.NewAtomicLevel()
@@ -176,13 +179,9 @@ func archiveDirectory() { //nolint:gocognit
 			cntProcessedTx += 1
 		}
 
-		// if err := fileScanner.Err(); err != nil {
-		// 	log.Errorw("fileScanner.Scan", "error", err)
+		// if *limit > 0 && cntProcessedFiles%*limit == 0 {
+		// 	return errLimitReached
 		// }
-
-		if *limit > 0 && cntProcessedFiles%*limit == 0 {
-			return errLimitReached
-		}
 		return nil
 	})
 	if err != nil && !errors.Is(err, errLimitReached) {
@@ -194,7 +193,7 @@ func archiveDirectory() { //nolint:gocognit
 	}
 	fw.Close()
 
-	log.Infof("Finished processing %d CSV files, %d transactions", cntProcessedFiles, cntProcessedTx)
+	log.Infof("Finished processing %d CSV files, %d transactions", printer.Sprintf("%d", cntProcessedFiles), printer.Sprintf("%d", cntProcessedTx))
 }
 
 func PrintMemUsage() {

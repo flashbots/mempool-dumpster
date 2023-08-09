@@ -17,3 +17,4 @@
 /log*
 /test
 /*.internal
+/run.sh

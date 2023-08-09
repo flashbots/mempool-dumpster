@@ -70,7 +70,7 @@ func (p *TxProcessor) getOutputCSVFile(timestamp int64) (*os.File, error) {
 		return f, nil
 	}
 
-	// create new file
+	// open file for writing
 	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
 	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
@@ -80,12 +80,13 @@ func (p *TxProcessor) getOutputCSVFile(timestamp int64) (*os.File, error) {
 
 	_fn := fmt.Sprintf("txs-%s.csv", t.Format("2006-01-02-15-04"))
 	fn := filepath.Join(dir, _fn)
-	f, err = os.Create(fn)
+	f, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		p.log.Errorw("os.Create", "error", err)
 		return nil, err
 	}
 
+	// add to open file list
 	p.outFilesLock.Lock()
 	p.outFiles[bucketTS] = f
 	p.outFilesLock.Unlock()

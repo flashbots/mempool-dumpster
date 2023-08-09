@@ -8,6 +8,7 @@ require (
 	github.com/xitongsys/parquet-go-source v0.0.0-20230607234618-40034c8066df
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.25.0
+	golang.org/x/text v0.8.0
 )
 
 require (
