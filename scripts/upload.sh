@@ -27,12 +27,14 @@ fi
 date=$(basename $1)
 
 # confirm
-echo "Uploading $1 for date $date"
-read -p "Are you sure? " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
-  exit 1
+if [ -z ${YES:-} ]; then
+  echo "Uploading $1 for date $date"
+  read -p "Are you sure? " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]
+  then
+    exit 1
+  fi
 fi
 
 # summarize raw transactions
@@ -52,11 +54,13 @@ aws s3 cp "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${
 echo "Uploading transactions file..."
 aws s3 cp "${date}_transactions.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${date}/"
 
-read -p "Upload successful. Remove the raw transactions directory? " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]
-then
-  exit 0
+if [ -z ${YES:-} ]; then
+  read -p "Upload successful. Remove the raw transactions directory? " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]
+  then
+    exit 0
+  fi
 fi
 
 rm -rf "${date}_transactions"
