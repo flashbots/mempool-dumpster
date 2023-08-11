@@ -42,18 +42,23 @@ echo "Running summarizer"
 go run cmd/summarizer/main.go -dir $1
 
 # rename
+echo "Renaming files and directories"
 mv $1/transactions.parquet "$1/${date}.parquet"
 mv $1/transactions "$1/${date}_transactions"
 cd $1
+
+# compress
+echo "Compressing transaction files..."
 zip -r "${date}_transactions.zip" "${date}_transactions"
 
-# upload
+# upload to s3
 echo "Uploading parquet file..."
 aws s3 cp "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${date}/"
 
 echo "Uploading transactions file..."
 aws s3 cp "${date}_transactions.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${date}/"
 
+# finally, remove the raw transactions directory
 if [ -z ${YES:-} ]; then
   read -p "Upload successful. Remove the raw transactions directory? " -n 1 -r
   echo

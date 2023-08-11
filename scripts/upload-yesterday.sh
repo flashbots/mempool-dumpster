@@ -12,6 +12,7 @@ fi
 d=$(date -d yesterday '+%Y-%m-%d')
 echo $d
 
-# change to script directory
+# change to project root directory
 cd "$(dirname "$0")"
-YES=1 ./upload.sh "/mnt/data/mempool-archiver/$d"
+cd ..
+YES=1 ./scripts/upload.sh "/mnt/data/mempool-archiver/$d"
