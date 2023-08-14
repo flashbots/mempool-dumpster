@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/flashbots/mempool-archiver/collector"
+	"github.com/lithammer/shortuuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -28,6 +29,7 @@ var (
 	logServicePtr = flag.String("log-service", defaultLogService, "'service' tag to logs")
 	nodesPtr      = flag.String("nodes", "ws://localhost:8546", "comma separated list of EL nodes")
 	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
+	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
 )
 
 func main() {
@@ -72,10 +74,14 @@ func main() {
 		log.Fatal("No output directory not set (use -out <path>)")
 	}
 
-	log.Infow("Starting mempool-collector", "version", version, "outDir", *outDirPtr)
+	if *uidPtr == "" {
+		*uidPtr = shortuuid.New()
+	}
+
+	log.Infow("Starting mempool-collector", "version", version, "outDir", *outDirPtr, "uid", *uidPtr)
 
 	// Start service components
-	collector.Start(log, strings.Split(*nodesPtr, ","), *outDirPtr)
+	collector.Start(log, strings.Split(*nodesPtr, ","), *outDirPtr, *uidPtr)
 
 	// Wwait for termination signal
 	exit := make(chan os.Signal, 1)

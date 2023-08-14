@@ -7,7 +7,7 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 - Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, [attributes](summarizer/types.go); about 150MB / day)
 - CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1.2GB / day zipped)
-- This is **work in progress** and under heavy development (mempool collector is relatively stable now though!)
+- This is **work in progress** and under active development (mempool collector is relatively stable now)
 - Observing about 2-4M mempool transactions per day
 
 ---
@@ -22,8 +22,8 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 Default filename:
 
-- Schema: `<out_dir>/<date>/transactions/txs-<datetime>.csv`
-- Example: `out/2023-08-07/transactions/txs-2023-08-07-10-00.csv`
+- Schema: `<out_dir>/<year-month>/collector/<date>_transactions_<uid>.csv`
+- Example: `out/2023-08/transactions/2023-08-07_transactions_collector1.csv`
 
 **Running the mempool collector:**
 
@@ -37,11 +37,10 @@ go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server
 
 ## Summarizer
 
-WIP
-
-- Iterates over collector output directory
+- Iterates over collector output directory / CSV files
 - Creates summary file in Parquet format with [key transaction attributes](summarizer/types.go)
 - TODO: create archive from output of multiple collectors
+  - Take several files/directories as input
 
 ```bash
 go run cmd/summarizer/main.go -h

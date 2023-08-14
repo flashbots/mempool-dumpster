@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	github.com/ethereum/go-ethereum v1.12.0
+	github.com/lithammer/shortuuid v3.0.0+incompatible
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/xitongsys/parquet-go-source v0.0.0-20230607234618-40034c8066df
 	go.uber.org/atomic v1.11.0
@@ -21,6 +22,7 @@ require (
 	github.com/go-ole/go-ole v1.2.1 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/holiman/uint256 v1.2.2-0.20230321075855-87b91420868c // indirect
 	github.com/huin/goupnp v1.0.3 // indirect

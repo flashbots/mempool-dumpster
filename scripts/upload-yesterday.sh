@@ -9,8 +9,12 @@ if [[ "${TRACE-0}" == "1" ]]; then
     set -o xtrace
 fi
 
+# print current date
+echo "now: $(date)"
+
+# get yesterday's date
 d=$(date -d yesterday '+%Y-%m-%d')
-echo $d
+echo "upload for: $d"
 
 # change to project root directory
 cd "$(dirname "$0")"

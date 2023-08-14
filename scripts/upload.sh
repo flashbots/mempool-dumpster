@@ -51,12 +51,15 @@ cd $1
 echo "Compressing transaction files..."
 zip -r "${date}_transactions.zip" "${date}_transactions"
 
+# extract year-month from date string
+ym=${date:0:7}
+
 # upload to s3
 echo "Uploading parquet file..."
-aws s3 cp "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${date}/"
+aws s3 cp  --no-progress "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
 echo "Uploading transactions file..."
-aws s3 cp "${date}_transactions.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${date}/"
+aws s3 cp  --no-progress "${date}_transactions.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
 # finally, remove the raw transactions directory
 if [ -z ${YES:-} ]; then

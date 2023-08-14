@@ -18,6 +18,7 @@ import (
 type TxProcessor struct {
 	log    *zap.SugaredLogger
 	txC    chan TxIn // important that value is sent in here, otherwise there are memory race conditions
+	uid    string
 	outDir string
 
 	outFiles     map[int64]*os.File // batches for 10 min intervals (key is lower 10min timestamp)
@@ -28,10 +29,11 @@ type TxProcessor struct {
 	txCnt   atomic.Uint64
 }
 
-func NewTxProcessor(log *zap.SugaredLogger, outDir string) *TxProcessor {
+func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
-		log:      log,
+		log:      log.With("uid", uid),
 		txC:      make(chan TxIn, 100),
+		uid:      uid,
 		outDir:   outDir,
 		outFiles: make(map[int64]*os.File),
 		txn:      make(map[common.Hash]time.Time),
@@ -58,11 +60,12 @@ func (p *TxProcessor) Start() {
 }
 
 func (p *TxProcessor) getOutputCSVFile(timestamp int64) (*os.File, error) {
+	// bucketTS := timestamp / secPerDay * secPerDay // down-round timestamp to start of bucket
 	sec := int64(bucketMinutes * 60)
-	bucketTS := timestamp / sec * sec // down-round timestamp to last 10 minutes
+	bucketTS := timestamp / sec * sec // timestamp down-round to start of bucket
 	t := time.Unix(bucketTS, 0).UTC()
 
-	// return if already open
+	// return if file already open
 	p.outFilesLock.RLock()
 	f, ok := p.outFiles[bucketTS]
 	p.outFilesLock.RUnlock()
@@ -71,15 +74,14 @@ func (p *TxProcessor) getOutputCSVFile(timestamp int64) (*os.File, error) {
 	}
 
 	// open file for writing
-	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
+	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "collector")
 	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		p.log.Error(err)
 		return nil, err
 	}
 
-	_fn := fmt.Sprintf("txs-%s.csv", t.Format("2006-01-02-15-04"))
-	fn := filepath.Join(dir, _fn)
+	fn := filepath.Join(dir, p.getFilename(bucketTS))
 	f, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		p.log.Errorw("os.Create", "error", err)
@@ -91,6 +93,11 @@ func (p *TxProcessor) getOutputCSVFile(timestamp int64) (*os.File, error) {
 	p.outFiles[bucketTS] = f
 	p.outFilesLock.Unlock()
 	return f, nil
+}
+
+func (p *TxProcessor) getFilename(timestamp int64) string {
+	t := time.Unix(timestamp, 0).UTC()
+	return fmt.Sprintf("%s_transactions_%s.csv", t.Format("2006-01-02-15-04"), p.uid)
 }
 
 func (p *TxProcessor) processTx(txIn TxIn) {
@@ -160,13 +167,12 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		// Remove old files from cache
 		filesBefore := len(p.outFiles)
 		p.outFilesLock.Lock()
-		for k, f := range p.outFiles {
+		for timestamp, file := range p.outFiles {
 			usageSec := bucketMinutes * 60 * 2
-			if time.Now().UTC().Unix()-k > int64(usageSec) { // remove all handles from 2x usage seconds ago
-				_fn := fmt.Sprintf("txs-%s.csv", time.Unix(k, 0).Format("2006-01-02-15-04"))
-				p.log.Infow("closing file", "timestamp", k, "filename", _fn)
-				delete(p.outFiles, k)
-				_ = f.Close()
+			if time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
+				p.log.Infow("closing file", "timestamp", timestamp, "filename", p.getFilename(timestamp))
+				delete(p.outFiles, timestamp)
+				_ = file.Close()
 			}
 		}
 		p.outFilesLock.Unlock()

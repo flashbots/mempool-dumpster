@@ -6,8 +6,8 @@ import (
 )
 
 // Start kicks off all the service components in the background
-func Start(log *zap.SugaredLogger, nodes []string, outDir string) {
-	processor := NewTxProcessor(log, outDir)
+func Start(log *zap.SugaredLogger, nodes []string, outDir, uid string) {
+	processor := NewTxProcessor(log, outDir, uid)
 	go processor.Start()
 
 	for _, node := range nodes {
