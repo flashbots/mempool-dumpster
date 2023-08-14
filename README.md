@@ -8,7 +8,14 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 - Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, [attributes](summarizer/types.go); about 150MB / day)
 - CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1.2GB / day zipped)
 - This is **work in progress** and under active development (mempool collector is relatively stable now)
-- Observing about 50k-100k mempool transactions per hour, 1-2M transactions per day
+- Observing about 30k - 100k mempool transactions per hour (1M - 1.5M transactions per day)
+
+---
+
+# System architecture
+
+1. [Mempool Collector](cmd/collector/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding.
+2. [summarizer](cmd/summarizer/main.go): Takes collector CSV files as input, dedupes, sorts by timestamp and writes to CSV + Parquet output files
 
 ---
 
@@ -22,8 +29,8 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 Default filename:
 
-- Schema: `<out_dir>/<year-month>/collector/<date>_transactions_<uid>.csv`
-- Example: `out/2023-08/transactions/2023-08-07_transactions_collector1.csv`
+- Schema: `<out_dir>/<year-month>/transactions/<date>_transactions_<uid>.csv`
+- Example: `out/2023-08/transactions/2023-08-07-10-00_transactions_collector1.csv`
 
 **Running the mempool collector:**
 
@@ -44,6 +51,8 @@ go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server
 
 ```bash
 go run cmd/summarizer/main.go -h
+
+go run cmd/summarizer2/main.go -out /mnt/data/mempool-archiver/2023-08-12/ --out-date 2023-08-12 /mnt/data/mempool-archiver/2023-08-12/2023-08-12_transactions/*.csv
 ```
 
 

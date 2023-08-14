@@ -31,7 +31,7 @@ type TxProcessor struct {
 
 func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
-		log:      log.With("uid", uid),
+		log:      log, // .With("uid", uid),
 		txC:      make(chan TxIn, 100),
 		uid:      uid,
 		outDir:   outDir,
@@ -59,7 +59,7 @@ func (p *TxProcessor) Start() {
 	}
 }
 
-func (p *TxProcessor) getOutputCSVFile(timestamp int64) (*os.File, error) {
+func (p *TxProcessor) getOutputCSVFile(timestamp int64) (f *os.File, isCreated bool, err error) {
 	// bucketTS := timestamp / secPerDay * secPerDay // down-round timestamp to start of bucket
 	sec := int64(bucketMinutes * 60)
 	bucketTS := timestamp / sec * sec // timestamp down-round to start of bucket
@@ -70,29 +70,29 @@ func (p *TxProcessor) getOutputCSVFile(timestamp int64) (*os.File, error) {
 	f, ok := p.outFiles[bucketTS]
 	p.outFilesLock.RUnlock()
 	if ok {
-		return f, nil
+		return f, false, nil
 	}
 
 	// open file for writing
-	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "collector")
-	err := os.MkdirAll(dir, os.ModePerm)
+	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
+	err = os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		p.log.Error(err)
-		return nil, err
+		return nil, false, err
 	}
 
 	fn := filepath.Join(dir, p.getFilename(bucketTS))
 	f, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		p.log.Errorw("os.Create", "error", err)
-		return nil, err
+		return nil, false, err
 	}
 
 	// add to open file list
 	p.outFilesLock.Lock()
 	p.outFiles[bucketTS] = f
 	p.outFilesLock.Unlock()
-	return f, nil
+	return f, true, nil
 }
 
 func (p *TxProcessor) getFilename(timestamp int64) string {
@@ -132,10 +132,14 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	}
 
 	// Write to CSV file
-	f, err := p.getOutputCSVFile(txIn.t.Unix())
+	f, isCreated, err := p.getOutputCSVFile(txIn.t.Unix())
 	if err != nil {
 		log.Errorw("getOutputCSVFile", "error", err)
 		return
+	}
+
+	if isCreated {
+		p.log.Infof("New file created: %s", f.Name())
 	}
 
 	_, err = fmt.Fprintf(f, "%d,%s,%s\n", txDetail.Timestamp, txDetail.Hash, txDetail.RawTx)
