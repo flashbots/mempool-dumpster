@@ -55,7 +55,7 @@ func (p *TxProcessor) Start() {
 
 	// start listening for transactions coming in through the channel
 	for txIn := range p.txC {
-		go p.processTx(txIn)
+		p.processTx(txIn)
 	}
 }
 

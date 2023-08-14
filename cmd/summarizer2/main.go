@@ -8,16 +8,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/flashbots/mempool-archiver/common"
 	"github.com/flashbots/mempool-archiver/summarizer"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -26,14 +25,14 @@ var (
 	version = "dev" // is set during build process
 
 	// Default values
-	defaultDebug   = os.Getenv("DEBUG") == "1"
-	defaultLogProd = os.Getenv("LOG_PROD") == "1"
+	defaultDebug = os.Getenv("DEBUG") == "1"
+	// defaultLogProd = os.Getenv("LOG_PROD") == "1"
 
 	// Flags
 	printVersion = flag.Bool("version", false, "only print version")
 	debugPtr     = flag.Bool("debug", defaultDebug, "print debug output")
-	logProdPtr   = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
-	outDirPtr    = flag.String("out", "", "where to save output files")
+	// logProdPtr   = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
+	outDirPtr = flag.String("out", "", "where to save output files")
 	// limit = flag.Int("limit", 0, "max number of txs to process")
 
 	// Errors
@@ -45,6 +44,11 @@ var (
 )
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Use: %s -out <output_directory> <input_file1> <input_file2> <input_dir>/*.csv ... \n\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
 
 	// perhaps only print the version
@@ -54,32 +58,12 @@ func main() {
 	}
 
 	// Logger setup
-	var logger *zap.Logger
-	zapLevel := zap.NewAtomicLevel()
-	if *debugPtr {
-		zapLevel.SetLevel(zap.DebugLevel)
-	}
-	if *logProdPtr {
-		encoderCfg := zap.NewProductionEncoderConfig()
-		encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-		logger = zap.New(zapcore.NewCore(
-			zapcore.NewJSONEncoder(encoderCfg),
-			zapcore.Lock(os.Stdout),
-			zapLevel,
-		))
-	} else {
-		logger = zap.New(zapcore.NewCore(
-			zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
-			zapcore.Lock(os.Stdout),
-			zapLevel,
-		))
-	}
-
-	defer func() { _ = logger.Sync() }()
-	log = logger.Sugar()
+	log = common.GetLogger(*debugPtr, false)
+	defer func() { _ = log.Sync() }()
 
 	// Ensure output directory is set
 	if *outDirPtr == "" {
+		flag.Usage()
 		log.Fatal("-out argument is required")
 	}
 
@@ -104,13 +88,19 @@ func main() {
 }
 
 // archiveDirectory parses all input CSV files into one output CSV and one output Parquet file.
-func archiveDirectory(files []string) {
+func archiveDirectory(files []string) { //nolint:gocognit
 	// Ensure all files exist and are CSVs
 	for _, filename := range files {
-		if _, err := os.Stat(filename); errors.Is(err, os.ErrNotExist) {
+		s, err := os.Stat(filename)
+		if errors.Is(err, os.ErrNotExist) {
 			log.Fatalf("Input file does not exist: %s", filename)
+		} else if err != nil {
+			log.Fatalf("os.Stat: %s", err)
 		}
-		if filepath.Ext(filename) != ".csv" {
+
+		if s.IsDir() {
+			log.Fatalf("Input file is a directory: %s", filename)
+		} else if filepath.Ext(filename) != ".csv" {
 			log.Fatalf("Input file is not a CSV file: %s", filename)
 		}
 	}
@@ -209,11 +199,12 @@ func archiveDirectory(files []string) {
 			"txInFile", printer.Sprintf("%d", cntTxInFileTotal),
 			"txInFileNew", printer.Sprintf("%d", cntTxInFileNew),
 			"txTotal", printer.Sprintf("%d", cntProcessedTx),
-			"memUsedMiB", printer.Sprintf("%d", GetMemUsageMb()),
+			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
 		)
-		break
+		// break
 	}
-	PrintMemUsage()
+
+	log.Infow("Processed all input files", "files", cntProcessedFiles, "txTotal", printer.Sprintf("%d", cntProcessedTx), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
 	// if err = pw.Write(txSummary); err != nil {
 	// 	log.Errorw("parquet.Write", "error", err)
@@ -234,19 +225,6 @@ func archiveDirectory(files []string) {
 	// 	fw.Close()
 
 	log.Infof("Finished processing %s CSV files, %s transactions", printer.Sprintf("%d", cntProcessedFiles), printer.Sprintf("%d", cntProcessedTx))
-}
-
-func GetMemUsageMb() uint64 {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	return m.Alloc / 1024 / 1024
-}
-
-func PrintMemUsage() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	s := fmt.Sprintf("Alloc = %v MiB, tTotalAlloc = %v MiB, Sys = %v MiB, tNumGC = %v", m.Alloc/1024/1024, m.TotalAlloc/1024/1024, m.Sys/1024/1024, m.NumGC)
-	log.Info(s)
 }
 
 func parseTx(timestampMs, hash, rawTx string) (summarizer.TxSummaryEntry, *types.Transaction, error) {

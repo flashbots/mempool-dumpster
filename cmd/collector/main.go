@@ -75,7 +75,7 @@ func main() {
 	}
 
 	if *uidPtr == "" {
-		*uidPtr = shortuuid.New()
+		*uidPtr = shortuuid.New()[:6]
 	}
 
 	log.Infow("Starting mempool-collector", "version", version, "outDir", *outDirPtr, "uid", *uidPtr)
