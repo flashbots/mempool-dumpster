@@ -59,47 +59,6 @@ func (p *TxProcessor) Start() {
 	}
 }
 
-func (p *TxProcessor) getOutputCSVFile(timestamp int64) (f *os.File, isCreated bool, err error) {
-	// bucketTS := timestamp / secPerDay * secPerDay // down-round timestamp to start of bucket
-	sec := int64(bucketMinutes * 60)
-	bucketTS := timestamp / sec * sec // timestamp down-round to start of bucket
-	t := time.Unix(bucketTS, 0).UTC()
-
-	// return if file already open
-	p.outFilesLock.RLock()
-	f, ok := p.outFiles[bucketTS]
-	p.outFilesLock.RUnlock()
-	if ok {
-		return f, false, nil
-	}
-
-	// open file for writing
-	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
-	err = os.MkdirAll(dir, os.ModePerm)
-	if err != nil {
-		p.log.Error(err)
-		return nil, false, err
-	}
-
-	fn := filepath.Join(dir, p.getFilename(bucketTS))
-	f, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		p.log.Errorw("os.Create", "error", err)
-		return nil, false, err
-	}
-
-	// add to open file list
-	p.outFilesLock.Lock()
-	p.outFiles[bucketTS] = f
-	p.outFilesLock.Unlock()
-	return f, true, nil
-}
-
-func (p *TxProcessor) getFilename(timestamp int64) string {
-	t := time.Unix(timestamp, 0).UTC()
-	return fmt.Sprintf("%s_transactions_%s.csv", t.Format("2006-01-02-15-04"), p.uid)
-}
-
 func (p *TxProcessor) processTx(txIn TxIn) {
 	txHash := txIn.tx.Hash()
 	log := p.log.With("tx_hash", txHash.Hex())
@@ -152,6 +111,47 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.txnLock.Lock()
 	p.txn[txHash] = txIn.t
 	p.txnLock.Unlock()
+}
+
+func (p *TxProcessor) getOutputCSVFile(timestamp int64) (f *os.File, isCreated bool, err error) {
+	// bucketTS := timestamp / secPerDay * secPerDay // down-round timestamp to start of bucket
+	sec := int64(bucketMinutes * 60)
+	bucketTS := timestamp / sec * sec // timestamp down-round to start of bucket
+	t := time.Unix(bucketTS, 0).UTC()
+
+	// return if file already open
+	p.outFilesLock.RLock()
+	f, ok := p.outFiles[bucketTS]
+	p.outFilesLock.RUnlock()
+	if ok {
+		return f, false, nil
+	}
+
+	// open file for writing
+	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		p.log.Error(err)
+		return nil, false, err
+	}
+
+	fn := filepath.Join(dir, p.getFilename(bucketTS))
+	f, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		p.log.Errorw("os.Create", "error", err)
+		return nil, false, err
+	}
+
+	// add to open file list
+	p.outFilesLock.Lock()
+	p.outFiles[bucketTS] = f
+	p.outFilesLock.Unlock()
+	return f, true, nil
+}
+
+func (p *TxProcessor) getFilename(timestamp int64) string {
+	t := time.Unix(timestamp, 0).UTC()
+	return fmt.Sprintf("%s_transactions_%s.csv", t.Format("2006-01-02-15-04"), p.uid)
 }
 
 func (p *TxProcessor) cleanupBackgroundTask() {
