@@ -1,4 +1,4 @@
-module github.com/flashbots/mempool-archiver
+module github.com/flashbots/mempool-dumpster
 
 go 1.19
 

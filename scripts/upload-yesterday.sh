@@ -19,4 +19,4 @@ echo "upload for: $d"
 # change to project root directory
 cd "$(dirname "$0")"
 cd ..
-YES=1 ./scripts/upload.sh "/mnt/data/mempool-archiver/$d"
+YES=1 ./scripts/upload.sh "/mnt/data/mempool-dumpster/$d"

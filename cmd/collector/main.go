@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/flashbots/mempool-archiver/collector"
+	"github.com/flashbots/mempool-dumpster/collector"
 	"github.com/lithammer/shortuuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

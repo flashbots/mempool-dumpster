@@ -1,7 +1,7 @@
 # Mempool Dumpster 🗑️♻️
 
-[![Goreport status](https://goreportcard.com/badge/github.com/flashbots/mempool-archiver)](https://goreportcard.com/report/github.com/flashbots/mempool-archiver)
-[![Test status](https://github.com/flashbots/mempool-archiver/workflows/Checks/badge.svg?branch=main)](https://github.com/flashbots/mempool-archiver/actions?query=workflow%3A%22Checks%22)
+[![Goreport status](https://goreportcard.com/badge/github.com/flashbots/mempool-dumpster)](https://goreportcard.com/report/github.com/flashbots/mempool-dumpster)
+[![Test status](https://github.com/flashbots/mempool-dumpster/workflows/Checks/badge.svg?branch=main)](https://github.com/flashbots/mempool-dumpster/actions?query=workflow%3A%22Checks%22)
 
 Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
@@ -52,7 +52,7 @@ go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server
 ```bash
 go run cmd/summarizer/main.go -h
 
-go run cmd/summarizer/main.go -out /mnt/data/mempool-archiver/2023-08-12/ --out-date 2023-08-12 /mnt/data/mempool-archiver/2023-08-12/2023-08-12_transactions/*.csv
+go run cmd/summarizer/main.go -out /mnt/data/mempool-dumpster/2023-08-12/ --out-date 2023-08-12 /mnt/data/mempool-dumpster/2023-08-12/2023-08-12_transactions/*.csv
 ```
 
 
@@ -125,7 +125,7 @@ could:
 
 ## Further notes
 
-- See also: [discussion about compression](https://github.com/flashbots/mempool-archiver/issues/2) and [storage](https://github.com/flashbots/mempool-archiver/issues/1)
+- See also: [discussion about compression](https://github.com/flashbots/mempool-dumpster/issues/2) and [storage](https://github.com/flashbots/mempool-dumpster/issues/1)
 
 ---
 
