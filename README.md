@@ -7,7 +7,7 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 - Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, [attributes](summarizer/types.go); about 100MB / day)
 - CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1GB / day zipped)
-- This is **work in progress** and under active development (mempool collector is relatively stable now)
+- This project is under active development, although relatively stable and ready to use
 - Observing about 30k - 100k mempool transactions per hour (1M - 1.5M transactions per day)
 
 ---

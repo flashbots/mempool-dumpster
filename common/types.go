@@ -1,5 +1,4 @@
-// Package summarizer contains stuff for the summarizer script
-package summarizer
+package common
 
 type TxSummaryEntry struct {
 	Timestamp int64  `parquet:"name=timestamp, type=INT64, convertedtype=TIMESTAMP_MILLIS"`

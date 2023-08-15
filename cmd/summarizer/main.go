@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/flashbots/mempool-dumpster/common"
-	"github.com/flashbots/mempool-dumpster/summarizer"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/parquet"
 	"github.com/xitongsys/parquet-go/writer"
@@ -131,7 +130,7 @@ func archiveDirectory(files []string) { //nolint:gocognit
 	// Process input files
 	type txMeta struct {
 		rlp     string
-		summary *summarizer.TxSummaryEntry
+		summary *common.TxSummaryEntry
 	}
 
 	// Collect transactions from all input files to memory (deduped)
@@ -236,7 +235,7 @@ func archiveDirectory(files []string) { //nolint:gocognit
 	if err != nil {
 		log.Fatal("Can't create parquet file", "error", err)
 	}
-	pw, err := writer.NewParquetWriter(fw, new(summarizer.TxSummaryEntry), 4)
+	pw, err := writer.NewParquetWriter(fw, new(common.TxSummaryEntry), 4)
 	if err != nil {
 		log.Fatal("Can't create parquet writer", "error", err)
 	}
@@ -279,16 +278,16 @@ func archiveDirectory(files []string) { //nolint:gocognit
 	log.Infof("Finished processing %s CSV files, wrote %s transactions", printer.Sprintf("%d", cntProcessedFiles), printer.Sprintf("%d", cntTxWritten))
 }
 
-func parseTx(timestampMs int64, hash, rawTx string) (summarizer.TxSummaryEntry, *types.Transaction, error) {
+func parseTx(timestampMs int64, hash, rawTx string) (common.TxSummaryEntry, *types.Transaction, error) {
 	rawTxBytes, err := hexutil.Decode(rawTx)
 	if err != nil {
-		return summarizer.TxSummaryEntry{}, nil, err
+		return common.TxSummaryEntry{}, nil, err
 	}
 
 	var tx types.Transaction
 	err = rlp.DecodeBytes(rawTxBytes, &tx)
 	if err != nil {
-		return summarizer.TxSummaryEntry{}, nil, err
+		return common.TxSummaryEntry{}, nil, err
 	}
 
 	// prepare 'from' address, fails often because of unsupported tx type
@@ -309,7 +308,7 @@ func parseTx(timestampMs int64, hash, rawTx string) (summarizer.TxSummaryEntry, 
 		data4Bytes = hexutil.Encode(tx.Data()[:4])
 	}
 
-	return summarizer.TxSummaryEntry{
+	return common.TxSummaryEntry{
 		Timestamp: timestampMs,
 		Hash:      tx.Hash().Hex(),
 
