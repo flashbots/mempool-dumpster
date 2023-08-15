@@ -5,8 +5,8 @@
 
 Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
-- Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, [attributes](summarizer/types.go); about 150MB / day)
-- CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1.2GB / day zipped)
+- Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, [attributes](summarizer/types.go); about 100MB / day)
+- CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1GB / day zipped)
 - This is **work in progress** and under active development (mempool collector is relatively stable now)
 - Observing about 30k - 100k mempool transactions per hour (1M - 1.5M transactions per day)
 
@@ -52,7 +52,7 @@ go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server
 ```bash
 go run cmd/summarizer/main.go -h
 
-go run cmd/summarizer2/main.go -out /mnt/data/mempool-archiver/2023-08-12/ --out-date 2023-08-12 /mnt/data/mempool-archiver/2023-08-12/2023-08-12_transactions/*.csv
+go run cmd/summarizer/main.go -out /mnt/data/mempool-archiver/2023-08-12/ --out-date 2023-08-12 /mnt/data/mempool-archiver/2023-08-12/2023-08-12_transactions/*.csv
 ```
 
 

@@ -8,19 +8,19 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/flashbots/mempool-archiver/common"
 	"github.com/flashbots/mempool-archiver/summarizer"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/parquet"
 	"github.com/xitongsys/parquet-go/writer"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -29,20 +29,19 @@ var (
 	version = "dev" // is set during build process
 
 	// Default values
-	defaultDebug   = os.Getenv("DEBUG") == "1"
-	defaultLogProd = os.Getenv("LOG_PROD") == "1"
+	defaultDebug = os.Getenv("DEBUG") == "1"
+	// defaultLogProd = os.Getenv("LOG_PROD") == "1"
 
 	// Flags
 	printVersion = flag.Bool("version", false, "only print version")
 	debugPtr     = flag.Bool("debug", defaultDebug, "print debug output")
-	logProdPtr   = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
-	dirPtr       = flag.String("dir", "", "which path to archive")
-	outDirPtr    = flag.String("out", "", "where to save output files")
-	// saveCSV    = flag.Bool("csv", false, "save a csv summary")
+	// logProdPtr   = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
+	outDirPtr  = flag.String("out", "", "where to save output files")
+	outDatePtr = flag.String("out-date", "", "date to use in output file names")
 	// limit = flag.Int("limit", 0, "max number of txs to process")
 
 	// Errors
-	errLimitReached = errors.New("limit reached")
+	// errLimitReached = errors.New("limit reached")
 
 	// Helpers
 	log     *zap.SugaredLogger
@@ -50,6 +49,11 @@ var (
 )
 
 func main() {
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Use: %s -out <output_directory> <input_file1> <input_file2> <input_dir>/*.csv ... \n\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
 
 	// perhaps only print the version
@@ -59,52 +63,24 @@ func main() {
 	}
 
 	// Logger setup
-	var logger *zap.Logger
-	zapLevel := zap.NewAtomicLevel()
-	if *debugPtr {
-		zapLevel.SetLevel(zap.DebugLevel)
-	}
-	if *logProdPtr {
-		encoderCfg := zap.NewProductionEncoderConfig()
-		encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-		logger = zap.New(zapcore.NewCore(
-			zapcore.NewJSONEncoder(encoderCfg),
-			zapcore.Lock(os.Stdout),
-			zapLevel,
-		))
-	} else {
-		logger = zap.New(zapcore.NewCore(
-			zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
-			zapcore.Lock(os.Stdout),
-			zapLevel,
-		))
+	log = common.GetLogger(*debugPtr, false)
+	defer func() { _ = log.Sync() }()
+
+	// Ensure output directory is set
+	if *outDirPtr == "" {
+		flag.Usage()
+		log.Fatal("-out argument is required")
 	}
 
-	defer func() { _ = logger.Sync() }()
-	log = logger.Sugar()
+	// Collect input files from arguments
+	files := flag.Args()
+	if flag.NArg() == 0 {
+		fmt.Println("No input files specified as arguments.")
+		os.Exit(1)
+	}
 
 	log.Infow("Starting mempool-summarizer", "version", version)
-
-	if *dirPtr == "" {
-		log.Fatal("-dir argument is required")
-	}
-	log.Infof("Input directory:  %s", *dirPtr)
-
-	if *outDirPtr == "" {
-		*outDirPtr = *dirPtr
-		// log.Infof("Using %s as output directory", *outDirPtr)
-	}
 	log.Infof("Output directory: %s", *outDirPtr)
-
-	archiveDirectory()
-}
-
-// archiveDirectory extracts the relevant information from all JSON files in the directory into text files
-func archiveDirectory() { //nolint:gocognit
-	// Ensure the input directory exists
-	if _, err := os.Stat(*dirPtr); os.IsNotExist(err) {
-		log.Fatalw("dir does not exist", "dir", *dirPtr)
-	}
 
 	// Ensure the output directory exists
 	err := os.MkdirAll(*outDirPtr, os.ModePerm)
@@ -113,9 +89,149 @@ func archiveDirectory() { //nolint:gocognit
 		return
 	}
 
-	// Setup parquet writer
+	archiveDirectory(files)
+}
+
+// archiveDirectory parses all input CSV files into one output CSV and one output Parquet file.
+func archiveDirectory(files []string) { //nolint:gocognit
+	// Prepare output file paths, and make sure they don't exist yet
 	fnParquet := filepath.Join(*outDirPtr, "transactions.parquet")
-	log.Infof("Parquet output:   %s", fnParquet)
+	if *outDatePtr != "" {
+		fnParquet = filepath.Join(*outDirPtr, fmt.Sprintf("%s.parquet", *outDatePtr))
+	}
+
+	fnTransactions := filepath.Join(*outDirPtr, "transactions.csv")
+	if *outDatePtr != "" {
+		fnTransactions = filepath.Join(*outDirPtr, fmt.Sprintf("%s_transactions.csv", *outDatePtr))
+	}
+
+	if _, err := os.Stat(fnParquet); !errors.Is(err, os.ErrNotExist) {
+		log.Fatalf("Output file already exists: %s", fnParquet)
+	}
+	if _, err := os.Stat(fnTransactions); !errors.Is(err, os.ErrNotExist) {
+		log.Fatalf("Output file already exists: %s", fnTransactions)
+	}
+
+	// Ensure all files exist and are CSVs
+	for _, filename := range files {
+		s, err := os.Stat(filename)
+		if errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("Input file does not exist: %s", filename)
+		} else if err != nil {
+			log.Fatalf("os.Stat: %s", err)
+		}
+
+		if s.IsDir() {
+			log.Fatalf("Input file is a directory: %s", filename)
+		} else if filepath.Ext(filename) != ".csv" {
+			log.Fatalf("Input file is not a CSV file: %s", filename)
+		}
+	}
+
+	// Process input files
+	type txMeta struct {
+		rlp     string
+		summary *summarizer.TxSummaryEntry
+	}
+
+	// Collect transactions from all input files to memory (deduped)
+	cntProcessedFiles := 0
+	txs := make(map[string]*txMeta)
+	for _, filename := range files {
+		log.Infof("Processing: %s", filename)
+		cntProcessedFiles += 1
+		cntTxInFileTotal := 0
+		cntTxInFileNew := 0
+
+		readFile, err := os.Open(filename)
+		if err != nil {
+			log.Errorw("os.Open", "error", err, "file", filename)
+			return
+		}
+		defer readFile.Close()
+
+		fileReader := bufio.NewReader(readFile)
+		for {
+			l, err := fileReader.ReadString('\n')
+			if len(l) == 0 && err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				log.Errorw("fileReader.ReadString", "error", err)
+				break
+			}
+
+			l = strings.Trim(l, "\n")
+			items := strings.Split(l, ",") // timestamp,hash,rlp
+			if len(items) != 3 {
+				log.Errorw("invalid line", "line", l)
+				continue
+			}
+
+			cntTxInFileTotal += 1
+
+			ts, err := strconv.Atoi(items[0])
+			if err != nil {
+				log.Errorw("strconv.Atoi", "error", err, "line", l)
+				continue
+			}
+			txTimestamp := int64(ts)
+
+			// Dedupe transactions, and make sure to store the lowest timestamp
+			if _, ok := txs[items[1]]; ok {
+				log.Debugf("Skipping duplicate tx: %s", items[1])
+
+				if txTimestamp < txs[items[1]].summary.Timestamp {
+					txs[items[1]].summary.Timestamp = txTimestamp
+					log.Debugw("Updating timestamp for duplicate tx", "line", l)
+				}
+
+				continue
+			}
+
+			// Process this tx
+			txSummary, _, err := parseTx(txTimestamp, items[1], items[2])
+			if err != nil {
+				log.Errorw("parseTx", "error", err, "line", l)
+				continue
+			}
+
+			// Add to map
+			txs[items[1]] = &txMeta{items[2], &txSummary}
+			cntTxInFileNew += 1
+		}
+		log.Infow("Processed file",
+			"txInFile", printer.Sprintf("%d", cntTxInFileTotal),
+			"txNew", printer.Sprintf("%d", cntTxInFileNew),
+			"txTotal", printer.Sprintf("%d", len(txs)),
+			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		)
+		// break
+	}
+
+	log.Infow("Processed all input files", "files", cntProcessedFiles, "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+
+	// Convert map to slice sorted by summary.timestamp
+	log.Info("Sorting transactions by timestamp...")
+	txsSlice := make([]*txMeta, 0, len(txs))
+	for _, v := range txs {
+		txsSlice = append(txsSlice, v)
+	}
+	sort.Slice(txsSlice, func(i, j int) bool {
+		return txsSlice[i].summary.Timestamp < txsSlice[j].summary.Timestamp
+	})
+	log.Infow("Transactions sorted...", "txs", printer.Sprintf("%d", len(txsSlice)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+
+	// Starting to write output files
+	log.Infof("Output CSV file: %s", fnTransactions)
+	log.Infof("Output Parquet file: %s", fnParquet)
+	fTransactions, err := os.OpenFile(fnTransactions, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		log.Errorw("os.Create", "error", err)
+		return
+	}
+
+	// Setup parquet writer
 	fw, err := local.NewLocalFileWriter(fnParquet)
 	if err != nil {
 		log.Fatal("Can't create parquet file", "error", err)
@@ -132,99 +248,47 @@ func archiveDirectory() { //nolint:gocognit
 	// Parquet compression: must be gzip for compatibility with both Clickhouse and S3 Select
 	pw.CompressionType = parquet.CompressionCodec_GZIP
 
-	// Process files
-	cntProcessedFiles := 0
-	cntProcessedTx := 0
-	err = filepath.Walk(*dirPtr, func(file string, fi os.FileInfo, err error) error {
-		if err != nil {
-			log.Errorw("filepath.Walk", "error", err)
-			return nil
+	log.Info("Writing output files...")
+	cntTxWritten := 0
+	cntTxTotal := len(txsSlice)
+	for _, tx := range txsSlice {
+		// Write to parquet
+		if err = pw.Write(tx.summary); err != nil {
+			log.Errorw("parquet.Write", "error", err)
 		}
 
-		if fi.IsDir() || filepath.Ext(file) != ".csv" {
-			return nil
+		// Write to CSV
+		if _, err = fmt.Fprintf(fTransactions, "%d,%s,%s\n", tx.summary.Timestamp, tx.summary.Hash, tx.rlp); err != nil {
+			log.Errorw("fTransactions.WriteString", "error", err)
 		}
 
-		log.Infof("Processing: %s", file)
-		cntProcessedFiles += 1
+		cntTxWritten += 1
 
-		readFile, err := os.Open(file)
-		if err != nil {
-			log.Errorw("os.Open", "error", err, "file", file)
-			return nil
+		if cntTxWritten%100000 == 0 {
+			log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 		}
-		defer readFile.Close()
-
-		fileReader := bufio.NewReader(readFile)
-		for {
-			l, err := fileReader.ReadString('\n')
-			if len(l) == 0 && err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				log.Errorw("fileReader.ReadString", "error", err)
-				break
-			}
-
-			l = strings.Trim(l, "\n")
-			items := strings.Split(l, ",")
-			if len(items) != 3 {
-				log.Errorw("invalid line", "line", l)
-				continue
-			}
-
-			txSummary, err := parseTx(items[0], items[1], items[2])
-			if err != nil {
-				log.Errorw("parseTx", "error", err, "line", l)
-				continue
-			}
-
-			if err = pw.Write(txSummary); err != nil {
-				log.Errorw("parquet.Write", "error", err)
-			}
-
-			cntProcessedTx += 1
-		}
-
-		// if *limit > 0 && cntProcessedFiles%*limit == 0 {
-		// 	return errLimitReached
-		// }
-		return nil
-	})
-	if err != nil && !errors.Is(err, errLimitReached) {
-		log.Errorw("filepath.Walk", "error", err)
 	}
+	log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	log.Info("Flushing and closing files...")
 
 	if err = pw.WriteStop(); err != nil {
 		log.Errorw("parquet.WriteStop", "error", err)
 	}
 	fw.Close()
 
-	log.Infof("Finished processing %s CSV files, %s transactions", printer.Sprintf("%d", cntProcessedFiles), printer.Sprintf("%d", cntProcessedTx))
+	log.Infof("Finished processing %s CSV files, wrote %s transactions", printer.Sprintf("%d", cntProcessedFiles), printer.Sprintf("%d", cntTxWritten))
 }
 
-func PrintMemUsage() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	s := fmt.Sprintf("Alloc = %v MiB, tTotalAlloc = %v MiB, Sys = %v MiB, tNumGC = %v", m.Alloc/1024/1024, m.TotalAlloc/1024/1024, m.Sys/1024/1024, m.NumGC)
-	log.Info(s)
-}
-
-func parseTx(timestampMs, hash, rawTx string) (summarizer.TxSummaryEntry, error) {
-	ts, err := strconv.Atoi(timestampMs)
-	if err != nil {
-		return summarizer.TxSummaryEntry{}, err
-	}
-
+func parseTx(timestampMs int64, hash, rawTx string) (summarizer.TxSummaryEntry, *types.Transaction, error) {
 	rawTxBytes, err := hexutil.Decode(rawTx)
 	if err != nil {
-		return summarizer.TxSummaryEntry{}, err
+		return summarizer.TxSummaryEntry{}, nil, err
 	}
 
 	var tx types.Transaction
 	err = rlp.DecodeBytes(rawTxBytes, &tx)
 	if err != nil {
-		return summarizer.TxSummaryEntry{}, err
+		return summarizer.TxSummaryEntry{}, nil, err
 	}
 
 	// prepare 'from' address, fails often because of unsupported tx type
@@ -246,7 +310,7 @@ func parseTx(timestampMs, hash, rawTx string) (summarizer.TxSummaryEntry, error)
 	}
 
 	return summarizer.TxSummaryEntry{
-		Timestamp: int64(ts),
+		Timestamp: timestampMs,
 		Hash:      tx.Hash().Hex(),
 
 		ChainID:   tx.ChainId().String(),
@@ -261,5 +325,5 @@ func parseTx(timestampMs, hash, rawTx string) (summarizer.TxSummaryEntry, error)
 
 		DataSize:   int64(len(tx.Data())),
 		Data4Bytes: data4Bytes,
-	}, nil
+	}, &tx, nil
 }
