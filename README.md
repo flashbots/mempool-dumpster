@@ -29,8 +29,8 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 Default filename:
 
-- Schema: `<out_dir>/<year-month>/transactions/<date>_transactions_<uid>.csv`
-- Example: `out/2023-08/transactions/2023-08-07-10-00_transactions_collector1.csv`
+- Schema: `<out_dir>/<year-month>/transactions/txs_<date>_<uid>.csv`
+- Example: `out/2023-08/transactions/txs_2023-08-07-10-00_collector1.csv`
 
 **Running the mempool collector:**
 

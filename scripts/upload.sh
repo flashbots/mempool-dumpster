@@ -39,17 +39,12 @@ fi
 
 # summarize raw transactions
 echo "Running summarizer"
-go run cmd/summarizer/main.go -dir $1
-
-# rename
-echo "Renaming files and directories"
-mv $1/transactions.parquet "$1/${date}.parquet"
-mv $1/transactions "$1/${date}_transactions"
-cd $1
+go run cmd/summarizer2/main.go -out $1 --out-date $date $1/transactions/*.csv
 
 # compress
+cd $1
 echo "Compressing transaction files..."
-zip -r "${date}_transactions.zip" "${date}_transactions"
+zip "${date}_transactions.csv.zip" "${date}_transactions.csv"
 
 # extract year-month from date string
 ym=${date:0:7}
@@ -59,7 +54,7 @@ echo "Uploading parquet file..."
 aws s3 cp  --no-progress "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
 echo "Uploading transactions file..."
-aws s3 cp  --no-progress "${date}_transactions.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
+aws s3 cp  --no-progress "${date}_transactions.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
 # finally, remove the raw transactions directory
 if [ -z ${YES:-} ]; then
@@ -71,4 +66,4 @@ if [ -z ${YES:-} ]; then
   fi
 fi
 
-rm -rf "${date}_transactions"
+rm -rf "transactions" "${date}_transactions.csv"

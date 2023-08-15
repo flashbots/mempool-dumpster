@@ -151,7 +151,7 @@ func (p *TxProcessor) getOutputCSVFile(timestamp int64) (f *os.File, isCreated b
 
 func (p *TxProcessor) getFilename(timestamp int64) string {
 	t := time.Unix(timestamp, 0).UTC()
-	return fmt.Sprintf("%s_transactions_%s.csv", t.Format("2006-01-02-15-04"), p.uid)
+	return fmt.Sprintf("txs_%s_%s.csv", t.Format("2006-01-02-15-04"), p.uid)
 }
 
 func (p *TxProcessor) cleanupBackgroundTask() {
