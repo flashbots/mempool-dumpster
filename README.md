@@ -15,7 +15,7 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 # System architecture
 
 1. [Mempool Collector](cmd/collector/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding.
-2. [summarizer](cmd/summarizer/main.go): Takes collector CSV files as input, dedupes, sorts by timestamp and writes to CSV + Parquet output files
+2. [Summarizer](cmd/summarizer/main.go): Takes collector CSV files as input, dedupes, sorts by timestamp and writes to CSV + Parquet output files
 
 ---
 
@@ -29,8 +29,8 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 Default filename:
 
-- Schema: `<out_dir>/<year-month>/transactions/txs_<date>_<uid>.csv`
-- Example: `out/2023-08/transactions/txs_2023-08-07-10-00_collector1.csv`
+- Schema: `<out_dir>/<date>/transactions/txs_<date>_<uid>.csv`
+- Example: `out/2023-08-07/transactions/txs_2023-08-07-10-00_collector1.csv`
 
 **Running the mempool collector:**
 
