@@ -34,7 +34,8 @@ var (
 	// Flags
 	printVersion = flag.Bool("version", false, "only print version")
 	debugPtr     = flag.Bool("debug", defaultDebug, "print debug output")
-	// logProdPtr   = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
+
+	csvPtr     = flag.Bool("csv", false, "also write CSV summary file (like parquet)")
 	outDirPtr  = flag.String("out", "", "where to save output files")
 	outDatePtr = flag.String("out-date", "", "date to use in output file names")
 	// limit = flag.Int("limit", 0, "max number of txs to process")
@@ -92,26 +93,35 @@ func main() {
 }
 
 // archiveDirectory parses all input CSV files into one output CSV and one output Parquet file.
-func archiveDirectory(files []string) { //nolint:gocognit
+func archiveDirectory(files []string) { //nolint:gocognit,gocyclo,maintidx
 	// Prepare output file paths, and make sure they don't exist yet
-	fnParquet := filepath.Join(*outDirPtr, "transactions.parquet")
+	fnParquet := filepath.Join(*outDirPtr, "transactions_meta.parquet")
 	if *outDatePtr != "" {
 		fnParquet = filepath.Join(*outDirPtr, fmt.Sprintf("%s.parquet", *outDatePtr))
+	}
+	if _, err := os.Stat(fnParquet); !errors.Is(err, os.ErrNotExist) {
+		log.Fatalf("Output file already exists: %s", fnParquet)
 	}
 
 	fnTransactions := filepath.Join(*outDirPtr, "transactions.csv")
 	if *outDatePtr != "" {
 		fnTransactions = filepath.Join(*outDirPtr, fmt.Sprintf("%s_transactions.csv", *outDatePtr))
 	}
-
-	if _, err := os.Stat(fnParquet); !errors.Is(err, os.ErrNotExist) {
-		log.Fatalf("Output file already exists: %s", fnParquet)
-	}
 	if _, err := os.Stat(fnTransactions); !errors.Is(err, os.ErrNotExist) {
 		log.Fatalf("Output file already exists: %s", fnTransactions)
 	}
 
-	// Ensure all files exist and are CSVs
+	fnCSV := filepath.Join(*outDirPtr, "transactions_meta.csv")
+	if *outDatePtr != "" {
+		fnCSV = filepath.Join(*outDirPtr, fmt.Sprintf("%s.csv", *outDatePtr))
+	}
+	if *csvPtr {
+		if _, err := os.Stat(fnCSV); !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("Output file already exists: %s", fnCSV)
+		}
+	}
+
+	// Ensure all input files exist and are CSVs
 	for _, filename := range files {
 		s, err := os.Stat(filename)
 		if errors.Is(err, os.ErrNotExist) {
@@ -223,14 +233,30 @@ func archiveDirectory(files []string) { //nolint:gocognit
 
 	// Starting to write output files
 	log.Infof("Output CSV file: %s", fnTransactions)
-	log.Infof("Output Parquet file: %s", fnParquet)
 	fTransactions, err := os.OpenFile(fnTransactions, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		log.Errorw("os.Create", "error", err)
 		return
 	}
 
+	var fCSV *os.File
+	if *csvPtr {
+		log.Infof("Output CSV summary file: %s", fnCSV)
+		fCSV, err = os.OpenFile(fnCSV, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			log.Errorw("os.Create", "error", err)
+			return
+		}
+		// write CSV header
+		csvHeader := strings.Join(common.TxSummaryEntryCSVHeader, ",")
+		if _, err = fmt.Fprintf(fCSV, "%s\n", csvHeader); err != nil {
+			log.Errorw("fCSV.WriteString", "error", err)
+			return
+		}
+	}
+
 	// Setup parquet writer
+	log.Infof("Output Parquet summary file: %s", fnParquet)
 	fw, err := local.NewLocalFileWriter(fnParquet)
 	if err != nil {
 		log.Fatal("Can't create parquet file", "error", err)
@@ -261,6 +287,14 @@ func archiveDirectory(files []string) { //nolint:gocognit
 			log.Errorw("fTransactions.WriteString", "error", err)
 		}
 
+		// Write summary to CSV
+		if *csvPtr {
+			csvRow := strings.Join(tx.summary.ToCSVRow(), ",")
+			if _, err = fmt.Fprintf(fCSV, "%s\n", csvRow); err != nil {
+				log.Errorw("fCSV.WriteString", "error", err)
+			}
+		}
+
 		cntTxWritten += 1
 
 		if cntTxWritten%100000 == 0 {
@@ -268,8 +302,14 @@ func archiveDirectory(files []string) { //nolint:gocognit
 		}
 	}
 	log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
-	log.Info("Flushing and closing files...")
 
+	log.Info("Flushing and closing files...")
+	if err = fCSV.Close(); err != nil {
+		log.Errorw("fCSV.Close", "error", err)
+	}
+	if err = fTransactions.Close(); err != nil {
+		log.Errorw("fTransactions.Close", "error", err)
+	}
 	if err = pw.WriteStop(); err != nil {
 		log.Errorw("parquet.WriteStop", "error", err)
 	}

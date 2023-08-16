@@ -1,5 +1,7 @@
 package common
 
+import "fmt"
+
 type TxSummaryEntry struct {
 	Timestamp int64  `parquet:"name=timestamp, type=INT64, convertedtype=TIMESTAMP_MILLIS"`
 	Hash      string `parquet:"name=hash, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
@@ -17,4 +19,38 @@ type TxSummaryEntry struct {
 
 	DataSize   int64  `parquet:"name=dataSize, type=INT64"`
 	Data4Bytes string `parquet:"name=data4Bytes, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+}
+
+func (t TxSummaryEntry) ToCSVRow() []string {
+	return []string{
+		fmt.Sprint(t.Timestamp),
+		t.Hash,
+		t.ChainID,
+		t.From,
+		t.To,
+		t.Value,
+		fmt.Sprint(t.Nonce),
+		fmt.Sprint(t.Gas),
+		t.GasPrice,
+		t.GasTipCap,
+		t.GasFeeCap,
+		fmt.Sprint(t.DataSize),
+		t.Data4Bytes,
+	}
+}
+
+var TxSummaryEntryCSVHeader = []string{
+	"timestamp",
+	"hash",
+	"chainId",
+	"from",
+	"to",
+	"value",
+	"nonce",
+	"gas",
+	"gasPrice",
+	"gasTipCap",
+	"gasFeeCap",
+	"dataSize",
+	"data4Bytes",
 }

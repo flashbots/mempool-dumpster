@@ -39,7 +39,7 @@ fi
 
 # summarize raw transactions
 echo "Running summarizer"
-go run cmd/summarizer/main.go -out $1 --out-date $date $1/transactions/*.csv
+go run cmd/summarizer/main.go -csv -out $1 --out-date $date $1/transactions/*.csv
 
 # compress
 cd $1
