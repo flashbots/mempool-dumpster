@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -24,9 +23,12 @@ type TxProcessor struct {
 	outFiles     map[int64]*os.File // batches for 10 min intervals (key is lower 10min timestamp)
 	outFilesLock sync.RWMutex
 
-	txn     map[common.Hash]time.Time
+	txn     map[ethcommon.Hash]time.Time
 	txnLock sync.RWMutex
-	txCnt   atomic.Uint64
+
+	txCnt      atomic.Uint64
+	srcCnt     map[string]uint64
+	srcCntLock sync.RWMutex
 }
 
 func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string) *TxProcessor {
@@ -36,7 +38,8 @@ func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string) *TxProcessor {
 		uid:      uid,
 		outDir:   outDir,
 		outFiles: make(map[int64]*os.File),
-		txn:      make(map[common.Hash]time.Time),
+		txn:      make(map[ethcommon.Hash]time.Time),
+		srcCnt:   make(map[string]uint64),
 	}
 }
 
@@ -75,9 +78,12 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	p.txCnt.Inc()
 
-	// prepare rlp rawtx
-	buf := new(bytes.Buffer)
-	err := txIn.tx.EncodeRLP(buf)
+	p.srcCntLock.Lock()
+	p.srcCnt[txIn.uri]++
+	p.srcCntLock.Unlock()
+
+	// create tx rlp
+	rlpHex, err := common.TxToRLPString(txIn.tx)
 	if err != nil {
 		log.Errorw("failed to encode rlp", "error", err)
 		return
@@ -87,7 +93,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	txDetail := TxDetail{
 		Timestamp: txIn.t.UnixMilli(),
 		Hash:      txHash.Hex(),
-		RawTx:     hexutil.Encode(buf.Bytes()),
+		RawTx:     rlpHex,
 	}
 
 	// Write to CSV file
@@ -98,7 +104,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	}
 
 	if isCreated {
-		p.log.Infof("New file created: %s", f.Name())
+		p.log.Infof("new file created: %s", f.Name())
 	}
 
 	_, err = fmt.Fprintf(f, "%d,%s,%s\n", txDetail.Timestamp, txDetail.Hash, txDetail.RawTx)
@@ -187,17 +193,28 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 
 		// Print stats
 		p.log.Infow("stats",
-			"txcache_before", cachedBefore,
-			"txcache_after", len(p.txn),
-			"txcache_removed", cachedBefore-len(p.txn),
+			"txcache_before", common.Printer.Sprint(cachedBefore),
+			"txcache_after", common.Printer.Sprint(len(p.txn)),
+			"txcache_removed", common.Printer.Sprint(cachedBefore-len(p.txn)),
 			"files_before", filesBefore,
 			"files_after", len(p.outFiles),
-			"goroutines", runtime.NumGoroutine(),
+			"goroutines", common.Printer.Sprint(runtime.NumGoroutine()),
 			"alloc_mb", m.Alloc/1024/1024,
-			"num_gc", m.NumGC,
-			"tx_per_min", p.txCnt.Load(),
+			"num_gc", common.Printer.Sprint(m.NumGC),
+			"tx_per_min", common.Printer.Sprint(p.txCnt.Load()),
 		)
 
+		// print and reset per-source stats
+		srcStatsLog := p.log
+		p.srcCntLock.Lock()
+		for k, v := range p.srcCnt {
+			srcStatsLog = srcStatsLog.With(k, common.Printer.Sprint(v))
+			p.srcCnt[k] = 0
+		}
+		p.srcCntLock.Unlock()
+		srcStatsLog.Info("source_stats")
+
+		// reset overall counter
 		p.txCnt.Store(0)
 	}
 }

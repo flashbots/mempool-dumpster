@@ -21,3 +21,5 @@
 /.env*
 /build
 /scripts/internal
+/tmp
+/docs

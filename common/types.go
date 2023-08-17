@@ -54,3 +54,11 @@ var TxSummaryEntryCSVHeader = []string{
 	"dataSize",
 	"data4Bytes",
 }
+
+type BlxRawTxMsg struct { //nolint:musttag
+	Params struct {
+		Result struct {
+			RawTx string
+		}
+	}
+}

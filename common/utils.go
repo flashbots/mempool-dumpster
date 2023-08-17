@@ -4,7 +4,10 @@ package common
 import (
 	"runtime"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -22,4 +25,29 @@ func PrintMemUsage() {
 	runtime.ReadMemStats(&m)
 	s := Printer.Sprintf("Alloc = %d MiB, tTotalAlloc = %d MiB, Sys = %d MiB, tNumGC = %d", m.Alloc/1024/1024, m.TotalAlloc/1024/1024, m.Sys/1024/1024, m.NumGC)
 	log.Info(s)
+}
+
+func RLPDecode(rlpBytes []byte) (*types.Transaction, error) {
+	var tx types.Transaction
+	err := rlp.DecodeBytes(rlpBytes, &tx)
+	if err != nil {
+		err = tx.UnmarshalBinary(rlpBytes)
+	}
+	return &tx, err
+}
+
+func RLPStringToTx(rlpHex string) (*types.Transaction, error) {
+	rawtx, err := hexutil.Decode(rlpHex)
+	if err != nil {
+		return nil, err
+	}
+	return RLPDecode(rawtx)
+}
+
+func TxToRLPString(tx *types.Transaction) (string, error) {
+	b, err := tx.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	return hexutil.Encode(b), nil
 }

@@ -14,7 +14,7 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 # System architecture
 
-1. [Mempool Collector](cmd/collector/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding.
+1. [Mempool Collector](cmd/collector/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding. Can also connect to bloXroute.
 2. [Summarizer](cmd/summarizer/main.go): Takes collector CSV files as input, dedupes, sorts by timestamp and writes to CSV + Parquet output files
 
 ---
@@ -23,9 +23,9 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 ## Mempool Collector
 
-1. Connects to one or more EL nodes via websocket
-2. Listens for new pending transactions
-3. Writes `timestamp` + `hash` + `rawTx` to CSV file (one file per hour [by default](collector/consts.go))
+1. Connects to one or more EL nodes via websocket, subscribes to new pending transactions
+1. Additional data sources include [bloXroute (need "Professional" plan or above)](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs)
+1. Writes `timestamp` + `hash` + `rawTx` to CSV file (one file per hour [by default](collector/consts.go))
 
 Default filename:
 
@@ -84,6 +84,13 @@ go run cmd/summarizer/main.go -out /mnt/data/mempool-dumpster/2023-08-12/ --out-
 ## Summarizer
 
 - Uses https://github.com/xitongsys/parquet-go to write Parquet format
+
+## Transaction RLP format
+
+- encoding transactions in typed EIP-2718 envelopes:
+  - https://medium.com/@markodayansa/a-comprehensive-guide-to-rlp-encoding-in-ethereum-6bd75c126de0
+  - https://blog.mycrypto.com/new-transaction-types-on-ethereum
+  - https://eips.ethereum.org/EIPS/eip-2718
 
 ---
 

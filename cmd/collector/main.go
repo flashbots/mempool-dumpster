@@ -18,9 +18,10 @@ var (
 	version = "dev" // is set during build process
 
 	// Default values
-	defaultDebug      = os.Getenv("DEBUG") == "1"
-	defaultLogProd    = os.Getenv("LOG_PROD") == "1"
-	defaultLogService = os.Getenv("LOG_SERVICE")
+	defaultDebug        = os.Getenv("DEBUG") == "1"
+	defaultLogProd      = os.Getenv("LOG_PROD") == "1"
+	defaultLogService   = os.Getenv("LOG_SERVICE")
+	defaultblxAuthToken = os.Getenv("BLX_AUTH_HEADER")
 
 	// Flags
 	printVersion  = flag.Bool("version", false, "only print version")
@@ -30,6 +31,7 @@ var (
 	nodesPtr      = flag.String("nodes", "ws://localhost:8546", "comma separated list of EL nodes")
 	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
 	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
+	blxAuthToken  = flag.String("blx-token", defaultblxAuthToken, "bloxroute auth token (optional)")
 )
 
 func main() {
@@ -78,10 +80,19 @@ func main() {
 		*uidPtr = shortuuid.New()[:6]
 	}
 
+	if *nodesPtr == "" && *blxAuthToken == "" {
+		log.Fatal("No nodes or bloxroute token set (use -nodes <url1>,<url2> and/or -blx-token <token>)")
+	}
+
+	nodes := []string{}
+	if *nodesPtr != "" {
+		nodes = strings.Split(*nodesPtr, ",")
+	}
+
 	log.Infow("Starting mempool-collector", "version", version, "outDir", *outDirPtr, "uid", *uidPtr)
 
 	// Start service components
-	collector.Start(log, strings.Split(*nodesPtr, ","), *outDirPtr, *uidPtr)
+	collector.Start(log, nodes, *outDirPtr, *uidPtr, *blxAuthToken)
 
 	// Wwait for termination signal
 	exit := make(chan os.Signal, 1)

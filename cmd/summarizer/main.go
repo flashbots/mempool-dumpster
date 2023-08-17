@@ -14,7 +14,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/parquet"
@@ -304,11 +303,13 @@ func archiveDirectory(files []string) { //nolint:gocognit,gocyclo,maintidx
 	log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
 	log.Info("Flushing and closing files...")
-	if err = fCSV.Close(); err != nil {
-		log.Errorw("fCSV.Close", "error", err)
-	}
 	if err = fTransactions.Close(); err != nil {
 		log.Errorw("fTransactions.Close", "error", err)
+	}
+	if *csvPtr {
+		if err = fCSV.Close(); err != nil {
+			log.Errorw("fCSV.Close", "error", err)
+		}
 	}
 	if err = pw.WriteStop(); err != nil {
 		log.Errorw("parquet.WriteStop", "error", err)
@@ -319,19 +320,13 @@ func archiveDirectory(files []string) { //nolint:gocognit,gocyclo,maintidx
 }
 
 func parseTx(timestampMs int64, hash, rawTx string) (common.TxSummaryEntry, *types.Transaction, error) {
-	rawTxBytes, err := hexutil.Decode(rawTx)
-	if err != nil {
-		return common.TxSummaryEntry{}, nil, err
-	}
-
-	var tx types.Transaction
-	err = rlp.DecodeBytes(rawTxBytes, &tx)
+	tx, err := common.RLPStringToTx(rawTx)
 	if err != nil {
 		return common.TxSummaryEntry{}, nil, err
 	}
 
 	// prepare 'from' address, fails often because of unsupported tx type
-	from, err := types.Sender(types.NewEIP155Signer(tx.ChainId()), &tx)
+	from, err := types.Sender(types.NewEIP155Signer(tx.ChainId()), tx)
 	if err != nil {
 		_ = err
 	}
@@ -364,5 +359,5 @@ func parseTx(timestampMs int64, hash, rawTx string) (common.TxSummaryEntry, *typ
 
 		DataSize:   int64(len(tx.Data())),
 		Data4Bytes: data4Bytes,
-	}, &tx, nil
+	}, tx, nil
 }
