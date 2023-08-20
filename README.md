@@ -6,7 +6,7 @@
 Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
 - Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, [attributes](summarizer/types.go); about 100MB / day)
-- CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1GB / day zipped)
+- CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1GB / day zipped), as well as summary like in parquet (~100MB/day)
 - This project is under active development, although relatively stable and ready to use
 - Observing about 30k - 100k mempool transactions per hour (1M - 1.5M transactions per day)
 
@@ -23,9 +23,11 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 ## Mempool Collector
 
-1. Connects to one or more EL nodes via websocket, subscribes to new pending transactions
-1. Additional data sources include [bloXroute (need "Professional" plan or above)](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs)
+1. Subscribes to new pending transactions at various data sources
+    1. EL nodes via websocket (local (i.e. geth) or remote (i.e. Infura))
+    1. Can also connect to [bloXroute (need "Professional" plan or above)](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs)
 1. Writes `timestamp` + `hash` + `rawTx` to CSV file (one file per hour [by default](collector/consts.go))
+1. Note: the collector can store transactions repeatedly, and only the summarizer will properly deduplicate them later
 
 Default filename:
 
@@ -45,9 +47,10 @@ go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server
 ## Summarizer
 
 - Iterates over collector output directory / CSV files
-- Creates summary file in Parquet format with [key transaction attributes](summarizer/types.go)
-- TODO: create archive from output of multiple collectors
-  - Take several files/directories as input
+- Deduplicates transactions, sorts them by timestamp
+- Creates:
+  - Summary file in Parquet and CSV format with [key transaction attributes](summarizer/types.go)
+  - A single, sorted and deduplicated transactions CSV file
 
 ```bash
 go run cmd/summarizer/main.go -h
@@ -112,21 +115,6 @@ make lint
 make test
 make fmt
 ```
-
----
-
-## TODO
-
-Lots, this is WIP
-
-should:
-
-- collector support multiple `-node` cli args (like [mev-boost](https://github.com/flashbots/mev-boost/blob/ci-fix/cli/main.go#L87))
-
-could:
-
-- stats about which node saw how many tx first
-- http server to add/remove nodes, see stats, pprof?
 
 ---
 
