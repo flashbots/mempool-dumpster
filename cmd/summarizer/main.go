@@ -34,7 +34,6 @@ var (
 	printVersion = flag.Bool("version", false, "only print version")
 	debugPtr     = flag.Bool("debug", defaultDebug, "print debug output")
 
-	csvPtr     = flag.Bool("csv", false, "also write CSV summary file (like parquet)")
 	outDirPtr  = flag.String("out", "", "where to save output files")
 	outDatePtr = flag.String("out-date", "", "date to use in output file names")
 	// limit = flag.Int("limit", 0, "max number of txs to process")
@@ -114,10 +113,8 @@ func archiveDirectory(files []string) { //nolint:gocognit,gocyclo,maintidx
 	if *outDatePtr != "" {
 		fnCSV = filepath.Join(*outDirPtr, fmt.Sprintf("%s.csv", *outDatePtr))
 	}
-	if *csvPtr {
-		if _, err := os.Stat(fnCSV); !errors.Is(err, os.ErrNotExist) {
-			log.Fatalf("Output file already exists: %s", fnCSV)
-		}
+	if _, err := os.Stat(fnCSV); !errors.Is(err, os.ErrNotExist) {
+		log.Fatalf("Output file already exists: %s", fnCSV)
 	}
 
 	// Ensure all input files exist and are CSVs
@@ -237,21 +234,23 @@ func archiveDirectory(files []string) { //nolint:gocognit,gocyclo,maintidx
 		log.Errorw("os.Create", "error", err)
 		return
 	}
+	// write CSV header
+	if _, err = fmt.Fprintf(fTransactions, "timestamp_ms,hash,raw_tx\n"); err != nil {
+		log.Errorw("fTransactions.WriteCSVHeader", "error", err)
+		return
+	}
 
-	var fCSV *os.File
-	if *csvPtr {
-		log.Infof("Output CSV summary file: %s", fnCSV)
-		fCSV, err = os.OpenFile(fnCSV, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-		if err != nil {
-			log.Errorw("os.Create", "error", err)
-			return
-		}
-		// write CSV header
-		csvHeader := strings.Join(common.TxSummaryEntryCSVHeader, ",")
-		if _, err = fmt.Fprintf(fCSV, "%s\n", csvHeader); err != nil {
-			log.Errorw("fCSV.WriteString", "error", err)
-			return
-		}
+	log.Infof("Output CSV summary file: %s", fnCSV)
+	fCSV, err := os.OpenFile(fnCSV, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		log.Errorw("os.Create", "error", err)
+		return
+	}
+	// write CSV header
+	csvHeader := strings.Join(common.TxSummaryEntryCSVHeader, ",")
+	if _, err = fmt.Fprintf(fCSV, "%s\n", csvHeader); err != nil {
+		log.Errorw("fCSV.WriteCSVHeader", "error", err)
+		return
 	}
 
 	// Setup parquet writer
@@ -287,11 +286,9 @@ func archiveDirectory(files []string) { //nolint:gocognit,gocyclo,maintidx
 		}
 
 		// Write summary to CSV
-		if *csvPtr {
-			csvRow := strings.Join(tx.summary.ToCSVRow(), ",")
-			if _, err = fmt.Fprintf(fCSV, "%s\n", csvRow); err != nil {
-				log.Errorw("fCSV.WriteString", "error", err)
-			}
+		csvRow := strings.Join(tx.summary.ToCSVRow(), ",")
+		if _, err = fmt.Fprintf(fCSV, "%s\n", csvRow); err != nil {
+			log.Errorw("fCSV.WriteString", "error", err)
 		}
 
 		cntTxWritten += 1
@@ -306,10 +303,8 @@ func archiveDirectory(files []string) { //nolint:gocognit,gocyclo,maintidx
 	if err = fTransactions.Close(); err != nil {
 		log.Errorw("fTransactions.Close", "error", err)
 	}
-	if *csvPtr {
-		if err = fCSV.Close(); err != nil {
-			log.Errorw("fCSV.Close", "error", err)
-		}
+	if err = fCSV.Close(); err != nil {
+		log.Errorw("fCSV.Close", "error", err)
 	}
 	if err = pw.WriteStop(); err != nil {
 		log.Errorw("parquet.WriteStop", "error", err)

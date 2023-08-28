@@ -5,17 +5,29 @@
 
 Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
-- Parquet: [Transaction metadata](summarizer/types.go) (timestamp in millis, hash, [attributes](summarizer/types.go); about 100MB / day)
-- CSV: Raw transactions (RLP hex + timestamp in millis + tx hash; about 1GB / day zipped), as well as summary like in parquet (~100MB/day)
-- This project is under active development, although relatively stable and ready to use
+Output files:
+
+1. CSV: Raw transactions (timestamp in milliseconds, tx hash, RLP hex; about 1GB / day zipped)
+2. CSV: [Transaction metadata](/common/types.go#L5-L22) (~100MB / day zipped)
+3. Parquet: [Transaction metadata](/common/types.go#L5-L22) (~100MB / day)
+
+Mempool sources:
+
+1. Generic EL nodes (`newPendingTransactions`) (i.e. go-ethereum, Infura, etc.)
+2. Alchemy ([`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
+3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs)
+
+Notes:
+
+- This project is under active development, although relatively stable and ready to use in production
 - Observing about 30k - 100k mempool transactions per hour (1M - 1.5M transactions per day)
 
 ---
 
 # System architecture
 
-1. [Mempool Collector](cmd/collector/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding. Can also connect to bloXroute.
-2. [Summarizer](cmd/summarizer/main.go): Takes collector CSV files as input, dedupes, sorts by timestamp and writes to CSV + Parquet output files
+1. [Mempool Collector](cmd/collector/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding.
+2. [Summarizer](cmd/summarizer/main.go): Takes collector CSV files as input, de-duplicates, sorts by timestamp and writes CSV + Parquet output files
 
 ---
 

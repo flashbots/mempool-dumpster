@@ -40,19 +40,19 @@ func (t TxSummaryEntry) ToCSVRow() []string {
 }
 
 var TxSummaryEntryCSVHeader = []string{
-	"timestamp",
+	"timestamp_ms",
 	"hash",
-	"chainId",
+	"chain_id",
 	"from",
 	"to",
 	"value",
 	"nonce",
 	"gas",
-	"gasPrice",
-	"gasTipCap",
-	"gasFeeCap",
-	"dataSize",
-	"data4Bytes",
+	"gas_price",
+	"gas_tip_cap",
+	"gas_fee_cap",
+	"data_size",
+	"data_4bytes",
 }
 
 type BlxRawTxMsg struct { //nolint:musttag

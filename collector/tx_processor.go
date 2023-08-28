@@ -63,7 +63,7 @@ func (p *TxProcessor) Start() {
 }
 
 func (p *TxProcessor) processTx(txIn TxIn) {
-	txHash := txIn.tx.Hash()
+	txHash := txIn.Tx.Hash()
 	log := p.log.With("tx_hash", txHash.Hex())
 	log.Debug("processTx")
 
@@ -79,11 +79,11 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.txCnt.Inc()
 
 	p.srcCntLock.Lock()
-	p.srcCnt[txIn.uri]++
+	p.srcCnt[txIn.URI]++
 	p.srcCntLock.Unlock()
 
 	// create tx rlp
-	rlpHex, err := common.TxToRLPString(txIn.tx)
+	rlpHex, err := common.TxToRLPString(txIn.Tx)
 	if err != nil {
 		log.Errorw("failed to encode rlp", "error", err)
 		return
@@ -91,13 +91,13 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	// build the summary
 	txDetail := TxDetail{
-		Timestamp: txIn.t.UnixMilli(),
+		Timestamp: txIn.T.UnixMilli(),
 		Hash:      txHash.Hex(),
 		RawTx:     rlpHex,
 	}
 
 	// Write to CSV file
-	f, isCreated, err := p.getOutputCSVFile(txIn.t.Unix())
+	f, isCreated, err := p.getOutputCSVFile(txIn.T.Unix())
 	if err != nil {
 		log.Errorw("getOutputCSVFile", "error", err)
 		return
@@ -115,7 +115,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	// Remember that this transaction was processed
 	p.txnLock.Lock()
-	p.txn[txHash] = txIn.t
+	p.txn[txHash] = txIn.T
 	p.txnLock.Unlock()
 }
 

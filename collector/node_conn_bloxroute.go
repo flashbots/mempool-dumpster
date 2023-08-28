@@ -26,7 +26,7 @@ type BlxNodeConnection struct {
 
 func NewBlxNodeConnection(log *zap.SugaredLogger, blxAuthHeader string, txC chan TxIn) *BlxNodeConnection {
 	return &BlxNodeConnection{
-		log:           log,
+		log:           log.With("conn", "blx"),
 		blxAuthHeader: blxAuthHeader,
 		txC:           txC,
 	}
