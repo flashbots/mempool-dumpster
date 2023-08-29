@@ -1,7 +1,15 @@
 #!/bin/bash
 #
-# This is a quick and dirty script to create a daily archive and upload to S3.
-# Only meant for development purposes, not production
+# This is a quick and dirty script to:
+#
+# 1. create a daily archive
+# 2. upload to Cloudflare R2 and AWS S3
+#
+# Requires awscli with (1) default profile for R2 and (2) profile "aws" for AWS S3.
+#
+# Usage:
+#
+#    ./scripts/upload.sh /mnt/data/mempool-dumpster/2023-08-28
 #
 set -o errexit
 set -o nounset
@@ -25,6 +33,7 @@ fi
 
 # extract date from directory name
 date=$(basename $1)
+ym=${date:0:7}
 
 # confirm
 if [ -z ${YES:-} ]; then
@@ -39,22 +48,26 @@ fi
 
 # summarize raw transactions
 echo "Running summarizer"
-go run cmd/summarizer/main.go -csv -out $1 --out-date $date $1/transactions/*.csv
+/root/mempool-dumpster/build/summerizer -out $1 --out-date $date $1/transactions/*.csv
 
 # compress
 cd $1
 echo "Compressing transaction files..."
 zip "${date}_transactions.csv.zip" "${date}_transactions.csv"
+zip "${date}.csv.zip" "${date}.csv"
 
-# extract year-month from date string
-ym=${date:0:7}
-
-# upload to s3
+# upload to Cloudflare R2 and AWS S3
 echo "Uploading parquet file..."
-aws s3 cp  --no-progress "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
+aws s3 cp --no-progress "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+aws --profile aws s3 cp --no-progress "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
+
+echo "Uploading zipped summary CSV file..."
+aws s3 cp --no-progress "${date}.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+aws --profile aws s3 cp --no-progress "${date}.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
 echo "Uploading transactions file..."
-aws s3 cp  --no-progress "${date}_transactions.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
+aws s3 cp --no-progress "${date}_transactions.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+aws --profile aws s3 cp --no-progress "${date}_transactions.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
 # finally, remove the raw transactions directory
 if [ -z ${YES:-} ]; then
@@ -66,4 +79,6 @@ if [ -z ${YES:-} ]; then
   fi
 fi
 
-rm -rf "transactions" "${date}_transactions.csv"
+rm -rf "transactions" "${date}_transactions.csv" "${date}.csv"
+echo "All done!"
+echo ""

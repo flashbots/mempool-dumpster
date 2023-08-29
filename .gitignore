@@ -19,6 +19,7 @@
 /*.internal
 /run.sh
 /.env*
+!/.env.example
 /build
 /scripts/internal
 /tmp
