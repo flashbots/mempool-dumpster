@@ -79,7 +79,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.txCnt.Inc()
 
 	p.srcCntLock.Lock()
-	p.srcCnt[txIn.URI]++
+	p.srcCnt[txIn.URITag]++
 	p.srcCntLock.Unlock()
 
 	// create tx rlp

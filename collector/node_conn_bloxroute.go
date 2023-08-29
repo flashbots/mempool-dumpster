@@ -18,6 +18,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var blxURI = common.GetEnv("BLX_URI", "wss://virginia.eth.blxrbdn.com/ws")
+
 type BlxNodeConnection struct {
 	log           *zap.SugaredLogger
 	blxAuthHeader string
@@ -35,7 +37,7 @@ func NewBlxNodeConnection(log *zap.SugaredLogger, blxAuthHeader string, txC chan
 func (nc *BlxNodeConnection) Connect() {
 	nc.log.Infow("connecting to bloXroute...")
 	dialer := websocket.DefaultDialer
-	wsSubscriber, resp, err := dialer.Dial("wss://virginia.eth.blxrbdn.com/ws", http.Header{"Authorization": []string{nc.blxAuthHeader}})
+	wsSubscriber, resp, err := dialer.Dial(blxURI, http.Header{"Authorization": []string{nc.blxAuthHeader}})
 	if err != nil {
 		nc.log.Fatalw("failed to connect to bloxroute", "error", err)
 	}
@@ -94,6 +96,6 @@ func (nc *BlxNodeConnection) Connect() {
 			continue
 		}
 
-		nc.txC <- TxIn{"blx", &tx, time.Now().UTC()}
+		nc.txC <- TxIn{time.Now().UTC(), &tx, blxURI, "blx"}
 	}
 }

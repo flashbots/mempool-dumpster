@@ -15,21 +15,28 @@ import (
 type NodeConnection struct {
 	log       *zap.SugaredLogger
 	uri       string
+	uriTag    string // identifier of tx source (i.e. "infura", "alchemy", "ws://localhost:8546")
 	txC       chan TxIn
 	isAlchemy bool
 }
 
 func NewNodeConnection(log *zap.SugaredLogger, nodeURI string, txC chan TxIn) *NodeConnection {
+	uriTag := nodeURI
 	isAlchemy := strings.Contains(nodeURI, "alchemy.com/")
 	if isAlchemy {
+		uriTag = "alchemy"
 		log = log.With("conn", "alchemy")
 	} else {
 		log = log.With("conn", "generic")
+	}
+	if strings.Contains(nodeURI, "infura.io/") {
+		uriTag = "infura"
 	}
 
 	return &NodeConnection{
 		log:       log, //.With("module", "node_connection", "uri", nodeURI),
 		uri:       nodeURI,
+		uriTag:    uriTag,
 		txC:       txC,
 		isAlchemy: isAlchemy,
 	}
@@ -61,7 +68,7 @@ func (nc *NodeConnection) Start() {
 				time.Sleep(5 * time.Second)
 			}
 		case tx := <-txC:
-			nc.txC <- TxIn{nc.uri, tx, time.Now().UTC()}
+			nc.txC <- TxIn{time.Now().UTC(), tx, nc.uri, nc.uriTag}
 		}
 	}
 }

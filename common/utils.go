@@ -2,6 +2,7 @@
 package common
 
 import (
+	"os"
 	"runtime"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -13,6 +14,13 @@ import (
 )
 
 var Printer = message.NewPrinter(language.English)
+
+func GetEnv(key, defaultValue string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return defaultValue
+}
 
 func GetMemUsageMb() uint64 {
 	var m runtime.MemStats

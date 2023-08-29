@@ -7,9 +7,10 @@ import (
 )
 
 type TxIn struct {
-	URI string
-	Tx  *types.Transaction
-	T   time.Time
+	T      time.Time
+	Tx     *types.Transaction
+	URI    string
+	URITag string
 }
 
 type TxDetail struct {
