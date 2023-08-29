@@ -26,20 +26,25 @@ type TxProcessor struct {
 	txn     map[ethcommon.Hash]time.Time
 	txnLock sync.RWMutex
 
-	txCnt      atomic.Uint64
-	srcCnt     map[string]uint64
-	srcCntLock sync.RWMutex
+	txCnt atomic.Uint64
+
+	srcCntFirst     map[string]uint64
+	srcCntFirstLock sync.RWMutex
+
+	srcCntAll     map[string]uint64
+	srcCntAllLock sync.RWMutex
 }
 
 func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
-		log:      log, // .With("uid", uid),
-		txC:      make(chan TxIn, 100),
-		uid:      uid,
-		outDir:   outDir,
-		outFiles: make(map[int64]*os.File),
-		txn:      make(map[ethcommon.Hash]time.Time),
-		srcCnt:   make(map[string]uint64),
+		log:         log, // .With("uid", uid),
+		txC:         make(chan TxIn, 100),
+		uid:         uid,
+		outDir:      outDir,
+		outFiles:    make(map[int64]*os.File),
+		txn:         make(map[ethcommon.Hash]time.Time),
+		srcCntFirst: make(map[string]uint64),
+		srcCntAll:   make(map[string]uint64),
 	}
 }
 
@@ -67,6 +72,11 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	log := p.log.With("tx_hash", txHash.Hex())
 	log.Debug("processTx")
 
+	// count all transactions per source
+	p.srcCntAllLock.Lock()
+	p.srcCntAll[txIn.URITag]++
+	p.srcCntAllLock.Unlock()
+
 	// process transactions only once
 	p.txnLock.RLock()
 	_, ok := p.txn[txHash]
@@ -78,9 +88,10 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	p.txCnt.Inc()
 
-	p.srcCntLock.Lock()
-	p.srcCnt[txIn.URITag]++
-	p.srcCntLock.Unlock()
+	// count first transactions per source (i.e. who delivers a given tx first)
+	p.srcCntFirstLock.Lock()
+	p.srcCntFirst[txIn.URITag]++
+	p.srcCntFirstLock.Unlock()
 
 	// create tx rlp
 	rlpHex, err := common.TxToRLPString(txIn.Tx)
@@ -204,15 +215,25 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 			"tx_per_min", common.Printer.Sprint(p.txCnt.Load()),
 		)
 
-		// print and reset per-source stats
+		// print and reset stats about who got a tx first
 		srcStatsLog := p.log
-		p.srcCntLock.Lock()
-		for k, v := range p.srcCnt {
+		p.srcCntFirstLock.Lock()
+		for k, v := range p.srcCntFirst {
 			srcStatsLog = srcStatsLog.With(k, common.Printer.Sprint(v))
-			p.srcCnt[k] = 0
+			p.srcCntFirst[k] = 0
 		}
-		p.srcCntLock.Unlock()
-		srcStatsLog.Info("source_stats")
+		p.srcCntFirstLock.Unlock()
+		srcStatsLog.Info("source_stats_first")
+
+		// print and reset stats about overall number of tx per source
+		srcStatsLog = p.log
+		p.srcCntAllLock.Lock()
+		for k, v := range p.srcCntAll {
+			srcStatsLog = srcStatsLog.With(k, common.Printer.Sprint(v))
+			p.srcCntAll[k] = 0
+		}
+		p.srcCntAllLock.Unlock()
+		srcStatsLog.Info("source_stats_all")
 
 		// reset overall counter
 		p.txCnt.Store(0)

@@ -20,6 +20,10 @@ HTML_HEADER=$(cat <<-END
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/grids-min.css">
   <style>
+    .header {
+      margin: 4em;
+      margin-bottom: 2em;
+    }
     .content { padding: 2em 4em; }
     td.fn { padding-right: 120px; }
     td.fs { text-align: right; }
@@ -27,50 +31,69 @@ HTML_HEADER=$(cat <<-END
   </style>
 </head>
 <body>
+  <div class="header">
+    <a href="https://collective.flashbots.net/">
+      <img style="float:right; background:white; margin-left: 64px; width: 100px; height: 100px;" src="https://d33wubrfki0l68.cloudfront.net/ae8530415158fbbbbe17fb033855452f792606c7/fe19f/img/logo.png">
+    </a>
+    <h1>Mempool Dumpster</h1>
+    <p>
+      <a href="https://github.com/flashbots/mempool-dumpster">https://github.com/flashbots/mempool-dumpster</a>
+    </p>
+  </div>
   <div class="content">
 END
 )
 
-# remove and create output directory
+HTML_FOOTER="</div></body></html>"
+
+
+# Cleanup output directory
 outdir="/tmp/s3-index/ethereum/mainnet"
 rm -rf $outdir
 mkdir -p $outdir
 
-# start writing index file
-fn="${outdir}/index.html"
-echo "writing $fn ..."
-echo $HTML_HEADER > $fn
-echo "<ul>" >> $fn
+# Start writing local root index file
+fn_root_index="${outdir}/index.html"
+echo "writing root index at $fn_root_index"
+echo $HTML_HEADER > $fn_root_index
+echo "<ul>" >> $fn_root_index
 
-# iterate over all directories
-DIRS=$( aws s3 ls s3://flashbots-mempool-dumpster/ethereum/mainnet/ --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com" | awk '{ print $2 }' )
-for DIR in $DIRS; do
-    echo "<li><a href=\"/ethereum/mainnet/${DIR}index.html\">${DIR}</a></li>" >> $fn
+# Iterate over all months in S3
+dirs=$( aws s3 ls s3://flashbots-mempool-dumpster/ethereum/mainnet/ --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com" | awk '{ print $2 }' )
+for dir in $dirs; do
+    # Add entry to root index.html
+    echo "<li><a href=\"/ethereum/mainnet/${dir}index.html\">${dir}</a></li>" >> $fn_root_index
 
-    subdir="${outdir}/${DIR}"
+    # create subdirectory and write index.html
+    subdir="${outdir}/${dir}"
     mkdir -p $subdir
-    fn_listing="${subdir}index.html"
-    echo "writing $fn_listing ..."
-    echo $HTML_HEADER > $fn_listing
-    echo "<p><a href=\"/index.html\">back</a><p>" >> $fn_listing
-    echo "<table class=\"pure-table pure-table-horizontal\"><tbody>" >> $fn_listing
-    # echo "<thead><tr><th>File</th><th>Size</th></tr></thead>" >> $fn_listing
 
+    # Start writing local subdirectory file listing html
+    fn_files_listing="${subdir}index.html"
+    echo "writing $fn_files_listing ..."
+    echo $HTML_HEADER > $fn_files_listing
+    # echo "<p><a href=\"/index.html\">back</a><p>" >> $fn_files_listing
+    echo "<table class=\"pure-table pure-table-horizontal\"><tbody>" >> $fn_files_listing
+    echo "<tr><td class="fn"><a href="/index.html">..</a></td><td></td></tr>" >> $fn_files_listing
+    # echo "<thead><tr><th>File</th><th>Size</th></tr></thead>" >> $fn_files_listing
+
+    # Iterate over all files in this S3 directory and add them to file listing html
     aws s3 ls s3://flashbots-mempool-dumpster/ethereum/mainnet/2023-08/ --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com" | while read line; do
         file_date=$( echo $line | awk '{ print $1" "$2 }' )
-        file_size=$( echo $line | cut -d' ' -f3 | numfmt --to=iec-i )
+        file_size=$( echo $line | cut -d' ' -f3 | numfmt --to=iec-i --suffix=B )
         file_name=$( echo $line | cut -d' ' -f4 )
         if [ "$file_name" != "index.html" ]; then
-          echo "<tr><td class=\"fn\"> <a href=\"/ethereum/mainnet/${DIR}${file_name}\">${file_name}</a> </td><td class='fs'> ${file_size} </td></tr>" >> $fn_listing
+          echo "<tr><td class=\"fn\"> <a href=\"/ethereum/mainnet/${dir}${file_name}\">${file_name}</a> </td><td class='fs'> ${file_size} </td></tr>" >> $fn_files_listing
         fi
     done
-    echo "</tbody></table></div></body></html>" >> $fn_listing
 
-    echo "uploading to S3..."
-    aws s3 cp $fn_listing "s3://flashbots-mempool-dumpster/ethereum/mainnet/${DIR}" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-
+    # Close and upload local file listing html
+    echo "</tbody></table> $HTML_FOOTER" >> $fn_files_listing
+    echo "uploading ${dir}index.html to S3..."
+    aws s3 cp $fn_files_listing "s3://flashbots-mempool-dumpster/ethereum/mainnet/${dir}" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 done
-echo "</ul></div></body></html>" >> $fn
 
+# Close and upload local root index.html
+echo "</ul> $HTML_FOOTER" >> $fn_root_index
 echo "uploading root index to S3..."
 aws s3 cp /tmp/s3-index/ethereum/mainnet/index.html s3://flashbots-mempool-dumpster/ --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
