@@ -18,6 +18,11 @@ import (
 	"go.uber.org/zap"
 )
 
+// options - via https://docs.bloxroute.com/introduction/cloud-api-ips
+// wss://virginia.eth.blxrbdn.com/ws
+// wss://uk.eth.blxrbdn.com/ws
+// wss://singapore.eth.blxrbdn.com/ws
+// wss://germany.eth.blxrbdn.com/ws
 var blxURI = common.GetEnv("BLX_URI", "wss://virginia.eth.blxrbdn.com/ws")
 
 type BlxNodeConnection struct {
@@ -53,7 +58,7 @@ func (nc *BlxNodeConnection) reconnect() {
 }
 
 func (nc *BlxNodeConnection) connect() {
-	nc.log.Infow("connecting to bloXroute...")
+	nc.log.Infow("connecting to bloXroute...", "uri", blxURI)
 	dialer := websocket.DefaultDialer
 	wsSubscriber, resp, err := dialer.Dial(blxURI, http.Header{"Authorization": []string{nc.blxAuthHeader}})
 	if err != nil {
