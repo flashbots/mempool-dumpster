@@ -8,6 +8,9 @@ v:
 clean:
 	rm -rf build/ out/
 
+clean-dev:
+	rm -rf out/ test/
+
 .PHONY: build
 build:
 	@mkdir ./build || true

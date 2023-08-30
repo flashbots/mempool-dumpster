@@ -16,12 +16,13 @@ import (
 
 type TxProcessor struct {
 	log    *zap.SugaredLogger
-	txC    chan TxIn // important that value is sent in here, otherwise there are memory race conditions
 	uid    string
 	outDir string
+	txC    chan TxIn // note: it's important that the value is sent in here instead of a pointer, otherwise there are memory race conditions
 
-	outFiles     map[int64]*os.File // batches for 10 min intervals (key is lower 10min timestamp)
-	outFilesLock sync.RWMutex
+	outFiles         map[int64]*os.File
+	outFilesSrcStats map[int64]*os.File
+	outFilesLock     sync.RWMutex
 
 	txn     map[ethcommon.Hash]time.Time
 	txnLock sync.RWMutex
@@ -33,18 +34,24 @@ type TxProcessor struct {
 
 	srcCntAll     map[string]uint64
 	srcCntAllLock sync.RWMutex
+
+	recSrcStats bool // whether to record source stats (a CSV file with timestamp_ms,hash,source)
 }
 
-func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string) *TxProcessor {
+func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string, srcStats bool) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
-		log:         log, // .With("uid", uid),
-		txC:         make(chan TxIn, 100),
-		uid:         uid,
-		outDir:      outDir,
-		outFiles:    make(map[int64]*os.File),
+		log: log, // .With("uid", uid),
+		txC: make(chan TxIn, 100),
+		uid: uid,
+
+		outDir:           outDir,
+		outFiles:         make(map[int64]*os.File),
+		outFilesSrcStats: make(map[int64]*os.File),
+
 		txn:         make(map[ethcommon.Hash]time.Time),
 		srcCntFirst: make(map[string]uint64),
 		srcCntAll:   make(map[string]uint64),
+		recSrcStats: srcStats,
 	}
 }
 
@@ -77,6 +84,27 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.srcCntAll[txIn.URITag]++
 	p.srcCntAllLock.Unlock()
 
+	// get output file handles
+	fTx, fSrcStats, isCreated, err := p.getOutputCSVFiles(txIn.T.Unix())
+	if err != nil {
+		log.Errorw("getOutputCSVFiles", "error", err)
+		return
+	} else if isCreated {
+		p.log.Infof("new file created: %s", fTx.Name())
+		if p.recSrcStats {
+			p.log.Infof("new file created: %s", fSrcStats.Name())
+		}
+	}
+
+	// record source stats
+	if p.recSrcStats {
+		_, err = fmt.Fprintf(fSrcStats, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.URITag)
+		if err != nil {
+			log.Errorw("fmt.Fprintf", "error", err)
+			return
+		}
+	}
+
 	// process transactions only once
 	p.txnLock.RLock()
 	_, ok := p.txn[txHash]
@@ -86,6 +114,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		return
 	}
 
+	// Total unique tx count
 	p.txCnt.Inc()
 
 	// count first transactions per source (i.e. who delivers a given tx first)
@@ -107,18 +136,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		RawTx:     rlpHex,
 	}
 
-	// Write to CSV file
-	f, isCreated, err := p.getOutputCSVFile(txIn.T.Unix())
-	if err != nil {
-		log.Errorw("getOutputCSVFile", "error", err)
-		return
-	}
-
-	if isCreated {
-		p.log.Infof("new file created: %s", f.Name())
-	}
-
-	_, err = fmt.Fprintf(f, "%d,%s,%s\n", txDetail.Timestamp, txDetail.Hash, txDetail.RawTx)
+	_, err = fmt.Fprintf(fTx, "%d,%s,%s\n", txDetail.Timestamp, txDetail.Hash, txDetail.RawTx)
 	if err != nil {
 		log.Errorw("fmt.Fprintf", "error", err)
 		return
@@ -130,45 +148,71 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.txnLock.Unlock()
 }
 
-func (p *TxProcessor) getOutputCSVFile(timestamp int64) (f *os.File, isCreated bool, err error) {
+// getOutputCSVFiles returns two file handles - one for the transactions and one for source stats, if needed - and a boolean indicating whether the file was created
+func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (fTx, fSrcStats *os.File, isCreated bool, err error) {
 	// bucketTS := timestamp / secPerDay * secPerDay // down-round timestamp to start of bucket
 	sec := int64(bucketMinutes * 60)
 	bucketTS := timestamp / sec * sec // timestamp down-round to start of bucket
 	t := time.Unix(bucketTS, 0).UTC()
 
-	// return if file already open
+	// files may already be opened
+	var fTxOk, fSrcStatsOk bool
 	p.outFilesLock.RLock()
-	f, ok := p.outFiles[bucketTS]
+	fTx, fTxOk = p.outFiles[bucketTS]
+	fSrcStats, fSrcStatsOk = p.outFilesSrcStats[bucketTS]
 	p.outFilesLock.RUnlock()
-	if ok {
-		return f, false, nil
+
+	if !fTxOk {
+		// open transaction file for writing
+		dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
+		err = os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			p.log.Error(err)
+			return nil, nil, false, err
+		}
+
+		fn := filepath.Join(dir, p.getFilename("txs", bucketTS))
+		fTx, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			p.log.Errorw("os.Create", "error", err)
+			return nil, nil, false, err
+		}
 	}
 
-	// open file for writing
-	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
-	err = os.MkdirAll(dir, os.ModePerm)
-	if err != nil {
-		p.log.Error(err)
-		return nil, false, err
+	if p.recSrcStats && !fSrcStatsOk {
+		// open source-stats file for writing
+		dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "source-stats")
+		err = os.MkdirAll(dir, os.ModePerm)
+		if err != nil {
+			p.log.Error(err)
+			return nil, nil, false, err
+		}
+
+		fn := filepath.Join(dir, p.getFilename("src", bucketTS))
+		fSrcStats, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			p.log.Errorw("os.Create", "error", err)
+			return nil, nil, false, err
+		}
 	}
 
-	fn := filepath.Join(dir, p.getFilename(bucketTS))
-	f, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		p.log.Errorw("os.Create", "error", err)
-		return nil, false, err
+	// if one file was opened, record it now
+	if !fTxOk || (p.recSrcStats && !fSrcStatsOk) {
+		p.outFilesLock.Lock()
+		p.outFiles[bucketTS] = fTx
+		p.outFilesSrcStats[bucketTS] = fSrcStats
+		p.outFilesLock.Unlock()
+		isCreated = true
 	}
-
-	// add to open file list
-	p.outFilesLock.Lock()
-	p.outFiles[bucketTS] = f
-	p.outFilesLock.Unlock()
-	return f, true, nil
+	return fTx, fSrcStats, isCreated, nil
 }
 
-func (p *TxProcessor) getFilename(timestamp int64) string {
+func (p *TxProcessor) getFilename(prefix string, timestamp int64) string {
 	t := time.Unix(timestamp, 0).UTC()
-	return fmt.Sprintf("txs_%s_%s.csv", t.Format("2006-01-02-15-04"), p.uid)
+	if prefix != "" {
+		prefix += "_"
+	}
+	return fmt.Sprintf("%s%s_%s.csv", prefix, t.Format("2006-01-02_15-04"), p.uid)
 }
 
 func (p *TxProcessor) cleanupBackgroundTask() {
@@ -191,8 +235,16 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		for timestamp, file := range p.outFiles {
 			usageSec := bucketMinutes * 60 * 2
 			if time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
-				p.log.Infow("closing file", "timestamp", timestamp, "filename", p.getFilename(timestamp))
+				p.log.Infow("closing file", "timestamp", timestamp, "filename", file.Name())
 				delete(p.outFiles, timestamp)
+				_ = file.Close()
+			}
+		}
+		for timestamp, file := range p.outFilesSrcStats {
+			usageSec := bucketMinutes * 60 * 2
+			if time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
+				p.log.Infow("closing file", "timestamp", timestamp, "filename", file.Name())
+				delete(p.outFilesSrcStats, timestamp)
 				_ = file.Close()
 			}
 		}

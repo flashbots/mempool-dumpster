@@ -6,8 +6,8 @@ import (
 )
 
 // Start kicks off all the service components in the background
-func Start(log *zap.SugaredLogger, nodes []string, outDir, uid, bloxrouteAuthToken string) {
-	processor := NewTxProcessor(log, outDir, uid)
+func Start(log *zap.SugaredLogger, nodes []string, outDir, uid, bloxrouteAuthToken string, srcStats bool) {
+	processor := NewTxProcessor(log, outDir, uid, srcStats)
 	go processor.Start()
 
 	for _, node := range nodes {
