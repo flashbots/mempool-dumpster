@@ -34,12 +34,23 @@ func NewBlxNodeConnection(log *zap.SugaredLogger, blxAuthHeader string, txC chan
 	}
 }
 
-func (nc *BlxNodeConnection) Connect() {
+func (nc *BlxNodeConnection) Start() {
+	nc.connect()
+}
+
+func (nc *BlxNodeConnection) reconnect() {
+	time.Sleep(2 * time.Second)
+	nc.connect()
+}
+
+func (nc *BlxNodeConnection) connect() {
 	nc.log.Infow("connecting to bloXroute...")
 	dialer := websocket.DefaultDialer
 	wsSubscriber, resp, err := dialer.Dial(blxURI, http.Header{"Authorization": []string{nc.blxAuthHeader}})
 	if err != nil {
-		nc.log.Fatalw("failed to connect to bloxroute", "error", err)
+		nc.log.Errorw("failed to connect to bloxroute", "error", err)
+		go nc.reconnect()
+		return
 	}
 	defer wsSubscriber.Close()
 	defer resp.Body.Close()
@@ -47,7 +58,9 @@ func (nc *BlxNodeConnection) Connect() {
 	subRequest := `{"id": 1, "method": "subscribe", "params": ["newTxs", {"include": ["raw_tx"]}]}`
 	err = wsSubscriber.WriteMessage(websocket.TextMessage, []byte(subRequest))
 	if err != nil {
-		nc.log.Fatalw("failed to subscribe to bloxroute", "error", err)
+		nc.log.Errorw("failed to subscribe to bloxroute", "error", err)
+		go nc.reconnect()
+		return
 	}
 
 	nc.log.Infow("connection to bloXroute successful")
@@ -64,10 +77,7 @@ func (nc *BlxNodeConnection) Connect() {
 			}
 
 			// TODO: exponential backoff?
-			go func() {
-				time.Sleep(2 * time.Second)
-				nc.Connect()
-			}()
+			go nc.reconnect()
 			return
 		}
 

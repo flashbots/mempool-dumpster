@@ -23,11 +23,10 @@ func pcheck(err error) {
 }
 
 func main() {
-	mainGeneric()
-	_, _, _ = pcheck, mainRaw, mainAlchemy //nolint:dogsled
+	MainBlx()
 }
 
-func mainGeneric() {
+func MainGeneric() {
 	txC := make(chan collector.TxIn)
 	log := common.GetLogger(true, false)
 	nc := collector.NewNodeConnection(log, url, txC)
@@ -37,7 +36,17 @@ func mainGeneric() {
 	}
 }
 
-func mainRaw() {
+func MainBlx() {
+	txC := make(chan collector.TxIn)
+	log := common.GetLogger(true, false)
+	nc := collector.NewBlxNodeConnection(log, os.Getenv("BLX_AUTH_HEADER"), txC)
+	go nc.Start()
+	for tx := range txC {
+		log.Infow("received tx", "tx", tx.Tx.Hash())
+	}
+}
+
+func MainRaw() {
 	fmt.Println("connecting to node...", "uri", url)
 	rpcClient, err := rpc.Dial(url)
 	pcheck(err)
@@ -52,8 +61,8 @@ func mainRaw() {
 	}
 }
 
-// alchemy: https://docs.alchemy.com/reference/newpendingtransactions https://docs.alchemy.com/reference/alchemy-pendingtransactions
-func mainAlchemy() {
+// MainAlchemy uses alchemy: https://docs.alchemy.com/reference/newpendingtransactions https://docs.alchemy.com/reference/alchemy-pendingtransactions
+func MainAlchemy() {
 	fmt.Println("connecting to node...", "uri", url)
 	txC := make(chan *types.Transaction)
 	client, err := ethclient.Dial(url)
