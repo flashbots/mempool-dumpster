@@ -24,6 +24,7 @@ type BlxNodeConnection struct {
 	log           *zap.SugaredLogger
 	blxAuthHeader string
 	txC           chan TxIn
+	backoffSec    int
 }
 
 func NewBlxNodeConnection(log *zap.SugaredLogger, blxAuthHeader string, txC chan TxIn) *BlxNodeConnection {
@@ -31,6 +32,7 @@ func NewBlxNodeConnection(log *zap.SugaredLogger, blxAuthHeader string, txC chan
 		log:           log.With("conn", "blx"),
 		blxAuthHeader: blxAuthHeader,
 		txC:           txC,
+		backoffSec:    2,
 	}
 }
 
@@ -39,7 +41,14 @@ func (nc *BlxNodeConnection) Start() {
 }
 
 func (nc *BlxNodeConnection) reconnect() {
-	time.Sleep(2 * time.Second)
+	time.Sleep(time.Duration(nc.backoffSec) * time.Second)
+
+	// increase backoff timeout
+	nc.backoffSec *= 2
+	if nc.backoffSec > 30 {
+		nc.backoffSec = 30
+	}
+
 	nc.connect()
 }
 
@@ -64,6 +73,7 @@ func (nc *BlxNodeConnection) connect() {
 	}
 
 	nc.log.Infow("connection to bloXroute successful")
+	nc.backoffSec = 2 // reset backoff timeout
 
 	for {
 		_, nextNotification, err := wsSubscriber.ReadMessage()
