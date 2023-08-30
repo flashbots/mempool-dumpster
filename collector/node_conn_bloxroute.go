@@ -18,6 +18,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	initialBackoffSec = 5
+	maxBackoffSec     = 120
+)
+
 // options - via https://docs.bloxroute.com/introduction/cloud-api-ips
 // wss://virginia.eth.blxrbdn.com/ws
 // wss://uk.eth.blxrbdn.com/ws
@@ -37,7 +42,7 @@ func NewBlxNodeConnection(log *zap.SugaredLogger, blxAuthHeader string, txC chan
 		log:           log.With("conn", "blx"),
 		blxAuthHeader: blxAuthHeader,
 		txC:           txC,
-		backoffSec:    2,
+		backoffSec:    initialBackoffSec,
 	}
 }
 
@@ -50,8 +55,8 @@ func (nc *BlxNodeConnection) reconnect() {
 
 	// increase backoff timeout
 	nc.backoffSec *= 2
-	if nc.backoffSec > 30 {
-		nc.backoffSec = 30
+	if nc.backoffSec > maxBackoffSec {
+		nc.backoffSec = maxBackoffSec
 	}
 
 	nc.connect()
@@ -78,7 +83,7 @@ func (nc *BlxNodeConnection) connect() {
 	}
 
 	nc.log.Infow("connection to bloXroute successful")
-	nc.backoffSec = 2 // reset backoff timeout
+	nc.backoffSec = initialBackoffSec // reset backoff timeout
 
 	for {
 		_, nextNotification, err := wsSubscriber.ReadMessage()

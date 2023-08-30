@@ -13,7 +13,7 @@ clean-dev:
 
 .PHONY: build
 build:
-	@mkdir ./build || true
+	@mkdir -p build
 	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/collector cmd/collector/main.go
 	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/summerizer cmd/summarizer/main.go
 
