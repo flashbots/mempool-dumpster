@@ -45,6 +45,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -96,12 +97,6 @@ func main() {
 	log = common.GetLogger(*debugPtr, false)
 	defer func() { _ = log.Sync() }()
 
-	// Ensure output directory is set
-	if *outDirPtr == "" {
-		flag.Usage()
-		log.Fatal("-out argument is required")
-	}
-
 	// Collect input files from arguments
 	files := flag.Args()
 	if flag.NArg() == 0 {
@@ -110,29 +105,37 @@ func main() {
 	}
 
 	log.Infow("Starting mempool-source-stats-summarizer", "version", version)
-	log.Infof("Output directory: %s", *outDirPtr)
 
-	// Ensure the output directory exists
-	err := os.MkdirAll(*outDirPtr, os.ModePerm)
-	if err != nil {
-		log.Errorw("os.MkdirAll", "error", err)
-		return
+	// writing output file is optional
+	if *outDirPtr == "" {
+		log.Infof("Output directory: %s", *outDirPtr)
+
+		// Prepare output file paths, and make sure they don't exist yet
+		fnOut := getOutFilename()
+		if _, err := os.Stat(fnOut); !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("Output file already exists: %s", fnOut)
+		}
+
+		// Ensure the output directory exists
+		err := os.MkdirAll(*outDirPtr, os.ModePerm)
+		if err != nil {
+			log.Errorw("os.MkdirAll", "error", err)
+			return
+		}
 	}
 
 	summarizeSourceStats(files)
 }
 
-// summarizeSourceStats parses all input CSV files into one output CSV and one output Parquet file.
-func summarizeSourceStats(files []string) { //nolint:gocognit,gocyclo,maintidx
-	// Prepare output file paths, and make sure they don't exist yet
-	fnStats := filepath.Join(*outDirPtr, "source-stats.csv")
+func getOutFilename() string {
+	fnOut := filepath.Join(*outDirPtr, "source-stats.csv")
 	if *outDatePtr != "" {
-		fnStats = filepath.Join(*outDirPtr, fmt.Sprintf("%s_source-stats.csv", *outDatePtr))
+		fnOut = filepath.Join(*outDirPtr, fmt.Sprintf("%s_source-stats.csv", *outDatePtr))
 	}
-	if _, err := os.Stat(fnStats); !errors.Is(err, os.ErrNotExist) {
-		log.Fatalf("Output file already exists: %s", fnStats)
-	}
+	return fnOut
+}
 
+func checkInputFiles(files []string) {
 	// Ensure all input files exist and are CSVs
 	for _, filename := range files {
 		s, err := os.Stat(filename)
@@ -148,22 +151,20 @@ func summarizeSourceStats(files []string) { //nolint:gocognit,gocyclo,maintidx
 			log.Fatalf("Input file is not a CSV file: %s", filename)
 		}
 	}
+}
 
-	// Process input files
-	// type txMeta struct {
-	// 	timestampMs int64
-	// 	hash        string
-	// 	srcTag      string
-	// }
+// summarizeSourceStats parses all input CSV files into one output CSV and one output Parquet file.
+func summarizeSourceStats(files []string) { //nolint:gocognit
+	checkInputFiles(files)
 
 	txs := make(map[string]map[string]int64) // [hash][srcTag]timestampMs
 	sources := make(map[string]bool)
 
 	timestampFirst, timestampLast := int64(0), int64(0)
+	cntProcessedFiles := 0
+	cntProcessedRecords := int64(0)
 
 	// Collect transactions from all input files to memory
-	cntProcessedFiles := 0
-	cntProcessedRecords := 0
 	for _, filename := range files {
 		log.Infof("Processing: %s", filename)
 		cntProcessedFiles += 1
@@ -240,7 +241,6 @@ func summarizeSourceStats(files []string) { //nolint:gocognit,gocyclo,maintidx
 			"txTotal", printer.Sprintf("%d", len(txs)),
 			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
 		)
-		// break
 	}
 
 	log.Infow("Processed all input files",
@@ -250,6 +250,68 @@ func summarizeSourceStats(files []string) { //nolint:gocognit,gocyclo,maintidx
 		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
 	)
 
+	// Write output file
+	err := writeTxCSV(txs)
+	if err != nil {
+		log.Errorw("writeTxCSV", "error", err)
+	}
+
+	// Analyze
+	analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords, txs)
+}
+
+func writeTxCSV(txs map[string]map[string]int64) error {
+	fn := getOutFilename()
+
+	log.Infof("Output CSV file: %s", fn)
+	f, err := os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Write header
+	_, err = f.WriteString("timestamp_ms,hash,source\n")
+	if err != nil {
+		return err
+	}
+
+	// save tx+source by timestamp: [timestamp][hash] = source
+	cache := make(map[int]map[string][]string)
+	for hash, v := range txs {
+		for srcTag, ts := range v {
+			if _, ok := cache[int(ts)]; !ok {
+				cache[int(ts)] = make(map[string][]string)
+			}
+			cache[int(ts)][hash] = append(cache[int(ts)][hash], srcTag)
+		}
+	}
+
+	// sort by timestamp
+	timestamps := make([]int, 0)
+	for ts := range cache {
+		timestamps = append(timestamps, ts)
+	}
+	sort.Ints(timestamps)
+
+	// write to file
+	for _, ts := range timestamps {
+		for hash, srcTags := range cache[ts] {
+			for _, srcTag := range srcTags {
+				_, err = f.WriteString(fmt.Sprintf("%d,%s,%s\n", ts, hash, srcTag))
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	log.Infof("Output file written: %s", fn)
+	return nil
+}
+
+// Analyze
+func analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords int64, txs map[string]map[string]int64) {
 	// step 1: get overall tx / source
 	srcCntOverallTxs := make(map[string]int64)
 	for _, v := range txs {
