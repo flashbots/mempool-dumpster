@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
 
@@ -21,24 +22,13 @@ type NodeConnection struct {
 }
 
 func NewNodeConnection(log *zap.SugaredLogger, nodeURI string, txC chan TxIn) *NodeConnection {
-	uriTag := nodeURI
-	isAlchemy := strings.Contains(nodeURI, "alchemy.com/")
-	if isAlchemy {
-		uriTag = "alchemy"
-		log = log.With("conn", "alchemy")
-	} else {
-		log = log.With("conn", "generic")
-	}
-	if strings.Contains(nodeURI, "infura.io/") {
-		uriTag = "infura"
-	}
-
+	srcAlias := common.TxSourcName(nodeURI)
 	return &NodeConnection{
-		log:       log, //.With("module", "node_connection", "uri", nodeURI),
+		log:       log.With("src", srcAlias),
 		uri:       nodeURI,
-		uriTag:    uriTag,
+		uriTag:    srcAlias,
 		txC:       txC,
-		isAlchemy: isAlchemy,
+		isAlchemy: strings.Contains(nodeURI, "alchemy.com/"),
 	}
 }
 

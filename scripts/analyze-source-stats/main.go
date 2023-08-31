@@ -107,7 +107,7 @@ func main() {
 	log.Infow("Starting mempool-source-stats-summarizer", "version", version)
 
 	// writing output file is optional
-	if *outDirPtr == "" {
+	if *outDirPtr != "" {
 		log.Infof("Output directory: %s", *outDirPtr)
 
 		// Prepare output file paths, and make sure they don't exist yet
@@ -251,9 +251,11 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 	)
 
 	// Write output file
-	err := writeTxCSV(txs)
-	if err != nil {
-		log.Errorw("writeTxCSV", "error", err)
+	if *outDirPtr != "" {
+		err := writeTxCSV(txs)
+		if err != nil {
+			log.Errorw("writeTxCSV", "error", err)
+		}
 	}
 
 	// Analyze
@@ -311,7 +313,9 @@ func writeTxCSV(txs map[string]map[string]int64) error {
 }
 
 // Analyze
-func analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords int64, txs map[string]map[string]int64) {
+func analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords int64, txs map[string]map[string]int64) { //nolint:gocognit
+	numUniqueTxs := len(txs)
+
 	// step 1: get overall tx / source
 	srcCntOverallTxs := make(map[string]int64)
 	for _, v := range txs {
@@ -344,9 +348,9 @@ func analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords int64, txs ma
 	for srcTag, cnt := range srcCntUniqueTxs {
 		l = l.With(srcTag, printer.Sprintf("%d", cnt))
 	}
-	l.Infow("Unique tx count", "unique", printer.Sprintf("%d / %d", nUnique, len(txs)))
+	l.Infow("Unique tx count", "unique", printer.Sprintf("%d / %d", nUnique, numUniqueTxs))
 
-	// step 2: get +/- vs reference
+	// step 3: get +/- vs reference
 	ref := "ws://localhost:8546"
 	srcNotSeenByRef := make(map[string]int64)
 	nNotSeenByRef := 0
@@ -365,7 +369,69 @@ func analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords int64, txs ma
 	for srcTag, cnt := range srcNotSeenByRef {
 		l = l.With(srcTag, printer.Sprintf("%d", cnt))
 	}
-	l.Infow("Not seen by local node", "notSeenByRef", printer.Sprintf("%d / %d", nNotSeenByRef, len(txs)))
+	l.Infow("Not seen by local node", "notSeenByRef", printer.Sprintf("%d / %d", nNotSeenByRef, numUniqueTxs))
+
+	// How much earlier were transactions received by blx vs. the local node?
+	blxFirst := 0
+	blxG001Sec := 0
+	blxG01Sec := 0
+	blxG025Sec := 0
+	blxG05Sec := 0
+	blxG1Sec := 0
+	blxG2Sec := 0
+	blxG5Sec := 0
+
+	for _, v := range txs {
+		if len(v) == 1 {
+			continue
+		}
+
+		if _, seenByBlx := v["blx"]; !seenByBlx {
+			continue
+		}
+		if _, seenByRef := v[ref]; !seenByRef {
+			continue
+		}
+
+		blxTS := v["blx"]
+		refTS := v[ref]
+		diff := blxTS - refTS
+		if diff > 0 {
+			blxFirst += 1
+		}
+		if diff > 10 {
+			blxG001Sec += 1
+		}
+		if diff > 100 {
+			blxG01Sec += 1
+		}
+		if diff > 250 {
+			blxG025Sec += 1
+		}
+		if diff > 500 {
+			blxG05Sec += 1
+		}
+		if diff > 1000 {
+			blxG1Sec += 1
+		}
+		if diff > 2000 {
+			blxG2Sec += 1
+		}
+		if diff > 5000 {
+			blxG5Sec += 1
+		}
+	}
+
+	log.Infow("Transactions received by blx before local node",
+		"blxFirst", printer.Sprintf("%d", blxFirst),
+		"blxG001Sec", printer.Sprintf("%d", blxG001Sec),
+		"blxG01Sec", printer.Sprintf("%d", blxG01Sec),
+		"blxG025Sec", printer.Sprintf("%d", blxG025Sec),
+		"blxG05Sec", printer.Sprintf("%d", blxG05Sec),
+		"blxG1Sec", printer.Sprintf("%d", blxG1Sec),
+		"blxG2Sec", printer.Sprintf("%d", blxG2Sec),
+		"blxG5Sec", printer.Sprintf("%d", blxG5Sec),
+	)
 
 	// convert timestamps to duration
 	d := time.Duration(timestampLast-timestampFirst) * time.Millisecond
@@ -381,9 +447,9 @@ func analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords int64, txs ma
 	fmt.Printf("- To:   %s \n", t2.String())
 	fmt.Printf("        (%s) \n", d.String())
 	// fmt.Printf("- Time:\n  - From: %s \n  -   To: %s \n  -  Dur: %s \n", t1.String(), t2.String(), d.String())
-	fmt.Printf("\nUnique transactions: %s \n", printer.Sprintf("%d", len(txs)))
+	fmt.Printf("\nUnique transactions: %s \n", printer.Sprintf("%d", numUniqueTxs))
 	fmt.Println("")
-	// fmt.Printf("Transactions received (%s total) \n", printer.Sprintf("%d", len(txs)))
+	// fmt.Printf("Transactions received (%s total) \n", printer.Sprintf("%d", numUniqueTxs))
 	fmt.Printf("Transactions received: \n")
 	for srcTag, cnt := range srcCntOverallTxs {
 		fmt.Printf("- %-20s %10s\n", srcTag, printer.Sprintf("%d", cnt))
@@ -397,8 +463,19 @@ func analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords int64, txs ma
 	}
 
 	fmt.Println("")
-	fmt.Println("Transactions not seen by local node:", printer.Sprintf("%d / %d", nNotSeenByRef, len(txs)))
+	fmt.Println("Transactions not seen by local node:", printer.Sprintf("%d / %d", nNotSeenByRef, numUniqueTxs))
 	for srcTag, cnt := range srcNotSeenByRef {
 		fmt.Printf("- %-20s %10s\n", srcTag, printer.Sprintf("%d", cnt))
 	}
+
+	fmt.Println("")
+	fmt.Println("Bloxroute transactions received before local node:")
+	fmt.Printf("- first: %8s (%s of %s blx txs) \n", printer.Sprintf("%d", blxFirst), printer.Sprintf("%d", srcCntOverallTxs["blx"]), common.Int64DiffPercentFmt(int64(blxFirst), srcCntOverallTxs["blx"]))
+	fmt.Printf("- 10ms:  %8s \t %6s\n", printer.Sprintf("%d", blxG001Sec), common.Int64DiffPercentFmt(int64(blxG001Sec), srcCntOverallTxs["blx"]))
+	fmt.Printf("- 100ms: %8s \t %6s\n", printer.Sprintf("%d", blxG01Sec), common.Int64DiffPercentFmt(int64(blxG01Sec), srcCntOverallTxs["blx"]))
+	fmt.Printf("- 250ms: %8s \t %6s\n", printer.Sprintf("%d", blxG025Sec), common.Int64DiffPercentFmt(int64(blxG025Sec), srcCntOverallTxs["blx"]))
+	fmt.Printf("- 500ms: %8s \t %6s\n", printer.Sprintf("%d", blxG05Sec), common.Int64DiffPercentFmt(int64(blxG05Sec), srcCntOverallTxs["blx"]))
+	fmt.Printf("- 1sec:  %8s \t %6s\n", printer.Sprintf("%d", blxG1Sec), common.Int64DiffPercentFmt(int64(blxG1Sec), srcCntOverallTxs["blx"]))
+	fmt.Printf("- 2sec:  %8s \t %6s\n", printer.Sprintf("%d", blxG2Sec), common.Int64DiffPercentFmt(int64(blxG2Sec), srcCntOverallTxs["blx"]))
+	fmt.Printf("- 5sec:  %8s \t %6s\n", printer.Sprintf("%d", blxG5Sec), common.Int64DiffPercentFmt(int64(blxG5Sec), srcCntOverallTxs["blx"]))
 }

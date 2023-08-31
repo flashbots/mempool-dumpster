@@ -4,6 +4,7 @@ package common
 import (
 	"os"
 	"runtime"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -58,4 +59,30 @@ func TxToRLPString(tx *types.Transaction) (string, error) {
 		return "", err
 	}
 	return hexutil.Encode(b), nil
+}
+
+func IntDiffPercentFmt(a, b int) string {
+	diff := float64(a) / float64(b)
+	return Printer.Sprintf("%.2f%%", diff*100)
+}
+
+func Int64DiffPercentFmt(a, b int64) string {
+	diff := float64(a) / float64(b)
+	return Printer.Sprintf("%.2f%%", diff*100)
+}
+
+func SourceAliasesFromEnv() map[string]string {
+	aliases := make(map[string]string)
+	aliasesRaw := os.Getenv("SRC_ALIASES") // format: alias=url,alias=url
+	if aliasesRaw != "" {
+		entries := strings.Split(aliasesRaw, ",")
+		for _, entry := range entries {
+			parts := strings.Split(entry, "=")
+			if len(parts) != 2 {
+				continue
+			}
+			aliases[parts[1]] = parts[0]
+		}
+	}
+	return aliases
 }

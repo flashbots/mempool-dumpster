@@ -1,12 +1,12 @@
 VERSION := $(shell git describe --tags --always --dirty="-dev")
 
-all: clean build
+all: build
 
 v:
 	@echo "Version: ${VERSION}"
 
-clean:
-	rm -rf build/ out/
+clean: clean-dev
+	rm -rf build/
 
 clean-dev:
 	rm -rf out/ test/

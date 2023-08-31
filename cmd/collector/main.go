@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/flashbots/mempool-dumpster/collector"
+	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/lithammer/shortuuid"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -91,6 +92,11 @@ func main() {
 	}
 
 	log.Infow("Starting mempool-collector", "version", version, "outDir", *outDirPtr, "uid", *uidPtr)
+
+	aliases := common.SourceAliasesFromEnv()
+	if len(aliases) > 0 {
+		log.Infow("Using source aliases:", "aliases", aliases)
+	}
 
 	// Start service components
 	collector.Start(log, nodes, *outDirPtr, *uidPtr, *blxAuthToken, *srcStats)
