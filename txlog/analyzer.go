@@ -1,4 +1,4 @@
-package main
+package txlog
 
 import (
 	"fmt"
@@ -7,13 +7,19 @@ import (
 	"time"
 
 	"github.com/flashbots/mempool-dumpster/common"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
 const (
 	referenceLocalSource = "local"
 )
 
-var bucketsMS = []int64{1, 10, 50, 100, 250, 500, 1000, 2000} // note: 0 would be equal timestamps
+var (
+	bucketsMS = []int64{1, 10, 50, 100, 250, 500, 1000, 2000} // note: 0 would be equal timestamps
+
+	printer = message.NewPrinter(language.English)
+)
 
 func prettyInt(i int) string {
 	return printer.Sprintf("%d", i)
@@ -155,8 +161,8 @@ func (a *Analyzer) Print() {
 	fmt.Println("")
 	fmt.Printf("Sources: %s \n", strings.Join(a.sources, ", "))
 	fmt.Println("")
-	fmt.Printf("- Transactions: %8s \n", prettyInt(a.nAllTx))
-	fmt.Printf("- Unique txs:   %8s \n", prettyInt(a.nUniqueTx))
+	fmt.Printf("- Transactions: %9s \n", prettyInt(a.nAllTx))
+	fmt.Printf("- Unique txs:   %9s \n", prettyInt(a.nUniqueTx))
 
 	fmt.Println("")
 	fmt.Println("-------------")
