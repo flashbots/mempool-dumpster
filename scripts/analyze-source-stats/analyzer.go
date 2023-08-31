@@ -13,7 +13,7 @@ const (
 	referenceLocalSource = "local"
 )
 
-var bucketsMS = []int64{1, 5, 50, 100, 250, 500, 1000, 2000} // note: 0 would be equal timestamps
+var bucketsMS = []int64{1, 10, 50, 100, 250, 500, 1000, 2000} // note: 0 would be equal timestamps
 
 func prettyInt(i int) string {
 	return printer.Sprintf("%d", i)
@@ -68,14 +68,7 @@ func (a *Analyzer) init() {
 		// count all tx
 		a.nAllTx += len(sources)
 
-		// number of unique tx -- special case for local+apool
-		// if len(sources) == 2 {
-		// 	if sources[referenceSource] != 0 && sources[referenceSource2] != 0 {
-		// 		a.nUniqueTxPerSource[referenceSource] += 1
-		// 		a.nTxSeenBySingleSource += 1
-		// 	}
-		// }
-
+		// count all tx that were not seen locally
 		if sources[referenceLocalSource] == 0 {
 			a.nOverallNotSeenLocal += 1
 		}
@@ -204,8 +197,8 @@ func (a *Analyzer) Print() {
 	latencyComps := []struct{ src, ref string }{
 		{common.BloxrouteTag, referenceLocalSource},
 		{"apool2", referenceLocalSource},
-		{"apool2", common.BloxrouteTag},
 		{common.BloxrouteTag, "apool2"},
+		{"apool2", common.BloxrouteTag},
 	}
 
 	for _, comp := range latencyComps {
