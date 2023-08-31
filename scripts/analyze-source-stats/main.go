@@ -9,29 +9,7 @@ Input: CSV file(s) with the following format:
 
 Output (currently):
 
-	2023-08-30T20:34:47.253Z        INFO    Processed all input files       {"files": 22, "txTotal": "627,891", "memUsedMiB": "594"}
-	2023-08-30T20:34:47.648Z        INFO    Overall tx count        {"infura": "578,606", "alchemy": "568,790", "ws://localhost:8546": "593,046", "blx": "419,725"}
-	2023-08-30T20:34:47.696Z        INFO    Unique tx count {"blx": "22,403", "ws://localhost:8546": "9,962", "alchemy": "2,940", "infura": "4,658", "unique": "39,963 / 627,891"}
-	2023-08-30T20:34:47.816Z        INFO    Not seen by local node  {"blx": "23,895", "infura": "9,167", "alchemy": "7,039", "notSeenByRef": "34,845 / 627,891"}
 
-	Total unique tx: 627,891
-
-	Transactions received:
-	- alchemy: 			   568,790
-	- blx:				   419,725
-	- infura: 			   578,606
-	- ws://localhost:8546: 593,046
-
-	Unique tx (sole sender):
-	- alchemy: 				2,940
-	- blx: 					22,403
-	- infura: 				4,658
-	- ws://localhost:8546: 	9,962
-
-	Transactions not seen by local node: 34,845 / 627,891
-	- alchemy: 	7,039
-	- blx: 		23,895
-	- infura: 	9,167
 
 more insight ideas?
 - who sent first

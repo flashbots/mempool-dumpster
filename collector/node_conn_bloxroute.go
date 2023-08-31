@@ -21,7 +21,6 @@ import (
 const (
 	initialBackoffSec = 5
 	maxBackoffSec     = 120
-	srcTag            = "blx"
 )
 
 // options - via https://docs.bloxroute.com/introduction/cloud-api-ips
@@ -40,7 +39,7 @@ type BlxNodeConnection struct {
 
 func NewBlxNodeConnection(log *zap.SugaredLogger, blxAuthHeader string, txC chan TxIn) *BlxNodeConnection {
 	return &BlxNodeConnection{
-		log:           log.With("src", srcTag),
+		log:           log.With("src", common.BloxrouteTag),
 		blxAuthHeader: blxAuthHeader,
 		txC:           txC,
 		backoffSec:    initialBackoffSec,
@@ -127,6 +126,6 @@ func (nc *BlxNodeConnection) connect() {
 			continue
 		}
 
-		nc.txC <- TxIn{time.Now().UTC(), &tx, srcTag}
+		nc.txC <- TxIn{time.Now().UTC(), &tx, common.BloxrouteTag}
 	}
 }
