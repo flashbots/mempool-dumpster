@@ -1,12 +1,41 @@
 package main
 
-//
-// Source-Stats Summarizer takes the source-stats CSV files from the collector and summarizes them into a single CSV file.
-//
-// Output:
-//
-// date, hour, source, tx_count, tx_count_first, tx_count_unique, tx_count_unseen
-//
+/**
+Source-Stats Summarizer takes the source-stats CSV files from the collector and summarizes them into a single CSV file.
+
+Input: CSV file(s) with the following format:
+
+	<timestamp_ms>,<tx_hash>,<source>
+
+Output (currently):
+
+	2023-08-30T20:34:47.253Z        INFO    Processed all input files       {"files": 22, "txTotal": "627,891", "memUsedMiB": "594"}
+	2023-08-30T20:34:47.648Z        INFO    Overall tx count        {"infura": "578,606", "alchemy": "568,790", "ws://localhost:8546": "593,046", "blx": "419,725"}
+	2023-08-30T20:34:47.696Z        INFO    Unique tx count {"blx": "22,403", "ws://localhost:8546": "9,962", "alchemy": "2,940", "infura": "4,658", "unique": "39,963 / 627,891"}
+	2023-08-30T20:34:47.816Z        INFO    Not seen by local node  {"blx": "23,895", "infura": "9,167", "alchemy": "7,039", "notSeenByRef": "34,845 / 627,891"}
+
+	Total unique tx: 627,891
+
+	Transactions received:
+	- alchemy: 			   568,790
+	- blx:				   419,725
+	- infura: 			   578,606
+	- ws://localhost:8546: 593,046
+
+	Unique tx (sole sender):
+	- alchemy: 				2,940
+	- blx: 					22,403
+	- infura: 				4,658
+	- ws://localhost:8546: 	9,962
+
+	Transactions not seen by local node: 34,845 / 627,891
+	- alchemy: 	7,039
+	- blx: 		23,895
+	- infura: 	9,167
+
+more insight ideas?
+- who sent first
+*/
 
 import (
 	"bufio"
@@ -18,7 +47,9 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 	"golang.org/x/text/language"
@@ -92,7 +123,7 @@ func main() {
 }
 
 // summarizeSourceStats parses all input CSV files into one output CSV and one output Parquet file.
-func summarizeSourceStats(files []string) { //nolint:gocognit
+func summarizeSourceStats(files []string) { //nolint:gocognit,gocyclo,maintidx
 	// Prepare output file paths, and make sure they don't exist yet
 	fnStats := filepath.Join(*outDirPtr, "source-stats.csv")
 	if *outDatePtr != "" {
@@ -128,8 +159,11 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 	txs := make(map[string]map[string]int64) // [hash][srcTag]timestampMs
 	sources := make(map[string]bool)
 
+	timestampFirst, timestampLast := int64(0), int64(0)
+
 	// Collect transactions from all input files to memory
 	cntProcessedFiles := 0
+	cntProcessedRecords := 0
 	for _, filename := range files {
 		log.Infof("Processing: %s", filename)
 		cntProcessedFiles += 1
@@ -160,8 +194,6 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 				continue
 			}
 
-			// todo: check items[1] is a valid hash
-
 			cntTxInFileTotal += 1
 
 			ts, err := strconv.Atoi(items[0])
@@ -172,6 +204,25 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 			txTimestamp := int64(ts)
 			txHash := items[1]
 			txSrcTag := items[2]
+
+			// that it's a valid hash
+			if len(txHash) != 66 {
+				log.Errorw("invalid hash length", "hash", txHash)
+				continue
+			}
+			if _, err = hexutil.Decode(txHash); err != nil {
+				log.Errorw("hexutil.Decode", "error", err, "line", l)
+				continue
+			}
+
+			cntProcessedRecords += 1
+
+			if timestampFirst == 0 || txTimestamp < timestampFirst {
+				timestampFirst = txTimestamp
+			}
+			if txTimestamp > timestampLast {
+				timestampLast = txTimestamp
+			}
 
 			// Add source to map
 			sources[txSrcTag] = true
@@ -192,7 +243,12 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 		// break
 	}
 
-	log.Infow("Processed all input files", "files", cntProcessedFiles, "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	log.Infow("Processed all input files",
+		"files", cntProcessedFiles,
+		"records", printer.Sprintf("%d", cntProcessedRecords),
+		"txTotal", printer.Sprintf("%d", len(txs)),
+		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+	)
 
 	// step 1: get overall tx / source
 	srcCntOverallTxs := make(map[string]int64)
@@ -249,5 +305,38 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 	}
 	l.Infow("Not seen by local node", "notSeenByRef", printer.Sprintf("%d / %d", nNotSeenByRef, len(txs)))
 
-	// log.Infof("Finished processing %s CSV files, wrote %s transactions", printer.Sprintf("%d", cntProcessedFiles), printer.Sprintf("%d", cntTxWritten))
+	// convert timestamps to duration
+	d := time.Duration(timestampLast-timestampFirst) * time.Millisecond
+	t1 := time.Unix(timestampFirst/1000, 0).UTC()
+	t2 := time.Unix(timestampLast/1000, 0).UTC()
+
+	fmt.Println("")
+	// fmt.Println("Input:")
+	// fmt.Println("- Files:", printer.Sprintf("%d", cntProcessedFiles))
+	// fmt.Printf("- From: %s \n- To:   %s \n- Duration: %s \n", t1.String(), t2.String(), d.String())
+	fmt.Printf("- Records: %s \n", printer.Sprintf("%d", cntProcessedRecords))
+	fmt.Printf("- From: %s \n", t1.String())
+	fmt.Printf("- To:   %s \n", t2.String())
+	fmt.Printf("        (%s) \n", d.String())
+	// fmt.Printf("- Time:\n  - From: %s \n  -   To: %s \n  -  Dur: %s \n", t1.String(), t2.String(), d.String())
+	fmt.Printf("\nUnique transactions: %s \n", printer.Sprintf("%d", len(txs)))
+	fmt.Println("")
+	// fmt.Printf("Transactions received (%s total) \n", printer.Sprintf("%d", len(txs)))
+	fmt.Printf("Transactions received: \n")
+	for srcTag, cnt := range srcCntOverallTxs {
+		fmt.Printf("- %-20s %10s\n", srcTag, printer.Sprintf("%d", cnt))
+	}
+	// fmt.Printf("- total unique         %10s\n", )
+
+	fmt.Println("")
+	fmt.Println("Unique tx (sole sender):")
+	for srcTag, cnt := range srcCntUniqueTxs {
+		fmt.Printf("- %-20s %10s\n", srcTag, printer.Sprintf("%d", cnt))
+	}
+
+	fmt.Println("")
+	fmt.Println("Transactions not seen by local node:", printer.Sprintf("%d / %d", nNotSeenByRef, len(txs)))
+	for srcTag, cnt := range srcNotSeenByRef {
+		fmt.Printf("- %-20s %10s\n", srcTag, printer.Sprintf("%d", cnt))
+	}
 }
