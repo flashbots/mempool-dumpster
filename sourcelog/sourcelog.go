@@ -1,9 +1,9 @@
-// Package txlog deals with loading and analyzing the transaction log.
+// Package sourcelog deals with loading and analyzing the transaction source logs.
 //
 // Input: CSV file(s) with the following format:
 //
 //	<timestamp_ms>,<tx_hash>,<source>
-package txlog
+package sourcelog
 
 import (
 	"bufio"
@@ -18,8 +18,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// LoadTxLog loads all input CSV files and returns a map[hash][source] = timestampMs
-func LoadTxLog(log *zap.SugaredLogger, files []string) (txs map[string]map[string]int64) { //nolint:gocognit
+// LoadSourceLogFiles loads all input CSV files and returns a map[hash][source] = timestampMs
+func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]map[string]int64) { //nolint:gocognit
 	txs = make(map[string]map[string]int64)
 
 	timestampFirst, timestampLast := int64(0), int64(0)

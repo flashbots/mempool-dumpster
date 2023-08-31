@@ -180,8 +180,8 @@ func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (fTx, fSrcStats *os.Fil
 	}
 
 	if p.recSrcStats && !fSrcStatsOk {
-		// open txlog for writing
-		dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "txlog")
+		// open sourcelog for writing
+		dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "sourcelog")
 		err = os.MkdirAll(dir, os.ModePerm)
 		if err != nil {
 			p.log.Error(err)

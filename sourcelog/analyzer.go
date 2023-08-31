@@ -1,4 +1,4 @@
-package txlog
+package sourcelog
 
 import (
 	"fmt"
@@ -202,9 +202,9 @@ func (a *Analyzer) Print() {
 	fmt.Println("------------------")
 	latencyComps := []struct{ src, ref string }{
 		{common.BloxrouteTag, referenceLocalSource},
-		{"apool2", referenceLocalSource},
-		{common.BloxrouteTag, "apool2"},
-		{"apool2", common.BloxrouteTag},
+		{"apool", referenceLocalSource},
+		{common.BloxrouteTag, "apool"},
+		{"apool", common.BloxrouteTag},
 	}
 
 	for _, comp := range latencyComps {

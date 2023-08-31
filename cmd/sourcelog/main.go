@@ -9,7 +9,7 @@ import (
 	"sort"
 
 	"github.com/flashbots/mempool-dumpster/common"
-	"github.com/flashbots/mempool-dumpster/txlog"
+	"github.com/flashbots/mempool-dumpster/sourcelog"
 	"go.uber.org/zap"
 )
 
@@ -45,7 +45,7 @@ func main() {
 
 	// perhaps only print the version
 	if *printVersion {
-		fmt.Printf("mempool-dumpster txlog %s\n", version)
+		fmt.Printf("mempool-dumpster sourcelog %s\n", version)
 		return
 	}
 
@@ -60,7 +60,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Infow("mempool-dumpster txlog", "version", version)
+	log.Infow("mempool-dumpster sourcelog", "version", version)
 
 	// print possible aliases, for debugging
 	aliases := common.SourceAliasesFromEnv()
@@ -90,11 +90,11 @@ func main() {
 	checkInputFiles(files)
 
 	// Load transaction log files
-	txLog := txlog.LoadTxLog(log, files)
+	sourceLog := sourcelog.LoadSourceLogFiles(log, files)
 
 	// Write output file
 	if *outDirPtr != "" {
-		err := writeTxCSV(txLog)
+		err := writeTxCSV(sourceLog)
 		if err != nil {
 			log.Errorw("writeTxCSV", "error", err)
 		}
@@ -102,14 +102,14 @@ func main() {
 
 	// Analyze
 	log.Info("Analyzing...")
-	analyzer := txlog.NewAnalyzer(txLog)
+	analyzer := sourcelog.NewAnalyzer(sourceLog)
 	analyzer.Print()
 }
 
 func getOutFilename() string {
-	fnOut := filepath.Join(*outDirPtr, "txlog.csv")
+	fnOut := filepath.Join(*outDirPtr, "sourcelog.csv")
 	if *outDatePtr != "" {
-		fnOut = filepath.Join(*outDirPtr, fmt.Sprintf("%s_txlog.csv", *outDatePtr))
+		fnOut = filepath.Join(*outDirPtr, fmt.Sprintf("%s_sourcelog.csv", *outDatePtr))
 	}
 	return fnOut
 }
