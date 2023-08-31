@@ -7,9 +7,9 @@ import (
 )
 
 type TxIn struct {
-	T      time.Time
-	Tx     *types.Transaction
-	URI    string
+	T  time.Time
+	Tx *types.Transaction
+	// URI    string
 	URITag string
 }
 

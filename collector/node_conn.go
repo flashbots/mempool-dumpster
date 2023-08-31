@@ -58,7 +58,7 @@ func (nc *NodeConnection) Start() {
 				time.Sleep(5 * time.Second)
 			}
 		case tx := <-txC:
-			nc.txC <- TxIn{time.Now().UTC(), tx, nc.uri, nc.uriTag}
+			nc.txC <- TxIn{time.Now().UTC(), tx, nc.uriTag}
 		}
 	}
 }

@@ -48,7 +48,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flashbots/mempool-dumpster/common"
@@ -106,6 +105,11 @@ func main() {
 
 	log.Infow("Starting mempool-source-stats-summarizer", "version", version)
 
+	aliases := common.SourceAliasesFromEnv()
+	if len(aliases) > 0 {
+		log.Infow("Using source aliases:", "aliases", aliases)
+	}
+
 	// writing output file is optional
 	if *outDirPtr != "" {
 		log.Infof("Output directory: %s", *outDirPtr)
@@ -158,7 +162,6 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 	checkInputFiles(files)
 
 	txs := make(map[string]map[string]int64) // [hash][srcTag]timestampMs
-	sources := make(map[string]bool)
 
 	timestampFirst, timestampLast := int64(0), int64(0)
 	cntProcessedFiles := 0
@@ -204,7 +207,7 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 			}
 			txTimestamp := int64(ts)
 			txHash := items[1]
-			txSrcTag := items[2]
+			txSrcTag := common.TxSourcName(items[2])
 
 			// that it's a valid hash
 			if len(txHash) != 66 {
@@ -225,15 +228,25 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 				timestampLast = txTimestamp
 			}
 
-			// Add source to map
-			sources[txSrcTag] = true
+			// Check for duplicate sends from a single source
+			// if _, ok := txs[txHash]; ok {
+			// 	// hash already exists
+			// 	if _, ok := txs[txHash][txSrcTag]; ok {
+			// 		// source already exists
+			// 		log.Debugw("duplicate entry", "hash", txHash, "source", txSrcTag, "timestamp", txTimestamp)
+			// 	}
+			// }
 
 			// Add entry to txs map
 			if _, ok := txs[txHash]; !ok {
 				txs[txHash] = make(map[string]int64)
+				txs[txHash][txSrcTag] = txTimestamp
 			}
-			// hash already exists
-			txs[txHash][txSrcTag] = txTimestamp
+
+			// Update timestamp if it's earlier (i.e. alchemy often sending duplicate entries, this makes sure we record the earliest timestamp)
+			if txs[txHash][txSrcTag] == 0 || txTimestamp < txs[txHash][txSrcTag] {
+				txs[txHash][txSrcTag] = txTimestamp
+			}
 		}
 		log.Infow("Processed file",
 			"txInFile", printer.Sprintf("%d", cntTxInFileTotal),
@@ -259,7 +272,11 @@ func summarizeSourceStats(files []string) { //nolint:gocognit
 	}
 
 	// Analyze
-	analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords, txs)
+	log.Info("Analyzing...")
+	analyzer := NewAnalyzer(txs)
+	analyzer.Print()
+
+	// analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords, txs)
 }
 
 func writeTxCSV(txs map[string]map[string]int64) error {
@@ -310,172 +327,4 @@ func writeTxCSV(txs map[string]map[string]int64) error {
 
 	log.Infof("Output file written: %s", fn)
 	return nil
-}
-
-// Analyze
-func analyzeTxs(timestampFirst, timestampLast, cntProcessedRecords int64, txs map[string]map[string]int64) { //nolint:gocognit
-	numUniqueTxs := len(txs)
-
-	// step 1: get overall tx / source
-	srcCntOverallTxs := make(map[string]int64)
-	for _, v := range txs {
-		for srcTag := range v {
-			srcCntOverallTxs[srcTag] += 1
-		}
-	}
-
-	l := log
-	for srcTag, cnt := range srcCntOverallTxs {
-		l = l.With(srcTag, printer.Sprintf("%d", cnt))
-	}
-	l.Info("Overall tx count")
-
-	// step 2: get unique tx / source
-	srcCntUniqueTxs := make(map[string]int64)
-	nUnique := 0
-	for hash, v := range txs {
-		if len(v) == 1 {
-			for srcTag := range v {
-				srcCntUniqueTxs[srcTag] += 1
-				nUnique += 1
-				_ = hash
-				// fmt.Println("unique", srcTag, hash)
-			}
-		}
-	}
-
-	l = log
-	for srcTag, cnt := range srcCntUniqueTxs {
-		l = l.With(srcTag, printer.Sprintf("%d", cnt))
-	}
-	l.Infow("Unique tx count", "unique", printer.Sprintf("%d / %d", nUnique, numUniqueTxs))
-
-	// step 3: get +/- vs reference
-	ref := "ws://localhost:8546"
-	srcNotSeenByRef := make(map[string]int64)
-	nNotSeenByRef := 0
-	for hash, v := range txs {
-		if _, seenByRef := v[ref]; !seenByRef {
-			nNotSeenByRef += 1
-			for srcTag := range v {
-				srcNotSeenByRef[srcTag] += 1
-				_ = hash
-				// fmt.Println("unique", srcTag, hash)
-			}
-		}
-	}
-
-	l = log
-	for srcTag, cnt := range srcNotSeenByRef {
-		l = l.With(srcTag, printer.Sprintf("%d", cnt))
-	}
-	l.Infow("Not seen by local node", "notSeenByRef", printer.Sprintf("%d / %d", nNotSeenByRef, numUniqueTxs))
-
-	// How much earlier were transactions received by blx vs. the local node?
-	blxFirst := 0
-	blxG001Sec := 0
-	blxG01Sec := 0
-	blxG025Sec := 0
-	blxG05Sec := 0
-	blxG1Sec := 0
-	blxG2Sec := 0
-	blxG5Sec := 0
-
-	for _, v := range txs {
-		if len(v) == 1 {
-			continue
-		}
-
-		if _, seenByBlx := v["blx"]; !seenByBlx {
-			continue
-		}
-		if _, seenByRef := v[ref]; !seenByRef {
-			continue
-		}
-
-		blxTS := v["blx"]
-		refTS := v[ref]
-		diff := blxTS - refTS
-		if diff > 0 {
-			blxFirst += 1
-		}
-		if diff > 10 {
-			blxG001Sec += 1
-		}
-		if diff > 100 {
-			blxG01Sec += 1
-		}
-		if diff > 250 {
-			blxG025Sec += 1
-		}
-		if diff > 500 {
-			blxG05Sec += 1
-		}
-		if diff > 1000 {
-			blxG1Sec += 1
-		}
-		if diff > 2000 {
-			blxG2Sec += 1
-		}
-		if diff > 5000 {
-			blxG5Sec += 1
-		}
-	}
-
-	log.Infow("Transactions received by blx before local node",
-		"blxFirst", printer.Sprintf("%d", blxFirst),
-		"blxG001Sec", printer.Sprintf("%d", blxG001Sec),
-		"blxG01Sec", printer.Sprintf("%d", blxG01Sec),
-		"blxG025Sec", printer.Sprintf("%d", blxG025Sec),
-		"blxG05Sec", printer.Sprintf("%d", blxG05Sec),
-		"blxG1Sec", printer.Sprintf("%d", blxG1Sec),
-		"blxG2Sec", printer.Sprintf("%d", blxG2Sec),
-		"blxG5Sec", printer.Sprintf("%d", blxG5Sec),
-	)
-
-	// convert timestamps to duration
-	d := time.Duration(timestampLast-timestampFirst) * time.Millisecond
-	t1 := time.Unix(timestampFirst/1000, 0).UTC()
-	t2 := time.Unix(timestampLast/1000, 0).UTC()
-
-	fmt.Println("")
-	// fmt.Println("Input:")
-	// fmt.Println("- Files:", printer.Sprintf("%d", cntProcessedFiles))
-	// fmt.Printf("- From: %s \n- To:   %s \n- Duration: %s \n", t1.String(), t2.String(), d.String())
-	fmt.Printf("- Records: %s \n", printer.Sprintf("%d", cntProcessedRecords))
-	fmt.Printf("- From: %s \n", t1.String())
-	fmt.Printf("- To:   %s \n", t2.String())
-	fmt.Printf("        (%s) \n", d.String())
-	// fmt.Printf("- Time:\n  - From: %s \n  -   To: %s \n  -  Dur: %s \n", t1.String(), t2.String(), d.String())
-	fmt.Printf("\nUnique transactions: %s \n", printer.Sprintf("%d", numUniqueTxs))
-	fmt.Println("")
-	// fmt.Printf("Transactions received (%s total) \n", printer.Sprintf("%d", numUniqueTxs))
-	fmt.Printf("Transactions received: \n")
-	for srcTag, cnt := range srcCntOverallTxs {
-		fmt.Printf("- %-20s %10s\n", srcTag, printer.Sprintf("%d", cnt))
-	}
-	// fmt.Printf("- total unique         %10s\n", )
-
-	fmt.Println("")
-	fmt.Println("Unique tx (sole sender):")
-	for srcTag, cnt := range srcCntUniqueTxs {
-		fmt.Printf("- %-20s %10s\n", srcTag, printer.Sprintf("%d", cnt))
-	}
-
-	fmt.Println("")
-	fmt.Println("Transactions not seen by local node:", printer.Sprintf("%d / %d", nNotSeenByRef, numUniqueTxs))
-	for srcTag, cnt := range srcNotSeenByRef {
-		fmt.Printf("- %-20s %10s\n", srcTag, printer.Sprintf("%d", cnt))
-	}
-
-	fmt.Println("")
-	fmt.Println("Bloxroute transactions received before local node:")
-	fmt.Printf("- first: %8s (%s of %s blx txs) \n", printer.Sprintf("%d", blxFirst), printer.Sprintf("%d", srcCntOverallTxs["blx"]), common.Int64DiffPercentFmt(int64(blxFirst), srcCntOverallTxs["blx"]))
-	fmt.Printf("- 10ms:  %8s \t %6s\n", printer.Sprintf("%d", blxG001Sec), common.Int64DiffPercentFmt(int64(blxG001Sec), srcCntOverallTxs["blx"]))
-	fmt.Printf("- 100ms: %8s \t %6s\n", printer.Sprintf("%d", blxG01Sec), common.Int64DiffPercentFmt(int64(blxG01Sec), srcCntOverallTxs["blx"]))
-	fmt.Printf("- 250ms: %8s \t %6s\n", printer.Sprintf("%d", blxG025Sec), common.Int64DiffPercentFmt(int64(blxG025Sec), srcCntOverallTxs["blx"]))
-	fmt.Printf("- 500ms: %8s \t %6s\n", printer.Sprintf("%d", blxG05Sec), common.Int64DiffPercentFmt(int64(blxG05Sec), srcCntOverallTxs["blx"]))
-	fmt.Printf("- 1sec:  %8s \t %6s\n", printer.Sprintf("%d", blxG1Sec), common.Int64DiffPercentFmt(int64(blxG1Sec), srcCntOverallTxs["blx"]))
-	fmt.Printf("- 2sec:  %8s \t %6s\n", printer.Sprintf("%d", blxG2Sec), common.Int64DiffPercentFmt(int64(blxG2Sec), srcCntOverallTxs["blx"]))
-	fmt.Printf("- 5sec:  %8s \t %6s\n", printer.Sprintf("%d", blxG5Sec), common.Int64DiffPercentFmt(int64(blxG5Sec), srcCntOverallTxs["blx"]))
 }

@@ -127,6 +127,6 @@ func (nc *BlxNodeConnection) connect() {
 			continue
 		}
 
-		nc.txC <- TxIn{time.Now().UTC(), &tx, blxURI, srcTag}
+		nc.txC <- TxIn{time.Now().UTC(), &tx, srcTag}
 	}
 }

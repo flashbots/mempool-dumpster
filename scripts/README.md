@@ -13,5 +13,6 @@ journalctl -u mempool-collector -o cat --since "10m ago" | grep "source_stats_al
 # only specific ones, side by side
 journalctl -u mempool-collector -o cat --since "10m ago" | grep "source_stats_all" | awk '{ $1=""; $2=""; $3=""; print $0}' | jq '.local + "   " + .apool'
 
+# who sent tx first
 journalctl -u mempool-collector -o cat --since "1h ago" | grep "source_stats_first" | awk '{ $1=""; $2=""; $3=""; print $0}' | jq
 ```
