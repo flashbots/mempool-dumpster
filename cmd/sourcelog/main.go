@@ -73,7 +73,12 @@ func main() {
 		log.Infof("Output directory: %s", *outDirPtr)
 
 		// Prepare output file paths, and make sure they don't exist yet
-		fnOut := getOutFilename()
+		fnOut := getOutFilenameSourcelog()
+		if _, err := os.Stat(fnOut); !errors.Is(err, os.ErrNotExist) {
+			log.Fatalf("Output file already exists: %s", fnOut)
+		}
+
+		fnOut = getOutFilenameSummary()
 		if _, err := os.Stat(fnOut); !errors.Is(err, os.ErrNotExist) {
 			log.Fatalf("Output file already exists: %s", fnOut)
 		}
@@ -103,13 +108,41 @@ func main() {
 	// Analyze
 	log.Info("Analyzing...")
 	analyzer := sourcelog.NewAnalyzer(sourceLog)
-	analyzer.Print()
+	s := analyzer.Sprint()
+
+	if *outDirPtr != "" {
+		fn := getOutFilenameSummary()
+		log.Infof("Writing summary CSV file %s ...", fn)
+		f, err := os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			log.Errorw("openFile", "error", err)
+			return
+		}
+		defer f.Close()
+		_, err = f.WriteString(s)
+		if err != nil {
+			log.Errorw("writeFile", "error", err)
+			return
+		}
+	}
+
+	fmt.Println("")
+	fmt.Println(s)
 }
 
-func getOutFilename() string {
+func getOutFilenameSourcelog() string {
 	fnOut := filepath.Join(*outDirPtr, "sourcelog.csv")
 	if *outDatePtr != "" {
 		fnOut = filepath.Join(*outDirPtr, fmt.Sprintf("%s_sourcelog.csv", *outDatePtr))
+	}
+	return fnOut
+}
+
+func getOutFilenameSummary() string {
+	fn := "sourcelog_summary.txt"
+	fnOut := filepath.Join(*outDirPtr, fn)
+	if *outDatePtr != "" {
+		fnOut = filepath.Join(*outDirPtr, fmt.Sprintf("%s_%s", *outDatePtr, fn))
 	}
 	return fnOut
 }
@@ -133,8 +166,7 @@ func checkInputFiles(files []string) {
 }
 
 func writeTxCSV(txs map[string]map[string]int64) error {
-	fn := getOutFilename()
-
+	fn := getOutFilenameSourcelog()
 	log.Infof("Writing output CSV file %s ...", fn)
 	f, err := os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {

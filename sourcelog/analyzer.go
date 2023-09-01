@@ -154,52 +154,55 @@ func (a *Analyzer) benchmarkSourceVsLocal(src, ref string) (srcFirstBuckets map[
 }
 
 func (a *Analyzer) Print() {
-	fmt.Println("")
-	fmt.Printf("From: %s \n", a.timeFirst.String())
-	fmt.Printf("To:   %s \n", a.timeLast.String())
-	fmt.Printf("      (%s) \n", a.duration.String())
-	fmt.Println("")
-	fmt.Printf("Sources: %s \n", strings.Join(a.sources, ", "))
-	fmt.Println("")
-	fmt.Printf("- Transactions: %9s \n", prettyInt(a.nAllTx))
-	fmt.Printf("- Unique txs:   %9s \n", prettyInt(a.nUniqueTx))
+	fmt.Println(a.Sprint())
+}
 
-	fmt.Println("")
-	fmt.Println("-------------")
-	fmt.Println("Overall stats")
-	fmt.Println("-------------")
+func (a *Analyzer) Sprint() string {
+	out := fmt.Sprintf("From: %s \n", a.timeFirst.String())
+	out += fmt.Sprintf("To:   %s \n", a.timeLast.String())
+	out += fmt.Sprintf("      (%s) \n", a.duration.String())
+	out += fmt.Sprintln("")
+	out += fmt.Sprintf("Sources: %s \n", strings.Join(a.sources, ", "))
+	out += fmt.Sprintln("")
+	out += fmt.Sprintf("- Transactions: %9s \n", prettyInt(a.nAllTx))
+	out += fmt.Sprintf("- Unique txs:   %9s \n", prettyInt(a.nUniqueTx))
 
-	fmt.Println("")
-	fmt.Printf("All transactions received: %s \n", prettyInt(a.nAllTx))
+	out += fmt.Sprintln("")
+	out += fmt.Sprintln("-------------")
+	out += fmt.Sprintln("Overall stats")
+	out += fmt.Sprintln("-------------")
+
+	out += fmt.Sprintln("")
+	out += fmt.Sprintf("All transactions received: %s \n", prettyInt(a.nAllTx))
 	for _, src := range a.sources { // sorted iteration
 		if a.nTransactionsPerSource[src] > 0 {
-			fmt.Printf("- %-8s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
+			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
 		}
 	}
 
-	fmt.Println("")
-	fmt.Printf("Exclusive tx (single source): %s / %s (%s) \n", prettyInt64(a.nTxSeenBySingleSource), prettyInt(a.nUniqueTx), common.Int64DiffPercentFmt(a.nTxSeenBySingleSource, int64(a.nUniqueTx)))
+	out += fmt.Sprintln("")
+	out += fmt.Sprintf("Exclusive tx (single source): %s / %s (%s) \n", prettyInt64(a.nTxSeenBySingleSource), prettyInt(a.nUniqueTx), common.Int64DiffPercentFmt(a.nTxSeenBySingleSource, int64(a.nUniqueTx)))
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 {
 			cnt := a.nUniqueTxPerSource[src]
-			fmt.Printf("- %-8s %10s\n", src, prettyInt(int(cnt)))
+			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt(int(cnt)))
 		}
 	}
 
-	fmt.Println("")
-	fmt.Printf("Transactions not seen by local node: %s / %s (%s)\n", prettyInt64(a.nOverallNotSeenLocal), prettyInt(a.nUniqueTx), common.Int64DiffPercentFmt(a.nOverallNotSeenLocal, int64(a.nUniqueTx)))
+	out += fmt.Sprintln("")
+	out += fmt.Sprintf("Transactions not seen by local node: %s / %s (%s)\n", prettyInt64(a.nOverallNotSeenLocal), prettyInt(a.nUniqueTx), common.Int64DiffPercentFmt(a.nOverallNotSeenLocal, int64(a.nUniqueTx)))
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 && src != referenceLocalSource {
 			cnt := a.nNotSeenLocalPerSource[src]
-			fmt.Printf("- %-8s %10s\n", src, prettyInt64(cnt))
+			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(cnt))
 		}
 	}
 
 	// latency analysis for various sources:
-	fmt.Println("")
-	fmt.Println("------------------")
-	fmt.Println("Latency comparison")
-	fmt.Println("------------------")
+	out += fmt.Sprintln("")
+	out += fmt.Sprintln("------------------")
+	out += fmt.Sprintln("Latency comparison")
+	out += fmt.Sprintln("------------------")
 	latencyComps := []struct{ src, ref string }{
 		{common.BloxrouteTag, referenceLocalSource},
 		{"apool", referenceLocalSource},
@@ -210,13 +213,15 @@ func (a *Analyzer) Print() {
 	for _, comp := range latencyComps {
 		srcFirstBuckets, totalFirstBySrc, _ := a.benchmarkSourceVsLocal(comp.src, comp.ref)
 
-		fmt.Println("")
-		// fmt.Printf("%s transactions received before %s: %s / %s (%s) \n", comp.src, comp.ref, prettyInt64(int64(totalFirstBySrc)), prettyInt64(int64(totalSeenByBoth)), common.Int64DiffPercentFmt(int64(totalFirstBySrc), int64(totalSeenByBoth)))
-		fmt.Printf("%s transactions received before %s: %s \n", comp.src, comp.ref, prettyInt64(int64(totalFirstBySrc)))
+		out += fmt.Sprintln("")
+		// out += fmt.Sprintf("%s transactions received before %s: %s / %s (%s) \n", comp.src, comp.ref, prettyInt64(int64(totalFirstBySrc)), prettyInt64(int64(totalSeenByBoth)), common.Int64DiffPercentFmt(int64(totalFirstBySrc), int64(totalSeenByBoth)))
+		out += fmt.Sprintf("%s transactions received before %s: %s \n", comp.src, comp.ref, prettyInt64(int64(totalFirstBySrc)))
 		for _, bucketMS := range bucketsMS {
 			s := fmt.Sprintf("%d ms", bucketMS)
 			cnt := srcFirstBuckets[bucketMS]
-			fmt.Printf(" - %-8s %8s \n", s, prettyInt64(cnt))
+			out += fmt.Sprintf(" - %-8s %8s \n", s, prettyInt64(cnt))
 		}
 	}
+
+	return out
 }
