@@ -1,0 +1,26 @@
+{{ define "content" }}
+
+<hr>
+<br>
+<a href=/index.html>{{ .CurrentNetwork }}</a>
+<h2>{{ .CurrentMonth }}</h2>
+
+<table class="pure-table pure-table-horizontal">
+    <tbody>
+        <tr>
+            <td class=fn><a href=/index.html>../</a></td>
+            <td></td>
+        </tr>
+        {{ range .Files }}
+        <tr>
+            <td class=fn><a href={{ .Filename }}>{{ .Filename }}</a></td>
+            <td class=fs>{{ .Size | humanBytes }}</td>
+        </tr>
+        {{ end }}
+    </tbody>
+</table>
+
+<!-- <script src="https://unpkg.com/@popperjs/core@2"></script> -->
+<script>
+</script>
+{{ end }}
