@@ -1,3 +1,4 @@
+// Loads many raw transaction CSV files (produced by the collector), creates summary files in CSV and Parquet, and writes a single CSV file with all raw transactions
 package main
 
 import (

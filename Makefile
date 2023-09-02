@@ -5,7 +5,7 @@ all: build
 v:
 	@echo "Version: ${VERSION}"
 
-clean: clean-dev
+clean-build:
 	rm -rf build/
 
 clean-dev:

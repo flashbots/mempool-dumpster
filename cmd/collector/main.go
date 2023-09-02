@@ -33,7 +33,7 @@ var (
 	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
 	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
 	blxAuthToken  = flag.String("blx-token", defaultblxAuthToken, "bloxroute auth token (optional)")
-	srcStats      = flag.Bool("src-stats", false, "record source-stats")
+	sourcelog     = flag.Bool("source-log", false, "write a CSV with all received transactions from any source (timestamp_ms,hash,source)")
 )
 
 func main() {
@@ -99,7 +99,7 @@ func main() {
 	}
 
 	// Start service components
-	collector.Start(log, nodes, *outDirPtr, *uidPtr, *blxAuthToken, *srcStats)
+	collector.Start(log, nodes, *outDirPtr, *uidPtr, *blxAuthToken, *sourcelog)
 
 	// Wwait for termination signal
 	exit := make(chan os.Signal, 1)
