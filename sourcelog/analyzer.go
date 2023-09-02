@@ -138,7 +138,7 @@ func (a *Analyzer) benchmarkSourceVsLocal(src, ref string) (srcFirstBuckets map[
 
 		srcTS := sources[src]
 		localTS := sources[ref]
-		diff := srcTS - localTS
+		diff := localTS - srcTS
 
 		if diff > 0 {
 			totalFirstBySrc += 1
