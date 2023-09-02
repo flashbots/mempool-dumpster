@@ -16,7 +16,7 @@ const (
 )
 
 var (
-	bucketsMS = []int64{1, 10, 50, 100, 250, 500, 1000, 2000} // note: 0 would be equal timestamps
+	bucketsMS = []int64{1, 10, 50, 100, 250, 500, 1000, 5000} // note: 0 would be equal timestamps
 
 	printer = message.NewPrinter(language.English)
 )
@@ -168,12 +168,13 @@ func (a *Analyzer) Sprint() string {
 	out += fmt.Sprintf("- Unique txs:   %9s \n", prettyInt(a.nUniqueTx))
 
 	out += fmt.Sprintln("")
-	out += fmt.Sprintln("-------------")
-	out += fmt.Sprintln("Overall stats")
-	out += fmt.Sprintln("-------------")
+	out += fmt.Sprintln("------------")
+	out += fmt.Sprintln("Source stats")
+	out += fmt.Sprintln("------------")
 
 	out += fmt.Sprintln("")
-	out += fmt.Sprintf("All transactions received: %s \n", prettyInt(a.nAllTx))
+	// out += fmt.Sprintf("All transactions received: %s \n", prettyInt(a.nAllTx))
+	out += "All transactions received: \n"
 	for _, src := range a.sources { // sorted iteration
 		if a.nTransactionsPerSource[src] > 0 {
 			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
@@ -211,15 +212,15 @@ func (a *Analyzer) Sprint() string {
 	}
 
 	for _, comp := range latencyComps {
-		srcFirstBuckets, totalFirstBySrc, _ := a.benchmarkSourceVsLocal(comp.src, comp.ref)
+		srcFirstBuckets, totalFirstBySrc, totalSeenByBoth := a.benchmarkSourceVsLocal(comp.src, comp.ref)
 
 		out += fmt.Sprintln("")
 		// out += fmt.Sprintf("%s transactions received before %s: %s / %s (%s) \n", comp.src, comp.ref, prettyInt64(int64(totalFirstBySrc)), prettyInt64(int64(totalSeenByBoth)), common.Int64DiffPercentFmt(int64(totalFirstBySrc), int64(totalSeenByBoth)))
-		out += fmt.Sprintf("%s transactions received before %s: %s \n", comp.src, comp.ref, prettyInt64(int64(totalFirstBySrc)))
+		out += fmt.Sprintf("%s transactions received before %s: %s / %s (%s)\n", comp.src, comp.ref, prettyInt(totalFirstBySrc), prettyInt(totalSeenByBoth), common.Int64DiffPercentFmt(int64(totalFirstBySrc), int64(totalSeenByBoth)))
 		for _, bucketMS := range bucketsMS {
 			s := fmt.Sprintf("%d ms", bucketMS)
 			cnt := srcFirstBuckets[bucketMS]
-			out += fmt.Sprintf(" - %-8s %8s \n", s, prettyInt64(cnt))
+			out += fmt.Sprintf(" - %-8s %8s   (%7s) \n", s, prettyInt64(cnt), common.Int64DiffPercentFmt(cnt, int64(totalFirstBySrc)))
 		}
 	}
 

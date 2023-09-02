@@ -139,7 +139,7 @@ func getOutFilenameSourcelog() string {
 }
 
 func getOutFilenameSummary() string {
-	fn := "sourcelog_summary.txt"
+	fn := "summary.txt"
 	fnOut := filepath.Join(*outDirPtr, fn)
 	if *outDatePtr != "" {
 		fnOut = filepath.Join(*outDirPtr, fmt.Sprintf("%s_%s", *outDatePtr, fn))

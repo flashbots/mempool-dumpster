@@ -12,10 +12,18 @@ clean-dev:
 	rm -rf out/ test/
 
 .PHONY: build
-build:
+build: clean-build
 	@mkdir -p build
 	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/collector cmd/collector/main.go
 	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/summerizer cmd/summarizer/main.go
+	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/sourcelog cmd/sourcelog/main.go
+
+.PHONY: website
+website:
+	go run cmd/website/main.go -build -upload
+
+website-dev:
+	go run cmd/website/main.go -dev
 
 test:
 	go test ./...
