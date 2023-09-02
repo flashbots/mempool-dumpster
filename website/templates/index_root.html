@@ -1,0 +1,15 @@
+{{ define "content" }}
+
+<hr>
+<br>
+Ethereum Mainnet
+<ul>
+    {{ range .EthMainnetMonths }}
+    <li><a href="/ethereum/mainnet/{{ . }}/index.html">{{ . }}</a></li>
+    {{ end }}
+</ul>
+
+<!-- <script src="https://unpkg.com/@popperjs/core@2"></script> -->
+<script>
+</script>
+{{ end }}

@@ -1,0 +1,74 @@
+{{ define "base" }}
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/pure-min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/grids-min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/purecss@3.0.0/build/grids-responsive-min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.2/font/bootstrap-icons.css">
+
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon/favicon-16x16.png">
+    <link rel="manifest" href="/static/favicon/site.webmanifest">
+
+    <!-- HTML Meta Tags -->
+    <title>Mempool Dumpster</title>
+    <meta name="description" content="Mempool Archive">
+
+    <style>
+        body {
+            background-color: white;
+        }
+
+        .header {
+            margin: 4em 6em;
+            margin-bottom: 2em;
+        }
+
+        .content {
+            margin: 2em 6em;
+        }
+
+        td.fn {
+            min-width: 320px;
+        }
+
+        td.fs {
+            text-align: right;
+            min-width: 120px;
+        }
+
+        tr:hover {
+            background: #f7faff;
+        }
+    </style>
+    <script type="text/javascript">
+        if (window.location.host.indexOf("r2.dev") > -1) {
+            window.location = "https://mempool-dumpster.flashbots.net" + window.location.pathname + window.location.search + window.location.hash;
+        }
+    </script>
+</head>
+
+<body>
+    <div class="header">
+        <a href="https://collective.flashbots.net/">
+            <img style="float:right; background:white; margin-left: 64px; width: 100px; height: 100px;" src="https://d33wubrfki0l68.cloudfront.net/ae8530415158fbbbbe17fb033855452f792606c7/fe19f/img/logo.png">
+        </a>
+        <h1>Mempool Dumpster</h1>
+        <p>
+            <a href="https://github.com/flashbots/mempool-dumpster">https://github.com/flashbots/mempool-dumpster</a>
+        </p>
+        <p>Illuminating the dark forest</p>
+    </div>
+    <div class="content">
+        {{ template "content" . }}
+    </div>
+</body>
+
+</html>
+{{ end }}

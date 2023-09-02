@@ -3,10 +3,14 @@ module github.com/flashbots/mempool-dumpster
 go 1.19
 
 require (
+	github.com/NYTimes/gziphandler v1.1.1
+	github.com/dustin/go-humanize v1.0.1
 	github.com/ethereum/go-ethereum v1.12.0
+	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/lithammer/shortuuid v3.0.0+incompatible
 	github.com/stretchr/testify v1.8.1
+	github.com/tdewolff/minify v2.3.6+incompatible
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/xitongsys/parquet-go-source v0.0.0-20230607234618-40034c8066df
 	go.uber.org/atomic v1.11.0
@@ -34,6 +38,8 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
+	github.com/tdewolff/parse v2.3.4+incompatible // indirect
+	github.com/tdewolff/test v1.0.9 // indirect
 	github.com/tklauser/go-sysconf v0.3.5 // indirect
 	github.com/tklauser/numcpus v0.2.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
