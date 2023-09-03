@@ -46,8 +46,11 @@ if [ -z ${YES:-} ]; then
   fi
 fi
 
+#
+# RAW TX
+#
 # summarize raw transactions
-echo "Running summarizer"
+echo "Running summarizer..."
 /root/mempool-dumpster/build/summerizer -out $1 --out-date $date $1/transactions/*.csv
 
 # compress
@@ -69,7 +72,27 @@ echo "Uploading transactions file..."
 aws s3 cp --no-progress "${date}_transactions.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 aws --profile aws s3 cp --no-progress "${date}_transactions.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
-# finally, remove the raw transactions directory
+#
+# SOURCELOG
+#
+# Create sourcelog + summary
+echo "Running sourcelog..."
+/root/mempool-dumpster/build/sourcelog -out $1 -out-date $date $1/sourcelog/*.csv
+
+# zip
+cd $1
+zip "${date}_sourcelog.csv.zip" "${date}_sourcelog.csv"
+
+# upload to Cloudflare R2 and AWS S3
+aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+aws --profile aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
+
+aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+aws --profile aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
+
+#
+# CLEANUP
+#
 if [ -z ${YES:-} ]; then
   read -p "Upload successful. Remove the raw transactions directory? " -n 1 -r
   echo
@@ -79,6 +102,7 @@ if [ -z ${YES:-} ]; then
   fi
 fi
 
-rm -rf "transactions" "${date}_transactions.csv" "${date}.csv"
+rm -rf transactions "${date}_transactions.csv" "${date}.csv"
+# rm -rf sourcelog "${date}_sourcelog.csv"
 echo "All done!"
 echo ""

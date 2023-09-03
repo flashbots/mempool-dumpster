@@ -21,3 +21,4 @@ CSV tricks
 # get unique hashes from sourcelog or main csv file
 cat file.csv | sed 's/,/ /g' | awk '{ print $2}' | sort | uniq > unique.txt
 ```
+

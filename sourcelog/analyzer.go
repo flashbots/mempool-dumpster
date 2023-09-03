@@ -158,26 +158,31 @@ func (a *Analyzer) Print() {
 }
 
 func (a *Analyzer) Sprint() string {
+	// out := fmt.Sprintln("mempool-dumpster.flashbots.net")
+	// out += fmt.Sprintln("")
 	out := fmt.Sprintf("From: %s \n", a.timeFirst.String())
 	out += fmt.Sprintf("To:   %s \n", a.timeLast.String())
 	out += fmt.Sprintf("      (%s) \n", a.duration.String())
 	out += fmt.Sprintln("")
 	out += fmt.Sprintf("Sources: %s \n", strings.Join(a.sources, ", "))
-	out += fmt.Sprintln("")
-	out += fmt.Sprintf("- Transactions: %9s \n", prettyInt(a.nAllTx))
-	out += fmt.Sprintf("- Unique txs:   %9s \n", prettyInt(a.nUniqueTx))
+	// out += fmt.Sprintln("")
+	// out += fmt.Sprintf("- Transactions: %9s \n", prettyInt(a.nAllTx))
+	// out += fmt.Sprintf("- Unique txs:   %9s \n", prettyInt(a.nUniqueTx))
 
 	out += fmt.Sprintln("")
-	out += fmt.Sprintln("------------")
-	out += fmt.Sprintln("Source stats")
-	out += fmt.Sprintln("------------")
+	out += fmt.Sprintln("-------------")
+	out += fmt.Sprintln("Overall stats")
+	out += fmt.Sprintln("-------------")
+	out += fmt.Sprintln("")
+	out += fmt.Sprintf("Unique transactions: %s \n", prettyInt(a.nUniqueTx))
 
 	out += fmt.Sprintln("")
+
 	// out += fmt.Sprintf("All transactions received: %s \n", prettyInt(a.nAllTx))
-	out += "All transactions received: \n"
+	out += "Transactions received: \n"
 	for _, src := range a.sources { // sorted iteration
 		if a.nTransactionsPerSource[src] > 0 {
-			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
+			out += fmt.Sprintf("- %-8s %8s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
 		}
 	}
 
@@ -186,7 +191,7 @@ func (a *Analyzer) Sprint() string {
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 {
 			cnt := a.nUniqueTxPerSource[src]
-			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt(int(cnt)))
+			out += fmt.Sprintf("- %-8s %8s\n", src, prettyInt(int(cnt)))
 		}
 	}
 
@@ -195,7 +200,7 @@ func (a *Analyzer) Sprint() string {
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 && src != referenceLocalSource {
 			cnt := a.nNotSeenLocalPerSource[src]
-			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(cnt))
+			out += fmt.Sprintf("- %-8s %8s\n", src, prettyInt64(cnt))
 		}
 	}
 
@@ -220,7 +225,7 @@ func (a *Analyzer) Sprint() string {
 		for _, bucketMS := range bucketsMS {
 			s := fmt.Sprintf("%d ms", bucketMS)
 			cnt := srcFirstBuckets[bucketMS]
-			out += fmt.Sprintf(" - %-8s %8s   (%7s) \n", s, prettyInt64(cnt), common.Int64DiffPercentFmt(cnt, int64(totalFirstBySrc)))
+			out += fmt.Sprintf("- %-8s %8s   (%7s) \n", s, prettyInt64(cnt), common.Int64DiffPercentFmt(cnt, int64(totalFirstBySrc)))
 		}
 	}
 
