@@ -2,6 +2,11 @@ package common
 
 import "fmt"
 
+type TxEnvelope struct {
+	Rlp     string
+	Summary *TxSummaryEntry
+}
+
 type TxSummaryEntry struct {
 	Timestamp int64  `parquet:"name=timestamp, type=INT64, convertedtype=TIMESTAMP_MILLIS"`
 	Hash      string `parquet:"name=hash, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`

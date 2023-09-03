@@ -1,4 +1,5 @@
-package sourcelog
+// Package analyzer provides tools to analyze transaction/sorucelog CSV files
+package analyzer
 
 import (
 	"fmt"

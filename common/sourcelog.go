@@ -1,9 +1,4 @@
-// Package sourcelog deals with loading and analyzing the transaction source logs.
-//
-// Input: CSV file(s) with the following format:
-//
-//	<timestamp_ms>,<tx_hash>,<source>
-package sourcelog
+package common
 
 import (
 	"bufio"
@@ -14,11 +9,10 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
 
-// LoadSourceLogFiles loads all input CSV files and returns a map[hash][source] = timestampMs
+// LoadSourceLogFiles loads sourcelog CSV files (format: <timestamp_ms>,<tx_hash>,<source>) and returns a map[hash][source] = timestampMs
 func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]map[string]int64) { //nolint:gocognit
 	txs = make(map[string]map[string]int64)
 
@@ -70,7 +64,7 @@ func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 			}
 			txTimestamp := int64(ts)
 			txHash := items[1]
-			txSource := common.TxSourcName(items[2])
+			txSource := TxSourcName(items[2])
 
 			// that it's a valid hash
 			if len(txHash) != 66 {
@@ -103,18 +97,18 @@ func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 			}
 		}
 		log.Infow("Processed file",
-			"txInFile", printer.Sprintf("%d", cntTxInFileTotal),
-			// "txNew", printer.Sprintf("%d", cntTxInFileNew),
-			"txTotal", printer.Sprintf("%d", len(txs)),
-			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+			"txInFile", Printer.Sprintf("%d", cntTxInFileTotal),
+			// "txNew", Printer.Sprintf("%d", cntTxInFileNew),
+			"txTotal", Printer.Sprintf("%d", len(txs)),
+			"memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()),
 		)
 	}
 
 	log.Infow("Processed all input files",
 		"files", cntProcessedFiles,
-		"records", printer.Sprintf("%d", cntProcessedRecords),
-		"txTotal", printer.Sprintf("%d", len(txs)),
-		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		"records", Printer.Sprintf("%d", cntProcessedRecords),
+		"txTotal", Printer.Sprintf("%d", len(txs)),
+		"memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()),
 	)
 
 	return txs

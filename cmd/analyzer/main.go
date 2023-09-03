@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/flashbots/mempool-dumpster/analyzer"
 	"github.com/flashbots/mempool-dumpster/common"
-	"github.com/flashbots/mempool-dumpster/sourcelog"
 	"go.uber.org/zap"
 )
 
@@ -95,7 +95,7 @@ func main() {
 	checkInputFiles(files)
 
 	// Load transaction log files
-	sourceLog := sourcelog.LoadSourceLogFiles(log, files)
+	sourceLog := common.LoadSourceLogFiles(log, files)
 
 	// Write output file
 	if *outDirPtr != "" {
@@ -107,7 +107,7 @@ func main() {
 
 	// Analyze
 	log.Info("Analyzing...")
-	analyzer := sourcelog.NewAnalyzer(sourceLog)
+	analyzer := analyzer.NewAnalyzer(sourceLog)
 	s := analyzer.Sprint()
 
 	if *outDirPtr != "" {
