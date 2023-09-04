@@ -5,6 +5,8 @@
 
 Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
+**The data is freely available at https://mempool-dumpster.flashbots.net**
+
 Output files:
 
 1. Raw transactions CSV (`timestamp_ms, tx_hash, rlp_hex`; about 800MB/day zipped)
@@ -16,7 +18,7 @@ Available mempool sources:
 
 1. Generic EL nodes (`newPendingTransactions`) (i.e. go-ethereum, Infura, etc.)
 2. Alchemy ([`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
-3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs)
+3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs) (at least ["Professional" plan](https://bloxroute.com/pricing/))
 
 Notes:
 
@@ -34,15 +36,19 @@ Notes:
 
 ---
 
+# FAQ
+
+- _What is a-pool?_ A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
+
+---
+
 # Getting started
 
 ## Mempool Collector
 
 1. Subscribes to new pending transactions at various data sources
-    1. EL nodes via websocket (local (i.e. geth) or remote (i.e. Infura))
-    1. Can also connect to [bloXroute (need "Professional" plan or above)](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs)
-1. Writes `timestamp` + `hash` + `rawTx` to CSV file (one file per hour [by default](collector/consts.go))
-1. Note: the collector can store transactions repeatedly, and only the summarizer will properly deduplicate them later
+1. Writes `timestamp_ms` + `hash` + `raw_tx` to CSV file (one file per hour [by default](collector/consts.go))
+1. Note: the collector can store transactions repeatedly, and only the merger will properly deduplicate them later
 
 **Default filenames:**
 
@@ -73,7 +79,7 @@ go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server
 - Deduplicates transactions, sorts them by timestamp
 
 ```bash
-go run cmd/summarizer/main.go -h
+go run cmd/merge/main.go -h
 ```
 
 
@@ -87,13 +93,13 @@ go run cmd/summarizer/main.go -h
 - Vendor-agnostic (main flow should work on any server, independent of a cloud provider)
 - Downtime-resilience to minimize any gaps in the archive
 - Multiple collector instances can run concurrently, without getting into each others way
-- Summarizer script produces the final archive (based on the input of multiple collector outputs)
+- Merger produces the final archive (based on the input of multiple collector outputs)
 - The final archive:
   - Includes (1) parquet file with transaction metadata, and (2) compressed file of raw transaction CSV files
   - Compatible with [Clickhouse](https://clickhouse.com/docs/en/integrations/s3) and [S3 Select](https://docs.aws.amazon.com/AmazonS3/latest/userguide/selecting-content-from-objects.html) (Parquet using gzip compression)
   - Easily distributable as torrent
 
-## Mempool Collector
+## Collector
 
 - `NodeConnection`
     - One for each EL connection
@@ -102,7 +108,7 @@ go run cmd/summarizer/main.go -h
     - Check if it already processed that tx
     - Store it in the output directory
 
-## Summarizer
+## Merger
 
 - Uses https://github.com/xitongsys/parquet-go to write Parquet format
 
@@ -115,7 +121,7 @@ go run cmd/summarizer/main.go -h
 
 ---
 
-## Contributing
+# Contributing
 
 Install dependencies
 
@@ -136,19 +142,19 @@ make fmt
 
 ---
 
-## Further notes
+# Further notes
 
 - See also: [discussion about compression](https://github.com/flashbots/mempool-dumpster/issues/2) and [storage](https://github.com/flashbots/mempool-dumpster/issues/1)
 
 ---
 
-## License
+# License
 
 MIT
 
 ---
 
-## Maintainers
+# Maintainers
 
 - [metachris](https://twitter.com/metachris)
 - [0x416e746f6e](https://github.com/0x416e746f6e)

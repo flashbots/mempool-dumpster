@@ -17,25 +17,26 @@
     <link rel="manifest" href="/static/favicon/site.webmanifest">
 
     <!-- HTML Meta Tags -->
-    <title>Mempool Dumpster</title>
-    <meta name="description" content="Mempool Archive">
+    <title>Mempool Dumpster 🗑️♻️</title>
+    <meta name="description" content="Free archive of mempool transactions, brought to you by ⚡️🤖">
 
     <style>
         body {
             background-color: white;
+            font-size: large;
         }
 
         .header {
-            margin: 4em 6em;
+            margin: 4em 4em;
             margin-bottom: 2em;
         }
 
         .content {
-            margin: 2em 6em;
+            margin: 2em 4em;
         }
 
         td.fn {
-            min-width: 320px;
+            /* min-width: 320px; */
         }
 
         td.fs {
@@ -45,6 +46,10 @@
 
         tr:hover {
             background: #f7faff;
+        }
+
+        ul.root-months li {
+            padding: 0.3em 0em;
         }
     </style>
     <script type="text/javascript">
@@ -59,11 +64,11 @@
         <a href="https://collective.flashbots.net/">
             <img style="float:right; background:white; margin-left: 64px; width: 100px; height: 100px;" src="https://d33wubrfki0l68.cloudfront.net/ae8530415158fbbbbe17fb033855452f792606c7/fe19f/img/logo.png">
         </a>
-        <h1>Mempool Dumpster</h1>
+        <h1>Mempool Dumpster 🗑️♻️</h1>
         <p>
             <a href="https://github.com/flashbots/mempool-dumpster">https://github.com/flashbots/mempool-dumpster</a>
         </p>
-        <p>Illuminate, Democratize, Distribute ⚡️🤖</p>
+        <p><i>Illuminate, Democratize, Distribute</i></p>
     </div>
     <div class="content">
         {{ template "content" . }}

@@ -89,6 +89,7 @@ func (srv *Webserver) getRouter() http.Handler {
 	r := mux.NewRouter()
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./website/static"))))
 
+	r.HandleFunc("/", srv.handleRoot).Methods(http.MethodGet)
 	r.HandleFunc("/index.html", srv.handleRoot).Methods(http.MethodGet)
 	r.HandleFunc("/ethereum/mainnet/{month}/index.html", srv.handleMonth).Methods(http.MethodGet)
 
