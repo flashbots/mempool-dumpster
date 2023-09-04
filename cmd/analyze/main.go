@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/flashbots/mempool-dumpster/analyzer"
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
@@ -107,7 +106,7 @@ func main() {
 
 	// Analyze
 	log.Info("Analyzing...")
-	analyzer := analyzer.NewAnalyzer(sourceLog)
+	analyzer := NewAnalyzer(sourceLog)
 	s := analyzer.Sprint()
 
 	if *outDirPtr != "" {

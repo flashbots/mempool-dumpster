@@ -154,10 +154,13 @@ func buildWebsite() {
 	}
 
 	if *upload {
-		log.Infof("Uploading to S3 ...")
-		fmt.Println(toUpload)
+		log.Infow("Uploading to S3 ...", "files", toUpload)
+		// for _, file := range toUpload {
+		// 	fmt.Printf("- %s -> %s\n", file.from, file.to)
+		// }
+
 		for _, file := range toUpload {
-			app := "./scripts/s3/upload-file.sh"
+			app := "./scripts/s3/upload-file-to-r2.sh"
 			cmd := exec.Command(app, file.from, strings.TrimPrefix(file.to, "/")) //nolint:gosec
 			stdout, err := cmd.Output()
 			if err != nil {

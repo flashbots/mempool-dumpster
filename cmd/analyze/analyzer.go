@@ -1,5 +1,4 @@
-// Package analyzer provides tools to analyze transaction/sorucelog CSV files
-package analyzer
+package main
 
 import (
 	"fmt"

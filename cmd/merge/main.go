@@ -103,7 +103,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 		log.Fatal("no input files specified as arguments")
 	}
 	inputFiles := cCtx.Args().Slice()
-	log.Infow("Merge transactions", "inputFiles", inputFiles, "outDir", outDir, "fnPrefix", fnPrefix, "version", version)
+	log.Infow("Merge transactions", "outDir", outDir, "fnPrefix", fnPrefix, "version", version)
 
 	err := os.MkdirAll(outDir, os.ModePerm)
 	check(err, "os.MkdirAll")

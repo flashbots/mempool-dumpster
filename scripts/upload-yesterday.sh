@@ -28,6 +28,6 @@ YES=1 ./scripts/upload.sh "/mnt/data/mempool-dumpster/$d"
 
 # update website
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-cd SCRIPT_DIR
+cd $SCRIPT_DIR
 cd ..
 make website
