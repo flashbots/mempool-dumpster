@@ -35,14 +35,14 @@ func mergeTransactions(cCtx *cli.Context) error {
 		fnCSVMeta = filepath.Join(outDir, fmt.Sprintf("%s.csv", fnPrefix))
 		fnCSVTxs = filepath.Join(outDir, fmt.Sprintf("%s_transactions.csv", fnPrefix))
 	}
-	mustNotExist(fnParquetMeta)
-	mustNotExist(fnCSVMeta)
-	mustNotExist(fnCSVTxs)
+	common.MustNotExist(log, fnParquetMeta)
+	common.MustNotExist(log, fnCSVMeta)
+	common.MustNotExist(log, fnCSVTxs)
 	log.Infow("Output files", "fnParquetMeta", fnParquetMeta, "fnCSVMeta", fnCSVMeta, "fnCSVTxs", fnCSVTxs)
 
 	// Check input files
 	for _, fn := range inputFiles {
-		mustBeFile(fn)
+		common.MustBeFile(log, fn)
 	}
 
 	// Load input files

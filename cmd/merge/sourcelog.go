@@ -28,12 +28,12 @@ func mergeSourcelog(cCtx *cli.Context) error {
 	if fnPrefix != "" {
 		fnCSVSourcelog = filepath.Join(outDir, fmt.Sprintf("%s_sourcelog.csv", fnPrefix))
 	}
-	mustNotExist(fnCSVSourcelog)
+	common.MustNotExist(log, fnCSVSourcelog)
 	log.Infof("Output file: %s", fnCSVSourcelog)
 
 	// Check input files
 	for _, fn := range inputFiles {
-		mustBeFile(fn)
+		common.MustBeFile(log, fn)
 	}
 
 	// Load input files

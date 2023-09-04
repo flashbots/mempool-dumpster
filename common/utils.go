@@ -2,7 +2,9 @@
 package common
 
 import (
+	"errors"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"go.uber.org/zap"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
@@ -85,4 +88,24 @@ func SourceAliasesFromEnv() map[string]string {
 		}
 	}
 	return aliases
+}
+
+func MustNotExist(log *zap.SugaredLogger, fn string) {
+	if _, err := os.Stat(fn); !os.IsNotExist(err) {
+		log.Fatalf("Output file already exists: %s", fn)
+	}
+}
+
+func MustBeFile(log *zap.SugaredLogger, fn string) {
+	s, err := os.Stat(fn)
+	if errors.Is(err, os.ErrNotExist) {
+		log.Fatalf("Input file does not exist: %s", fn)
+	} else if err != nil {
+		log.Fatalf("os.Stat: %s", err)
+	}
+	if s.IsDir() {
+		log.Fatalf("Input file is a directory: %s", fn)
+	} else if filepath.Ext(fn) != ".csv" {
+		log.Fatalf("Input file is not a CSV file: %s", fn)
+	}
 }
