@@ -13,12 +13,11 @@ import (
 )
 
 // LoadSourceLogFiles loads sourcelog CSV files (format: <timestamp_ms>,<tx_hash>,<source>) and returns a map[hash][source] = timestampMs
-func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]map[string]int64) { //nolint:gocognit
+func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]map[string]int64, cntProcessedRecords int64) { //nolint:gocognit
 	txs = make(map[string]map[string]int64)
 
 	timestampFirst, timestampLast := int64(0), int64(0)
 	cntProcessedFiles := 0
-	cntProcessedRecords := int64(0)
 
 	// Collect transactions from all input files to memory
 	for _, filename := range files {
@@ -97,19 +96,11 @@ func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 			}
 		}
 		log.Infow("Processed file",
-			"txInFile", Printer.Sprintf("%d", cntTxInFileTotal),
-			// "txNew", Printer.Sprintf("%d", cntTxInFileNew),
+			"records", Printer.Sprintf("%d", cntTxInFileTotal),
 			"txTotal", Printer.Sprintf("%d", len(txs)),
 			"memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()),
 		)
 	}
 
-	log.Infow("Processed all input files",
-		"files", cntProcessedFiles,
-		"records", Printer.Sprintf("%d", cntProcessedRecords),
-		"txTotal", Printer.Sprintf("%d", len(txs)),
-		"memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()),
-	)
-
-	return txs
+	return txs, cntProcessedRecords
 }

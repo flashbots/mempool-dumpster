@@ -94,7 +94,7 @@ func main() {
 	checkInputFiles(files)
 
 	// Load transaction log files
-	sourceLog := common.LoadSourceLogFiles(log, files)
+	sourceLog, _ := common.LoadSourceLogFiles(log, files)
 
 	// Write output file
 	if *outDirPtr != "" {
