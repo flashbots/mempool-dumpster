@@ -17,7 +17,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files []string) (txs map[st
 	cntProcessedFiles := 0
 	txs = make(map[string]*TxEnvelope)
 	for _, filename := range files {
-		log.Infof("Processing: %s", filename)
+		log.Infof("Loading %s ...", filename)
 		cntProcessedFiles += 1
 		cntTxInFileTotal := 0
 		cntTxInFileNew := 0

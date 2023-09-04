@@ -21,7 +21,7 @@ func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 
 	// Collect transactions from all input files to memory
 	for _, filename := range files {
-		log.Infof("Processing: %s", filename)
+		log.Infof("Loading %s ...", filename)
 		cntProcessedFiles += 1
 		cntTxInFileTotal := 0
 

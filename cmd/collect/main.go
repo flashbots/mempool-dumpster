@@ -33,7 +33,7 @@ var (
 	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
 	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
 	blxAuthToken  = flag.String("blx-token", defaultblxAuthToken, "bloxroute auth token (optional)")
-	sourcelog     = flag.Bool("source-log", false, "write a CSV with all received transactions from any source (timestamp_ms,hash,source)")
+	sourcelog     = flag.Bool("sourcelog", false, "write a CSV with all received transactions from any source (timestamp_ms,hash,source)")
 )
 
 func main() {

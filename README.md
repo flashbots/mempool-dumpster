@@ -7,11 +7,12 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 
 Output files:
 
-1. CSV: Raw transactions (timestamp in milliseconds, tx hash, RLP hex; about 1GB / day zipped)
-2. CSV: [Transaction metadata](/common/types.go#L5-L22) (~100MB / day zipped)
-3. Parquet: [Transaction metadata](/common/types.go#L5-L22) (~100MB / day)
+1. Raw transactions CSV (`timestamp_ms, tx_hash, rlp_hex`; about 800MB/day zipped)
+1. Sourcelog CSV - list of received transactions by any source (`timestamp_ms, hash, source`; about 100MB/day zipped)
+1. [Transaction metadata](/common/types.go#L5-L22) in CSV and Parquet format (~100MB/day zipped)
+1. Summary file with information about transaction sources and latency ([example](https://gist.github.com/metachris/65b674b27b5d931bca77a43db4c95a02))
 
-Mempool sources:
+Available mempool sources:
 
 1. Generic EL nodes (`newPendingTransactions`) (i.e. go-ethereum, Infura, etc.)
 2. Alchemy ([`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
@@ -20,14 +21,16 @@ Mempool sources:
 Notes:
 
 - This project is under active development, although relatively stable and ready to use in production
-- Observing about 30k - 100k mempool transactions per hour (1M - 1.5M transactions per day)
+- Observing about 1M - 1.5M transactions per day
 
 ---
 
 # System architecture
 
-1. [Mempool Collector](cmd/collector/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding.
-2. [Summarizer](cmd/summarizer/main.go): Takes collector CSV files as input, de-duplicates, sorts by timestamp and writes CSV + Parquet output files
+1. [Collector](cmd/collect/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding.
+2. [Merger](cmd/merge/main.go): Takes collector CSV files as input, de-duplicates, sorts by timestamp and writes CSV + Parquet output files.
+3. [Analyzer](cmd/analyze/main.go): Analyzes sourcelog CSV files and produces summary report.
+4. [Website](cmd/website/main.go): Website dev-mode as well as build + upload.
 
 ---
 
@@ -41,14 +44,22 @@ Notes:
 1. Writes `timestamp` + `hash` + `rawTx` to CSV file (one file per hour [by default](collector/consts.go))
 1. Note: the collector can store transactions repeatedly, and only the summarizer will properly deduplicate them later
 
-Default filename:
+**Default filenames:**
 
+Transactions
 - Schema: `<out_dir>/<date>/transactions/txs_<date>_<uid>.csv`
 - Example: `out/2023-08-07/transactions/txs_2023-08-07-10-00_collector1.csv`
+
+Sourcelog
+- Schema: `<out_dir>/<date>/sourcelog/src_<date>_<uid>.csv`
+- Example: `out/2023-08-07/sourcelog/src_2023-08-07-10-00_collector1.csv`
 
 **Running the mempool collector:**
 
 ```bash
+# print help
+go run cmd/collector/main.go -help
+
 # Connect to ws://localhost:8546 and write CSVs into ./out
 go run cmd/collector/main.go -out ./out
 
@@ -56,18 +67,13 @@ go run cmd/collector/main.go -out ./out
 go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server2.com:8546
 ```
 
-## Summarizer
+## Merger
 
 - Iterates over collector output directory / CSV files
 - Deduplicates transactions, sorts them by timestamp
-- Creates:
-  - Summary file in Parquet and CSV format with [key transaction attributes](summarizer/types.go)
-  - A single, sorted and deduplicated transactions CSV file
 
 ```bash
 go run cmd/summarizer/main.go -h
-
-go run cmd/summarizer/main.go -out /mnt/data/mempool-dumpster/2023-08-12/ --out-date 2023-08-12 /mnt/data/mempool-dumpster/2023-08-12/2023-08-12_transactions/*.csv
 ```
 
 

@@ -182,7 +182,7 @@ func (a *Analyzer) Sprint() string {
 	out += "Transactions received: \n"
 	for _, src := range a.sources { // sorted iteration
 		if a.nTransactionsPerSource[src] > 0 {
-			out += fmt.Sprintf("- %-8s %8s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
+			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
 		}
 	}
 
@@ -191,7 +191,7 @@ func (a *Analyzer) Sprint() string {
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 {
 			cnt := a.nUniqueTxPerSource[src]
-			out += fmt.Sprintf("- %-8s %8s\n", src, prettyInt(int(cnt)))
+			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt(int(cnt)))
 		}
 	}
 
@@ -200,7 +200,7 @@ func (a *Analyzer) Sprint() string {
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 && src != referenceLocalSource {
 			cnt := a.nNotSeenLocalPerSource[src]
-			out += fmt.Sprintf("- %-8s %8s\n", src, prettyInt64(cnt))
+			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(cnt))
 		}
 	}
 
@@ -225,7 +225,7 @@ func (a *Analyzer) Sprint() string {
 		for _, bucketMS := range bucketsMS {
 			s := fmt.Sprintf("%d ms", bucketMS)
 			cnt := srcFirstBuckets[bucketMS]
-			out += fmt.Sprintf("- %-8s %8s   (%7s) \n", s, prettyInt64(cnt), common.Int64DiffPercentFmt(cnt, int64(totalFirstBySrc)))
+			out += fmt.Sprintf("- %-8s %10s   (%7s) \n", s, prettyInt64(cnt), common.Int64DiffPercentFmt(cnt, int64(totalFirstBySrc)))
 		}
 	}
 
