@@ -1,4 +1,6 @@
 {{ define "content" }}
+{{ $day:="" }}
+{{ $class:="even" }}
 
 <hr>
 <br>
@@ -11,8 +13,18 @@
             <td class=fn><a href=/index.html>../</a></td>
             <td></td>
         </tr>
+
         {{ range .Files }}
-        <tr>
+        {{ $dayTmp:=.Filename|substr10}}
+        {{ if ne $day $dayTmp}}
+        {{ $day = $dayTmp }}
+        {{ if ne $class "even" }}
+        {{ $class = "even" }}
+        {{ else }}
+        {{ $class = "odd" }}
+        {{ end }}
+        {{ end }}
+        <tr class="f-{{$class}}">
             <td class=fn><a href={{ .Filename }}>{{ .Filename }}</a></td>
             <td class=fs>{{ .Size | humanBytes }}</td>
         </tr>

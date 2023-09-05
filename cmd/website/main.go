@@ -154,7 +154,7 @@ func buildWebsite() {
 	}
 
 	if *upload {
-		log.Infow("Uploading to S3 ...", "files", toUpload)
+		log.Infow("Uploading to S3 ...")
 		// for _, file := range toUpload {
 		// 	fmt.Printf("- %s -> %s\n", file.from, file.to)
 		// }

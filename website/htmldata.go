@@ -35,6 +35,10 @@ func percent(cnt, total uint64) string {
 	return printer.Sprintf("%.2f", p)
 }
 
+func substr10(s string) string {
+	return s[:10]
+}
+
 var DummyHTMLData = &HTMLData{
 	Title: "Flashbots Mempool Dumpster",
 	EthMainnetMonths: []string{
@@ -62,6 +66,7 @@ var funcMap = template.FuncMap{
 	"caseIt":     caseIt,
 	"percent":    percent,
 	"humanBytes": humanize.Bytes,
+	"substr10":   substr10,
 }
 
 func ParseIndexTemplate() (*template.Template, error) {
