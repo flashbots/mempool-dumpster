@@ -35,18 +35,43 @@
             margin: 2em 4em;
         }
 
-        td.fs {
-            text-align: right;
-            min-width: 120px;
+        table {
+            border-width: 2px;
+        }
+
+        tr.c td {
+            border-style: none;
+            border-top: 1px dashed rgb(203, 203, 203);
+        }
+
+        tr.c1 td {
+            border-style: none;
+            border-top: 2px solid rgb(203, 203, 203);
+        }
+
+        tr.cx td {
+            border-style: none;
+            border-top: 1px solid rgb(203, 203, 203);
         }
 
         tr.f-odd {
-            background: #f7faff;
+            /* background: #f7faff; */
         }
 
         tr:hover {
-            /* background: #f7faff !important; */
-            background: #ffd4f8 !important;
+            background: #f7faff !important;
+            /* background: #ffd4f8 !important; */
+        }
+
+
+        td {
+            /* padding: 10px 20px !important; */
+            padding: 0.55em 20px !important;
+        }
+
+        td.fs {
+            text-align: right;
+            min-width: 120px;
         }
 
         ul.root-months li {

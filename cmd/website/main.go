@@ -1,4 +1,4 @@
-// Loads many raw transaction CSV files (produced by the collector), creates summary files in CSV and Parquet, and writes a single CSV file with all raw transactions
+// Website dev server (-dev) and prod build/upload tool (-build and -upload)
 package main
 
 import (

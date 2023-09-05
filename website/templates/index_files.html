@@ -1,6 +1,7 @@
 {{ define "content" }}
 {{ $day:="" }}
 {{ $class:="even" }}
+{{ $change:="" }}
 
 <hr>
 <br>
@@ -9,22 +10,25 @@
 
 <table class="pure-table pure-table-horizontal">
     <tbody>
-        <tr>
+        <tr class="cx">
             <td class=fn><a href=/index.html>../</a></td>
             <td></td>
         </tr>
 
         {{ range .Files }}
-        {{ $dayTmp:=.Filename|substr10}}
-        {{ if ne $day $dayTmp}}
+        {{ $dayTmp:=.Filename|substr10 }}
+        {{ if ne $day $dayTmp }}
+        {{ $change = "1" }}
         {{ $day = $dayTmp }}
         {{ if ne $class "even" }}
         {{ $class = "even" }}
         {{ else }}
         {{ $class = "odd" }}
         {{ end }}
+        {{ else }}
+        {{ $change = "" }}
         {{ end }}
-        <tr class="f-{{$class}}">
+        <tr class="f-{{$class}} c{{$change}}">
             <td class=fn><a href={{ .Filename }}>{{ .Filename }}</a></td>
             <td class=fs>{{ .Size | humanBytes }}</td>
         </tr>
