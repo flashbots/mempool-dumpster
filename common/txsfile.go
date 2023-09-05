@@ -101,12 +101,11 @@ func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Tran
 		return TxSummaryEntry{}, nil, err
 	}
 
-	// prepare 'from' address, fails often because of unsupported tx type
-	from, err := types.Sender(types.NewEIP155Signer(tx.ChainId()), tx)
+	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
 	if err != nil {
+		// fmt.Println("Error: ", err)
 		_ = err
 	}
-
 	// prepare 'to' address
 	to := ""
 	if tx.To() != nil {
