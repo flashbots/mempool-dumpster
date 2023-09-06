@@ -16,7 +16,11 @@ func Start(log *zap.SugaredLogger, nodes []string, outDir, uid, bloxrouteAuthTok
 	}
 
 	if bloxrouteAuthToken != "" {
-		blxConn := NewBlxNodeConnection(log, bloxrouteAuthToken, processor.txC)
+		blxOpts := BlxNodeOpts{ //nolint:exhaustruct
+			Log:        log,
+			AuthHeader: bloxrouteAuthToken,
+		}
+		blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
 		go blxConn.Start()
 	}
 }

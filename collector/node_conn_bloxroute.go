@@ -23,26 +23,40 @@ const (
 	maxBackoffSec     = 120
 )
 
-// options - via https://docs.bloxroute.com/introduction/cloud-api-ips
-// wss://virginia.eth.blxrbdn.com/ws
-// wss://uk.eth.blxrbdn.com/ws
-// wss://singapore.eth.blxrbdn.com/ws
-// wss://germany.eth.blxrbdn.com/ws
-var blxURI = common.GetEnv("BLX_URI", "wss://virginia.eth.blxrbdn.com/ws")
-
-type BlxNodeConnection struct {
-	log           *zap.SugaredLogger
-	blxAuthHeader string
-	txC           chan TxIn
-	backoffSec    int
+type BlxNodeOpts struct {
+	Log        *zap.SugaredLogger
+	AuthHeader string
+	URL        string // optional override, default: blxDefaultURL
+	SourceTag  string // optional override, default: "blx" (common.BloxrouteTag)
 }
 
-func NewBlxNodeConnection(log *zap.SugaredLogger, blxAuthHeader string, txC chan TxIn) *BlxNodeConnection {
+type BlxNodeConnection struct {
+	log        *zap.SugaredLogger
+	authHeader string
+	url        string
+	srcTag     string
+	txC        chan TxIn
+	backoffSec int
+}
+
+func NewBlxNodeConnection(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnection {
+	url := opts.URL
+	if url == "" {
+		url = blxDefaultURL
+	}
+
+	srcTag := opts.SourceTag
+	if srcTag == "" {
+		srcTag = common.BloxrouteTag
+	}
+
 	return &BlxNodeConnection{
-		log:           log.With("src", common.BloxrouteTag),
-		blxAuthHeader: blxAuthHeader,
-		txC:           txC,
-		backoffSec:    initialBackoffSec,
+		log:        opts.Log.With("src", srcTag),
+		authHeader: opts.AuthHeader,
+		url:        url,
+		srcTag:     srcTag,
+		txC:        txC,
+		backoffSec: initialBackoffSec,
 	}
 }
 
@@ -63,9 +77,9 @@ func (nc *BlxNodeConnection) reconnect() {
 }
 
 func (nc *BlxNodeConnection) connect() {
-	nc.log.Infow("connecting to bloXroute...", "uri", blxURI)
+	nc.log.Infow("connecting...", "uri", nc.url)
 	dialer := websocket.DefaultDialer
-	wsSubscriber, resp, err := dialer.Dial(blxURI, http.Header{"Authorization": []string{nc.blxAuthHeader}})
+	wsSubscriber, resp, err := dialer.Dial(nc.url, http.Header{"Authorization": []string{nc.authHeader}})
 	if err != nil {
 		nc.log.Errorw("failed to connect to bloxroute", "error", err)
 		go nc.reconnect()
@@ -82,7 +96,7 @@ func (nc *BlxNodeConnection) connect() {
 		return
 	}
 
-	nc.log.Infow("connection to bloXroute successful", "uri", blxURI)
+	nc.log.Infow("connection successful", "uri", nc.url)
 	nc.backoffSec = initialBackoffSec // reset backoff timeout
 
 	for {
@@ -126,6 +140,6 @@ func (nc *BlxNodeConnection) connect() {
 			continue
 		}
 
-		nc.txC <- TxIn{time.Now().UTC(), &tx, common.BloxrouteTag}
+		nc.txC <- TxIn{time.Now().UTC(), &tx, nc.srcTag}
 	}
 }

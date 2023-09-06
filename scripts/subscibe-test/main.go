@@ -39,10 +39,14 @@ func MainGeneric() {
 func MainBlx() {
 	txC := make(chan collector.TxIn)
 	log := common.GetLogger(true, false)
-	nc := collector.NewBlxNodeConnection(log, os.Getenv("BLX_AUTH_HEADER"), txC)
+	blxOpts := collector.BlxNodeOpts{ //nolint:exhaustruct
+		Log:        log,
+		AuthHeader: os.Getenv("BLX_AUTH_HEADER"),
+	}
+	nc := collector.NewBlxNodeConnection(blxOpts, txC)
 	go nc.Start()
 	for tx := range txC {
-		log.Infow("received tx", "tx", tx.Tx.Hash())
+		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
 	}
 }
 

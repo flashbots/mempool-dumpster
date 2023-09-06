@@ -81,7 +81,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	// count all transactions per source
 	p.srcCntAllLock.Lock()
-	p.srcCntAll[txIn.URITag]++
+	p.srcCntAll[txIn.Source]++
 	p.srcCntAllLock.Unlock()
 
 	// get output file handles
@@ -98,7 +98,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	// record source stats
 	if p.recSrcStats {
-		_, err = fmt.Fprintf(fSrcStats, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.URITag)
+		_, err = fmt.Fprintf(fSrcStats, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source)
 		if err != nil {
 			log.Errorw("fmt.Fprintf", "error", err)
 			return
@@ -119,7 +119,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	// count first transactions per source (i.e. who delivers a given tx first)
 	p.srcCntFirstLock.Lock()
-	p.srcCntFirst[txIn.URITag]++
+	p.srcCntFirst[txIn.Source]++
 	p.srcCntFirstLock.Unlock()
 
 	// create tx rlp
