@@ -23,7 +23,14 @@ Available mempool sources:
 Notes:
 
 - This project is under active development, although relatively stable and ready to use in production
-- Observing about 1M - 1.5M transactions per day
+- Observing about 1M - 1.5M unique transactions per day
+
+---
+
+# FAQ
+
+- _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
+- _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source)
 
 ---
 
@@ -33,12 +40,6 @@ Notes:
 2. [Merger](cmd/merge/main.go): Takes collector CSV files as input, de-duplicates, sorts by timestamp and writes CSV + Parquet output files.
 3. [Analyzer](cmd/analyze/main.go): Analyzes sourcelog CSV files and produces summary report.
 4. [Website](cmd/website/main.go): Website dev-mode as well as build + upload.
-
----
-
-# FAQ
-
-- _What is a-pool?_ A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
 
 ---
 
