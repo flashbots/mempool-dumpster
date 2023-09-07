@@ -35,10 +35,10 @@ type TxProcessor struct {
 	srcCntAll     map[string]uint64
 	srcCntAllLock sync.RWMutex
 
-	recSrcStats bool // whether to record source stats (a CSV file with timestamp_ms,hash,source)
+	recSourcelog bool // whether to record source stats (a CSV file with timestamp_ms,hash,source)
 }
 
-func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string, srcStats bool) *TxProcessor {
+func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string, writeSourcelog bool) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
 		log: log, // .With("uid", uid),
 		txC: make(chan TxIn, 100),
@@ -48,10 +48,10 @@ func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string, srcStats bool) *
 		outFiles:         make(map[int64]*os.File),
 		outFilesSrcStats: make(map[int64]*os.File),
 
-		txn:         make(map[ethcommon.Hash]time.Time),
-		srcCntFirst: make(map[string]uint64),
-		srcCntAll:   make(map[string]uint64),
-		recSrcStats: srcStats,
+		txn:          make(map[ethcommon.Hash]time.Time),
+		srcCntFirst:  make(map[string]uint64),
+		srcCntAll:    make(map[string]uint64),
+		recSourcelog: writeSourcelog,
 	}
 }
 
@@ -91,13 +91,13 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		return
 	} else if isCreated {
 		p.log.Infof("new file created: %s", fTx.Name())
-		if p.recSrcStats {
+		if p.recSourcelog {
 			p.log.Infof("new file created: %s", fSrcStats.Name())
 		}
 	}
 
 	// record source stats
-	if p.recSrcStats {
+	if p.recSourcelog {
 		_, err = fmt.Fprintf(fSrcStats, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source)
 		if err != nil {
 			log.Errorw("fmt.Fprintf", "error", err)
@@ -179,7 +179,7 @@ func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (fTx, fSrcStats *os.Fil
 		}
 	}
 
-	if p.recSrcStats && !fSrcStatsOk {
+	if p.recSourcelog && !fSrcStatsOk {
 		// open sourcelog for writing
 		dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "sourcelog")
 		err = os.MkdirAll(dir, os.ModePerm)
@@ -197,7 +197,7 @@ func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (fTx, fSrcStats *os.Fil
 	}
 
 	// if one file was opened, record it now
-	if !fTxOk || (p.recSrcStats && !fSrcStatsOk) {
+	if !fTxOk || (p.recSourcelog && !fSrcStatsOk) {
 		p.outFilesLock.Lock()
 		p.outFiles[bucketTS] = fTx
 		p.outFilesSrcStats[bucketTS] = fSrcStats

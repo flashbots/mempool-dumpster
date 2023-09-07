@@ -18,11 +18,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	initialBackoffSec = 5
-	maxBackoffSec     = 120
-)
-
 type BlxNodeOpts struct {
 	Log        *zap.SugaredLogger
 	AuthHeader string

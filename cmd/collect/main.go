@@ -19,10 +19,11 @@ var (
 	version = "dev" // is set during build process
 
 	// Default values
-	defaultDebug        = os.Getenv("DEBUG") == "1"
-	defaultLogProd      = os.Getenv("LOG_PROD") == "1"
-	defaultLogService   = os.Getenv("LOG_SERVICE")
-	defaultblxAuthToken = os.Getenv("BLX_AUTH_HEADER")
+	defaultDebug            = os.Getenv("DEBUG") == "1"
+	defaultLogProd          = os.Getenv("LOG_PROD") == "1"
+	defaultLogService       = os.Getenv("LOG_SERVICE")
+	defaultblxAuthToken     = os.Getenv("BLX_AUTH_HEADER")
+	defaultChainboundAPIKey = os.Getenv("CHAINBOUND_API_KEY")
 
 	// Flags
 	printVersion  = flag.Bool("version", false, "only print version")
@@ -32,8 +33,10 @@ var (
 	nodesPtr      = flag.String("nodes", "ws://localhost:8546", "comma separated list of EL nodes")
 	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
 	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
-	blxAuthToken  = flag.String("blx-token", defaultblxAuthToken, "bloxroute auth token (optional)")
 	sourcelog     = flag.Bool("sourcelog", false, "write a CSV with all received transactions from any source (timestamp_ms,hash,source)")
+
+	blxAuthToken     = flag.String("blx-token", defaultblxAuthToken, "bloxroute auth token (optional)")
+	chainboundAPIKey = flag.String("chainbound-api-key", defaultChainboundAPIKey, "chainbound API key (optional)")
 )
 
 func main() {
@@ -99,7 +102,16 @@ func main() {
 	}
 
 	// Start service components
-	collector.Start(log, nodes, *outDirPtr, *uidPtr, *blxAuthToken, *sourcelog)
+	opts := collector.CollectorOpts{ //nolint:exhaustruct
+		Log:                log,
+		Nodes:              nodes,
+		OutDir:             *outDirPtr,
+		WriteSourcelog:     *sourcelog,
+		BloxrouteAuthToken: *blxAuthToken,
+		ChainboundAPIKey:   *chainboundAPIKey,
+	}
+
+	collector.Start(&opts)
 
 	// Wwait for termination signal
 	exit := make(chan os.Signal, 1)
