@@ -26,6 +26,11 @@ var (
 			Value: "",
 			Usage: "output file prefix (i.e. date)",
 		},
+		&cli.StringSliceFlag{ //nolint:exhaustruct
+			Name:  "known-txs",
+			Value: &cli.StringSlice{},
+			Usage: "reference transaction input files",
+		},
 	}
 
 	// Helpers

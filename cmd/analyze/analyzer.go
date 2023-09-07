@@ -30,7 +30,8 @@ func prettyInt64(i int64) string {
 }
 
 type Analyzer struct {
-	txs map[string]map[string]int64 // [hash][src] = timestamp
+	txs          map[string]map[string]int64 // [hash][src] = timestamp
+	prevKnownTxs map[string]bool             // [hash] = true
 
 	sources   []string // sorted alphabetically
 	nUniqueTx int
@@ -52,9 +53,10 @@ type Analyzer struct {
 	duration       time.Duration
 }
 
-func NewAnalyzer(transactions map[string]map[string]int64) *Analyzer {
+func NewAnalyzer(transactions map[string]map[string]int64, prevKnownTxs map[string]bool) *Analyzer {
 	a := &Analyzer{ //nolint:exhaustruct
 		txs:                    transactions,
+		prevKnownTxs:           prevKnownTxs,
 		nTransactionsPerSource: make(map[string]int64),
 		nUniqueTxPerSource:     make(map[string]int64),
 		nNotSeenLocalPerSource: make(map[string]int64),
@@ -66,11 +68,16 @@ func NewAnalyzer(transactions map[string]map[string]int64) *Analyzer {
 
 // Init does some efficient initial data analysis and preparation for later use
 func (a *Analyzer) init() {
-	// unique tx
-	a.nUniqueTx = len(a.txs)
-
 	// iterate over tx to
-	for _, sources := range a.txs {
+	for txHash, sources := range a.txs {
+		txHashLower := strings.ToLower(txHash)
+		if a.prevKnownTxs[txHashLower] {
+			continue
+		}
+
+		// unique tx
+		a.nUniqueTx += 1
+
 		// count all tx
 		a.nAllTx += len(sources)
 
@@ -121,7 +128,12 @@ func (a *Analyzer) benchmarkSourceVsLocal(src, ref string) (srcFirstBuckets map[
 	srcFirstBuckets = make(map[int64]int64) // [bucket_ms] = count
 
 	// How much earlier were transactions received by blx vs. the local node?
-	for _, sources := range a.txs {
+	for txHash, sources := range a.txs {
+		txHashLower := strings.ToLower(txHash)
+		if a.prevKnownTxs[txHashLower] {
+			continue
+		}
+
 		if len(sources) == 1 {
 			continue
 		}
@@ -182,7 +194,7 @@ func (a *Analyzer) Sprint() string {
 	out += "Transactions received: \n"
 	for _, src := range a.sources { // sorted iteration
 		if a.nTransactionsPerSource[src] > 0 {
-			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
+			out += fmt.Sprintf("- %-10s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
 		}
 	}
 
@@ -191,7 +203,7 @@ func (a *Analyzer) Sprint() string {
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 {
 			cnt := a.nUniqueTxPerSource[src]
-			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt(int(cnt)))
+			out += fmt.Sprintf("- %-10s %10s\n", src, prettyInt(int(cnt)))
 		}
 	}
 
@@ -200,7 +212,7 @@ func (a *Analyzer) Sprint() string {
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 && src != referenceLocalSource {
 			cnt := a.nNotSeenLocalPerSource[src]
-			out += fmt.Sprintf("- %-8s %10s\n", src, prettyInt64(cnt))
+			out += fmt.Sprintf("- %-10s %10s\n", src, prettyInt64(cnt))
 		}
 	}
 
@@ -212,8 +224,8 @@ func (a *Analyzer) Sprint() string {
 	latencyComps := []struct{ src, ref string }{
 		{common.BloxrouteTag, referenceLocalSource},
 		{"apool", referenceLocalSource},
-		{common.BloxrouteTag, "apool"},
-		{"apool", common.BloxrouteTag},
+		{common.BloxrouteTag, common.ChainboundTag},
+		{common.ChainboundTag, common.BloxrouteTag},
 	}
 
 	for _, comp := range latencyComps {

@@ -19,6 +19,11 @@ var (
 			Value: "",
 			Usage: "output filename",
 		},
+		&cli.StringSliceFlag{ //nolint:exhaustruct
+			Name:  "known-txs",
+			Value: &cli.StringSlice{},
+			Usage: "reference transaction input files",
+		},
 	}
 
 	// Helpers
@@ -58,12 +63,14 @@ func main() {
 
 func analyze(cCtx *cli.Context) error {
 	fnCSVSourcelog := cCtx.String("out")
+	knownTxsFiles := cCtx.StringSlice("known-txs")
+
 	inputFiles := cCtx.Args().Slice()
 	if cCtx.NArg() == 0 {
 		log.Fatal("no input files specified as arguments")
 	}
 
-	log.Infow("Merge sourcelog", "fnCSVSourcelog", fnCSVSourcelog, "version", version)
+	log.Infow("Merge sourcelog", "version", version)
 
 	// Ensure output files are don't yet exist
 	common.MustNotExist(log, fnCSVSourcelog)
@@ -82,8 +89,18 @@ func analyze(cCtx *cli.Context) error {
 		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
 	)
 
+	// Load reference input files (i.e. transactions before the current date to remove false positives)
+	prevKnownTxs := common.LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+	if len(knownTxsFiles) > 0 {
+		log.Infow("Processed all reference input files",
+			"refTxFiles", knownTxsFiles,
+			"refTxTotal", printer.Sprintf("%d", len(prevKnownTxs)),
+			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		)
+	}
+
 	log.Info("Analyzing...")
-	analyzer := NewAnalyzer(sourcelog)
+	analyzer := NewAnalyzer(sourcelog, prevKnownTxs)
 	s := analyzer.Sprint()
 
 	if fnCSVSourcelog != "" {

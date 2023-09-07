@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"encoding/csv"
 	"errors"
 	"io"
 	"os"
@@ -13,7 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func LoadTransactionCSVFiles(log *zap.SugaredLogger, files []string) (txs map[string]*TxEnvelope) { //nolint:gocognit
+// LoadTransactionCSVFiles loads transaction CSV files into a map[txHash]*TxEnvelope
+// All transactions occurring in []knownTxsFiles are skipped
+func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxEnvelope) { //nolint:gocognit
+	// load previously known transaction hashes
+	prevKnownTxs := LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+
 	cntProcessedFiles := 0
 	txs = make(map[string]*TxEnvelope)
 	for _, filename := range files {
@@ -60,13 +66,20 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files []string) (txs map[st
 				continue
 			}
 			txTimestamp := int64(ts)
+			txHash := strings.ToLower(items[1])
+
+			// Don't store transactions that were already seen previously (in refTxsFiles)
+			if prevKnownTxs[txHash] {
+				log.Debugf("Skipping tx that was already seen previously: %s", txHash)
+				continue
+			}
 
 			// Dedupe transactions, and make sure to store the lowest timestamp
-			if _, ok := txs[items[1]]; ok {
-				log.Debugf("Skipping duplicate tx: %s", items[1])
+			if _, ok := txs[txHash]; ok {
+				log.Debugf("Skipping duplicate tx: %s", txHash)
 
-				if txTimestamp < txs[items[1]].Summary.Timestamp {
-					txs[items[1]].Summary.Timestamp = txTimestamp
+				if txTimestamp < txs[txHash].Summary.Timestamp {
+					txs[txHash].Summary.Timestamp = txTimestamp
 					log.Debugw("Updating timestamp for duplicate tx", "line", l)
 				}
 
@@ -74,14 +87,14 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files []string) (txs map[st
 			}
 
 			// Process this tx
-			txSummary, _, err := parseTx(txTimestamp, items[1], items[2])
+			txSummary, _, err := parseTx(txTimestamp, txHash, items[2])
 			if err != nil {
 				log.Errorw("parseTx", "error", err, "line", l)
 				continue
 			}
 
 			// Add to map
-			txs[items[1]] = &TxEnvelope{items[2], &txSummary}
+			txs[txHash] = &TxEnvelope{items[2], &txSummary}
 			cntTxInFileNew += 1
 		}
 		log.Infow("Processed file",
@@ -135,4 +148,37 @@ func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Tran
 		DataSize:   int64(len(tx.Data())),
 		Data4Bytes: data4Bytes,
 	}, tx, nil
+}
+
+// LoadTxHashesFromMetadataCSVFiles loads transaction hashes from metadata CSV files into a map[txHash]bool
+func LoadTxHashesFromMetadataCSVFiles(log *zap.SugaredLogger, files []string) (txs map[string]bool) {
+	txs = make(map[string]bool)
+	for _, filename := range files {
+		log.Infof("Loading %s ...", filename)
+
+		readFile, err := os.Open(filename)
+		if err != nil {
+			log.Errorw("os.Open", "error", err, "file", filename)
+			return
+		}
+		defer readFile.Close()
+		csvReader := csv.NewReader(readFile)
+		records, err := csvReader.ReadAll()
+		if err != nil {
+			log.Errorw("csvReader.ReadAll", "error", err, "file", filename)
+			return
+		}
+
+		for _, record := range records {
+			if len(record) < 2 {
+				log.Errorw("invalid line", "line", record)
+				continue
+			}
+
+			txHash := strings.ToLower(record[1])
+			txs[txHash] = true
+		}
+	}
+
+	return txs
 }

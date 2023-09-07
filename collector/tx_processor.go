@@ -33,6 +33,7 @@ type TxProcessor struct {
 	srcCntFirstLock sync.RWMutex
 
 	srcCntAll     map[string]uint64
+	srcCntUnique  map[string]map[string]bool
 	srcCntAllLock sync.RWMutex
 
 	recSourcelog bool // whether to record source stats (a CSV file with timestamp_ms,hash,source)
@@ -51,6 +52,7 @@ func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string, writeSourcelog b
 		txn:          make(map[ethcommon.Hash]time.Time),
 		srcCntFirst:  make(map[string]uint64),
 		srcCntAll:    make(map[string]uint64),
+		srcCntUnique: make(map[string]map[string]bool),
 		recSourcelog: writeSourcelog,
 	}
 }
@@ -82,6 +84,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	// count all transactions per source
 	p.srcCntAllLock.Lock()
 	p.srcCntAll[txIn.Source]++
+	p.srcCntUnique[txIn.Source][txHash.Hex()] = true
 	p.srcCntAllLock.Unlock()
 
 	// get output file handles
@@ -278,14 +281,21 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		srcStatsLog.Info("source_stats_first")
 
 		// print and reset stats about overall number of tx per source
-		srcStatsLog = p.log
+		srcStatsAllLog := p.log
+		srcStatsUniqueLog := p.log
 		p.srcCntAllLock.Lock()
 		for k, v := range p.srcCntAll {
-			srcStatsLog = srcStatsLog.With(k, common.Printer.Sprint(v))
+			srcStatsAllLog = srcStatsAllLog.With(k, common.Printer.Sprint(v))
 			p.srcCntAll[k] = 0
 		}
+		for k, v := range p.srcCntUnique {
+			srcStatsUniqueLog = srcStatsUniqueLog.With(k, common.Printer.Sprint(len(v)))
+			p.srcCntUnique[k] = make(map[string]bool)
+		}
 		p.srcCntAllLock.Unlock()
-		srcStatsLog.Info("source_stats_all")
+
+		srcStatsAllLog.Info("source_stats_all")
+		srcStatsUniqueLog.Info("source_stats_unique")
 
 		// reset overall counter
 		p.txCnt.Store(0)
