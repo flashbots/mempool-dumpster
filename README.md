@@ -19,6 +19,7 @@ Available mempool sources:
 1. Generic EL nodes (`newPendingTransactions`) (i.e. go-ethereum, Infura, etc.)
 2. Alchemy ([`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
 3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs) (at least ["Professional" plan](https://bloxroute.com/pricing/))
+4. [Chainbound Fiber](https://fiber.chainbound.io/docs/usage/getting-started/)
 
 Notes:
 

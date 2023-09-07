@@ -23,7 +23,7 @@ func pcheck(err error) {
 }
 
 func main() {
-	MainBlx()
+	MainChainbound()
 }
 
 func MainGeneric() {
@@ -44,6 +44,20 @@ func MainBlx() {
 		AuthHeader: os.Getenv("BLX_AUTH_HEADER"),
 	}
 	nc := collector.NewBlxNodeConnection(blxOpts, txC)
+	go nc.Start()
+	for tx := range txC {
+		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
+	}
+}
+
+func MainChainbound() {
+	txC := make(chan collector.TxIn)
+	log := common.GetLogger(true, false)
+	opts := collector.ChainboundNodeOpts{ //nolint:exhaustruct
+		Log:    log,
+		APIKey: os.Getenv("CHAINBOUND_API_KEY"),
+	}
+	nc := collector.NewChainboundNodeConnection(opts, txC)
 	go nc.Start()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)

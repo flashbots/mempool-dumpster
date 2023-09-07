@@ -2,7 +2,10 @@ package common
 
 import "strings"
 
-const BloxrouteTag = "blx"
+const (
+	BloxrouteTag  = "blx"
+	ChainboundTag = "chainbound"
+)
 
 func TxSourcName(uri string) string {
 	sourceAlias := SourceAliasesFromEnv()

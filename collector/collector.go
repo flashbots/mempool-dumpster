@@ -5,22 +5,41 @@ import (
 	"go.uber.org/zap"
 )
 
+type CollectorOpts struct {
+	Log                *zap.SugaredLogger
+	UID                string
+	Nodes              []string
+	OutDir             string
+	WriteSourcelog     bool
+	BloxrouteAuthToken string
+	ChainboundAPIKey   string
+}
+
 // Start kicks off all the service components in the background
-func Start(log *zap.SugaredLogger, nodes []string, outDir, uid, bloxrouteAuthToken string, srcStats bool) {
-	processor := NewTxProcessor(log, outDir, uid, srcStats)
+func Start(opts *CollectorOpts) {
+	processor := NewTxProcessor(opts.Log, opts.OutDir, opts.UID, opts.WriteSourcelog)
 	go processor.Start()
 
-	for _, node := range nodes {
-		conn := NewNodeConnection(log, node, processor.txC)
+	for _, node := range opts.Nodes {
+		conn := NewNodeConnection(opts.Log, node, processor.txC)
 		go conn.Start()
 	}
 
-	if bloxrouteAuthToken != "" {
+	if opts.BloxrouteAuthToken != "" {
 		blxOpts := BlxNodeOpts{ //nolint:exhaustruct
-			Log:        log,
-			AuthHeader: bloxrouteAuthToken,
+			Log:        opts.Log,
+			AuthHeader: opts.BloxrouteAuthToken,
 		}
 		blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
 		go blxConn.Start()
+	}
+
+	if opts.ChainboundAPIKey != "" {
+		opts := ChainboundNodeOpts{ //nolint:exhaustruct
+			Log:    opts.Log,
+			APIKey: opts.ChainboundAPIKey,
+		}
+		chainboundConn := NewChainboundNodeConnection(opts, processor.txC)
+		go chainboundConn.Start()
 	}
 }
