@@ -2,6 +2,8 @@
 package common
 
 import (
+	"archive/zip"
+	"encoding/csv"
 	"errors"
 	"os"
 	"path/filepath"
@@ -17,7 +19,10 @@ import (
 	"golang.org/x/text/message"
 )
 
-var Printer = message.NewPrinter(language.English)
+var (
+	Printer                  = message.NewPrinter(language.English)
+	ErrUnsupportedFileFormat = errors.New("unsupported file format")
+)
 
 func GetEnv(key, defaultValue string) string {
 	if value, ok := os.LookupEnv(key); ok {
@@ -108,4 +113,45 @@ func MustBeFile(log *zap.SugaredLogger, fn string) {
 	} else if filepath.Ext(fn) != ".csv" {
 		log.Fatalf("Input file is not a CSV file: %s", fn)
 	}
+}
+
+// GetCSV returns a CSV content from a file (.csv or .csv.zip)
+func GetCSV(filename string) (rows [][]string, err error) {
+	rows = make([][]string, 0)
+
+	if strings.HasSuffix(filename, ".csv") {
+		r, err := os.Open(filename)
+		if err != nil {
+			return nil, err
+		}
+		defer r.Close()
+		csvReader := csv.NewReader(r)
+		return csvReader.ReadAll()
+	} else if strings.HasSuffix(filename, ".zip") { // a zip file can contain many files
+		zipReader, err := zip.OpenReader(filename)
+		if err != nil {
+			return nil, err
+		}
+		defer zipReader.Close()
+
+		for _, f := range zipReader.File {
+			if !strings.HasSuffix(f.Name, ".csv") {
+				continue
+			}
+
+			r, err := f.Open()
+			if err != nil {
+				return nil, err
+			}
+			defer r.Close()
+			csvReader := csv.NewReader(r)
+			_rows, err := csvReader.ReadAll()
+			if err != nil {
+				return nil, err
+			}
+			rows = append(rows, _rows...)
+		}
+		return rows, nil
+	}
+	return nil, ErrUnsupportedFileFormat
 }

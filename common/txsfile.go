@@ -2,8 +2,8 @@ package common
 
 import (
 	"bufio"
-	"encoding/csv"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -16,12 +16,12 @@ import (
 
 // LoadTransactionCSVFiles loads transaction CSV files into a map[txHash]*TxEnvelope
 // All transactions occurring in []knownTxsFiles are skipped
-func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxEnvelope) { //nolint:gocognit
+func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxSummaryEntry, err error) { //nolint:gocognit
 	// load previously known transaction hashes
-	prevKnownTxs := LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+	prevKnownTxs, err := LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
 
 	cntProcessedFiles := 0
-	txs = make(map[string]*TxEnvelope)
+	txs = make(map[string]*TxSummaryEntry)
 	for _, filename := range files {
 		log.Infof("Loading %s ...", filename)
 		cntProcessedFiles += 1
@@ -31,7 +31,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 		readFile, err := os.Open(filename)
 		if err != nil {
 			log.Errorw("os.Open", "error", err, "file", filename)
-			return
+			return nil, err
 		}
 		defer readFile.Close()
 
@@ -77,8 +77,8 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 			// Dedupe transactions, and make sure to store the lowest timestamp
 			if _, ok := txs[txHash]; ok {
 				log.Debugf("Skipping duplicate tx: %s", txHash)
-				if txTimestamp < txs[txHash].Summary.Timestamp {
-					txs[txHash].Summary.Timestamp = txTimestamp
+				if txTimestamp < txs[txHash].Timestamp {
+					txs[txHash].Timestamp = txTimestamp
 					log.Debugw("Updating timestamp for duplicate tx", "line", l)
 				}
 				continue
@@ -92,7 +92,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 			}
 
 			// Add to map
-			txs[txHash] = &TxEnvelope{items[2], &txSummary}
+			txs[txHash] = &txSummary
 			cntTxInFileNew += 1
 		}
 		log.Infow("Processed file",
@@ -103,11 +103,11 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 		)
 		// break
 	}
-	return txs
+	return txs, nil
 }
 
-func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Transaction, error) {
-	tx, err := RLPStringToTx(rawTx)
+func parseTx(timestampMs int64, hash, rawTxHex string) (TxSummaryEntry, *types.Transaction, error) {
+	tx, err := RLPStringToTx(rawTxHex)
 	if err != nil {
 		return TxSummaryEntry{}, nil, err
 	}
@@ -129,45 +129,46 @@ func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Tran
 		data4Bytes = hexutil.Encode(tx.Data()[:4])
 	}
 
+	rawTxBytes, err := hexutil.Decode(rawTxHex)
+	if err != nil {
+		return TxSummaryEntry{}, nil, err
+	}
+
 	return TxSummaryEntry{
 		Timestamp: timestampMs,
 		Hash:      tx.Hash().Hex(),
 
 		ChainID:   tx.ChainId().String(),
-		From:      from.Hex(),
-		To:        to,
+		From:      strings.ToLower(from.Hex()),
+		To:        strings.ToLower(to),
 		Value:     tx.Value().String(),
-		Nonce:     tx.Nonce(),
-		Gas:       tx.Gas(),
+		Nonce:     fmt.Sprint(tx.Nonce()),
+		Gas:       fmt.Sprint(tx.Gas()),
 		GasPrice:  tx.GasPrice().String(),
 		GasTipCap: tx.GasTipCap().String(),
 		GasFeeCap: tx.GasFeeCap().String(),
 
 		DataSize:   int64(len(tx.Data())),
 		Data4Bytes: data4Bytes,
+
+		RawTx: string(rawTxBytes),
 	}, tx, nil
 }
 
-// LoadTxHashesFromMetadataCSVFiles loads transaction hashes from metadata CSV files into a map[txHash]bool
-func LoadTxHashesFromMetadataCSVFiles(log *zap.SugaredLogger, files []string) (txs map[string]bool) {
+// LoadTxHashesFromMetadataCSVFiles loads transaction hashes from metadata CSV (or .csv.zip) files into a map[txHash]bool
+func LoadTxHashesFromMetadataCSVFiles(log *zap.SugaredLogger, files []string) (txs map[string]bool, err error) {
 	txs = make(map[string]bool)
+
 	for _, filename := range files {
 		log.Infof("Loading %s ...", filename)
 
-		readFile, err := os.Open(filename)
+		rows, err := GetCSV(filename)
 		if err != nil {
-			log.Errorw("os.Open", "error", err, "file", filename)
-			return
-		}
-		defer readFile.Close()
-		csvReader := csv.NewReader(readFile)
-		records, err := csvReader.ReadAll()
-		if err != nil {
-			log.Errorw("csvReader.ReadAll", "error", err, "file", filename)
-			return
+			log.Errorw("GetCSV", "error", err)
+			return nil, err
 		}
 
-		for _, record := range records {
+		for _, record := range rows {
 			if len(record) < 2 {
 				log.Errorw("invalid line", "line", record)
 				continue
@@ -178,5 +179,5 @@ func LoadTxHashesFromMetadataCSVFiles(log *zap.SugaredLogger, files []string) (t
 		}
 	}
 
-	return txs
+	return txs, nil
 }
