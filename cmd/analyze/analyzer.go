@@ -223,7 +223,7 @@ func (a *Analyzer) Sprint() string {
 	out += fmt.Sprintln("------------------")
 	latencyComps := []struct{ src, ref string }{
 		{common.BloxrouteTag, referenceLocalSource},
-		{"apool", referenceLocalSource},
+		{common.ChainboundTag, referenceLocalSource},
 		{common.BloxrouteTag, common.ChainboundTag},
 		{common.ChainboundTag, common.BloxrouteTag},
 	}

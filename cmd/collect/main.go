@@ -102,8 +102,9 @@ func main() {
 	}
 
 	// Start service components
-	opts := collector.CollectorOpts{ //nolint:exhaustruct
+	opts := collector.CollectorOpts{
 		Log:                log,
+		UID:                *uidPtr,
 		Nodes:              nodes,
 		OutDir:             *outDirPtr,
 		WriteSourcelog:     *sourcelog,
