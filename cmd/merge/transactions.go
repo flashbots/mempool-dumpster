@@ -91,7 +91,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 
 	// Parquet config: https://parquet.apache.org/docs/file-format/configurations/
 	pw.RowGroupSize = 128 * 1024 * 1024 // 128M
-	pw.PageSize = 8 * 1024              // 8K
+	pw.PageSize = 1024 * 1024           // 1M
 
 	// Parquet compression: must be gzip for compatibility with both Clickhouse and S3 Select
 	pw.CompressionType = parquet.CompressionCodec_GZIP
