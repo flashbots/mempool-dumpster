@@ -87,4 +87,5 @@ func TestParquet(t *testing.T) {
 	require.Equal(t, summary.GasFeeCap, tx.GasFeeCap)
 	require.Equal(t, summary.DataSize, tx.DataSize)
 	require.Equal(t, summary.Data4Bytes, tx.Data4Bytes)
+	require.Equal(t, summary.RawTx, tx.RawTx)
 }
