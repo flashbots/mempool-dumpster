@@ -106,8 +106,8 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 	return txs, nil
 }
 
-func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Transaction, error) {
-	tx, err := RLPStringToTx(rawTx)
+func parseTx(timestampMs int64, hash, rawTxHex string) (TxSummaryEntry, *types.Transaction, error) {
+	tx, err := RLPStringToTx(rawTxHex)
 	if err != nil {
 		return TxSummaryEntry{}, nil, err
 	}
@@ -129,13 +129,18 @@ func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Tran
 		data4Bytes = hexutil.Encode(tx.Data()[:4])
 	}
 
+	rawTxBytes, err := hexutil.Decode(rawTxHex)
+	if err != nil {
+		return TxSummaryEntry{}, nil, err
+	}
+
 	return TxSummaryEntry{
 		Timestamp: timestampMs,
 		Hash:      tx.Hash().Hex(),
 
 		ChainID:   tx.ChainId().String(),
-		From:      from.Hex(),
-		To:        to,
+		From:      strings.ToLower(from.Hex()),
+		To:        strings.ToLower(to),
 		Value:     tx.Value().String(),
 		Nonce:     fmt.Sprint(tx.Nonce()),
 		Gas:       fmt.Sprint(tx.Gas()),
@@ -146,7 +151,7 @@ func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Tran
 		DataSize:   int64(len(tx.Data())),
 		Data4Bytes: data4Bytes,
 
-		RawTx: rawTx,
+		RawTx: string(rawTxBytes),
 	}, tx, nil
 }
 

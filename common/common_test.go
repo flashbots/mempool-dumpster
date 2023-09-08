@@ -23,7 +23,7 @@ func TestParseTx(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ts, summary.Timestamp)
 	require.Equal(t, test1Hash, summary.Hash)
-	require.Equal(t, "0xd8Aa8F3be2fB0C790D3579dcF68a04701C1e33DB", summary.From)
+	require.Equal(t, "0xd8aa8f3be2fb0c790d3579dcf68a04701c1e33db", summary.From)
 }
 
 func TestParquet(t *testing.T) {
