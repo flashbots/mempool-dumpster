@@ -66,13 +66,13 @@ Sourcelog
 
 ```bash
 # print help
-go run cmd/collector/main.go -help
+go run cmd/collect/main.go -help
 
 # Connect to ws://localhost:8546 and write CSVs into ./out
-go run cmd/collector/main.go -out ./out
+go run cmd/collect/main.go -out ./out
 
 # Connect to multiple nodes
-go run cmd/collector/main.go -out ./out -nodes ws://server1.com:8546,ws://server2.com:8546
+go run cmd/collect/main.go -out ./out -nodes ws://server1.com:8546,ws://server2.com:8546
 ```
 
 ## Merger
