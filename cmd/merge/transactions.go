@@ -17,7 +17,7 @@ import (
 func mergeTransactions(cCtx *cli.Context) error {
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")
-	refTxsFiles := cCtx.StringSlice("known-txs")
+	knownTxsFiles := cCtx.StringSlice("known-txs")
 	inputFiles := cCtx.Args().Slice()
 
 	if cCtx.NArg() == 0 {
@@ -50,7 +50,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	//
 	// Load input files
 	//
-	txs := common.LoadTransactionCSVFiles(log, inputFiles, refTxsFiles)
+	txs := common.LoadTransactionCSVFiles(log, inputFiles, knownTxsFiles)
 	log.Infow("Processed all input files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
 	//

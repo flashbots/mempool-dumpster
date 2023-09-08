@@ -68,7 +68,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 			txTimestamp := int64(ts)
 			txHash := strings.ToLower(items[1])
 
-			// Don't store transactions that were already seen previously (in refTxsFiles)
+			// Don't store transactions that were already seen previously (in knownTxsFiles)
 			if prevKnownTxs[txHash] {
 				log.Debugf("Skipping tx that was already seen previously: %s", txHash)
 				continue
@@ -77,12 +77,10 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 			// Dedupe transactions, and make sure to store the lowest timestamp
 			if _, ok := txs[txHash]; ok {
 				log.Debugf("Skipping duplicate tx: %s", txHash)
-
 				if txTimestamp < txs[txHash].Summary.Timestamp {
 					txs[txHash].Summary.Timestamp = txTimestamp
 					log.Debugw("Updating timestamp for duplicate tx", "line", l)
 				}
-
 				continue
 			}
 
