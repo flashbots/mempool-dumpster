@@ -20,6 +20,7 @@ Available mempool sources:
 2. Alchemy ([`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
 3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs) (at least ["Professional" plan](https://bloxroute.com/pricing/))
 4. [Chainbound Fiber](https://fiber.chainbound.io/docs/usage/getting-started/)
+5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc)
 
 Notes:
 

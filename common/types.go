@@ -67,3 +67,11 @@ type BlxRawTxMsg struct { //nolint:musttag
 		}
 	}
 }
+
+type EdenRawTxMsg struct { //nolint:musttag
+	Params struct {
+		Result struct {
+			RLP string
+		}
+	}
+}

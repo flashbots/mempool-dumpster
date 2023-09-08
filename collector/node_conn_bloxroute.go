@@ -1,9 +1,11 @@
 package collector
 
-// Plug into bloxroute as mempool data source (via websocket stream):
-// https://docs.bloxroute.com/streams/newtxs-and-pendingtxs
+// Plug into bloxroute or eden as mempool data source (via websocket stream)
 //
-// Needs a bloXroute API key from "professional" plan or above
+// bloXroute needs an API key from "professional" plan or above
+// - https://docs.bloxroute.com/streams/newtxs-and-pendingtxs
+//
+// eden: https://docs.edennetwork.io/eden-rpc/speed-rpc
 
 import (
 	"encoding/hex"
@@ -21,6 +23,7 @@ import (
 type BlxNodeOpts struct {
 	Log        *zap.SugaredLogger
 	AuthHeader string
+	IsEden     bool
 	URL        string // optional override, default: blxDefaultURL
 	SourceTag  string // optional override, default: "blx" (common.BloxrouteTag)
 }
@@ -29,6 +32,7 @@ type BlxNodeConnection struct {
 	log        *zap.SugaredLogger
 	authHeader string
 	url        string
+	isEden     bool
 	srcTag     string
 	txC        chan TxIn
 	backoffSec int
@@ -49,6 +53,7 @@ func NewBlxNodeConnection(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnection {
 		log:        opts.Log.With("src", srcTag),
 		authHeader: opts.AuthHeader,
 		url:        url,
+		isEden:     opts.IsEden,
 		srcTag:     srcTag,
 		txC:        txC,
 		backoffSec: initialBackoffSec,
@@ -84,6 +89,9 @@ func (nc *BlxNodeConnection) connect() {
 	defer resp.Body.Close()
 
 	subRequest := `{"id": 1, "method": "subscribe", "params": ["newTxs", {"include": ["raw_tx"]}]}`
+	if nc.isEden {
+		subRequest = `{"jsonrpc": "2.0", "id": 1, "method": "subscribe", "params": ["rawTxs"]}`
+	}
 	err = wsSubscriber.WriteMessage(websocket.TextMessage, []byte(subRequest))
 	if err != nil {
 		nc.log.Errorw("failed to subscribe to bloxroute", "error", err)
@@ -105,24 +113,36 @@ func (nc *BlxNodeConnection) connect() {
 				nc.log.Errorw("failed to read message, reconnecting", "error", err)
 			}
 
-			// TODO: exponential backoff?
 			go nc.reconnect()
 			return
 		}
 
-		var txMsg common.BlxRawTxMsg
-		err = json.Unmarshal(nextNotification, &txMsg)
-		if err != nil {
-			nc.log.Errorw("failed to unmarshal message", "error", err)
+		// fmt.Println("got message", string(nextNotification))
+		var rlp string
+		if nc.isEden {
+			var txMsg common.EdenRawTxMsg
+			err = json.Unmarshal(nextNotification, &txMsg)
+			if err != nil {
+				nc.log.Errorw("failed to unmarshal message", "error", err)
+				continue
+			}
+			rlp = txMsg.Params.Result.RLP
+		} else {
+			var txMsg common.BlxRawTxMsg
+			err = json.Unmarshal(nextNotification, &txMsg)
+			if err != nil {
+				nc.log.Errorw("failed to unmarshal message", "error", err)
+				continue
+			}
+			rlp = txMsg.Params.Result.RawTx
+		}
+
+		if len(rlp) == 0 {
 			continue
 		}
 
-		if len(txMsg.Params.Result.RawTx) == 0 {
-			continue
-		}
-
-		nc.log.Debugw("got blx tx", "rawtx", txMsg.Params.Result.RawTx)
-		rawtx, err := hex.DecodeString(txMsg.Params.Result.RawTx[2:])
+		// nc.log.Debugw("got tx", "rawtx", rlp)
+		rawtx, err := hex.DecodeString(strings.TrimPrefix(rlp, "0x"))
 		if err != nil {
 			nc.log.Errorw("failed to decode raw tx", "error", err)
 			continue
@@ -131,7 +151,7 @@ func (nc *BlxNodeConnection) connect() {
 		var tx types.Transaction
 		err = tx.UnmarshalBinary(rawtx)
 		if err != nil {
-			nc.log.Errorw("failed to unmarshal tx", "error", err)
+			nc.log.Errorw("failed to unmarshal tx", "error", err, "rlp", rlp)
 			continue
 		}
 
