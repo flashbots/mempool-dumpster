@@ -1,6 +1,7 @@
 package common
 
 import (
+	"archive/zip"
 	"bufio"
 	"errors"
 	"fmt"
@@ -16,94 +17,129 @@ import (
 
 // LoadTransactionCSVFiles loads transaction CSV files into a map[txHash]*TxEnvelope
 // All transactions occurring in []knownTxsFiles are skipped
-func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxSummaryEntry, err error) { //nolint:gocognit
+func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxSummaryEntry, err error) {
 	// load previously known transaction hashes
 	prevKnownTxs, err := LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+	if err != nil {
+		log.Errorw("LoadTxHashesFromMetadataCSVFiles", "error", err)
+		return nil, err
+	}
+	log.Infow("Loaded previously known transactions", "txTotal", Printer.Sprintf("%d", len(prevKnownTxs)), "memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()))
 
 	cntProcessedFiles := 0
 	txs = make(map[string]*TxSummaryEntry)
 	for _, filename := range files {
 		log.Infof("Loading %s ...", filename)
 		cntProcessedFiles += 1
-		cntTxInFileTotal := 0
-		cntTxInFileNew := 0
 
-		readFile, err := os.Open(filename)
-		if err != nil {
-			log.Errorw("os.Open", "error", err, "file", filename)
-			return nil, err
-		}
-		defer readFile.Close()
-
-		fileReader := bufio.NewReader(readFile)
-		for {
-			l, err := fileReader.ReadString('\n')
-			if len(l) == 0 && err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				log.Errorw("fileReader.ReadString", "error", err)
-				break
-			}
-
-			if len(l) < 66 {
-				// log.Errorw("invalid line", "line", l)
-				continue
-			}
-
-			l = strings.Trim(l, "\n")
-			items := strings.Split(l, ",") // timestamp,hash,rlp
-			if len(items) != 3 {
-				log.Errorw("invalid line", "line", l)
-				continue
-			}
-
-			cntTxInFileTotal += 1
-
-			ts, err := strconv.Atoi(items[0])
+		if strings.HasSuffix(filename, ".csv") {
+			readFile, err := os.Open(filename)
 			if err != nil {
-				log.Errorw("strconv.Atoi", "error", err, "line", l)
-				continue
+				log.Errorw("os.Open", "error", err, "file", filename)
+				return nil, err
 			}
-			txTimestamp := int64(ts)
-			txHash := strings.ToLower(items[1])
-
-			// Don't store transactions that were already seen previously (in knownTxsFiles)
-			if prevKnownTxs[txHash] {
-				log.Debugf("Skipping tx that was already seen previously: %s", txHash)
-				continue
-			}
-
-			// Dedupe transactions, and make sure to store the lowest timestamp
-			if _, ok := txs[txHash]; ok {
-				log.Debugf("Skipping duplicate tx: %s", txHash)
-				if txTimestamp < txs[txHash].Timestamp {
-					txs[txHash].Timestamp = txTimestamp
-					log.Debugw("Updating timestamp for duplicate tx", "line", l)
-				}
-				continue
-			}
-
-			// Process this tx
-			txSummary, _, err := parseTx(txTimestamp, items[2])
+			defer readFile.Close()
+			err = readTxFile(log, readFile, prevKnownTxs, &txs)
 			if err != nil {
-				log.Errorw("parseTx", "error", err, "line", l)
-				continue
+				log.Errorw("readTxFile", "error", err, "file", filename)
+				return nil, err
 			}
+		} else if strings.HasSuffix(filename, ".csv.zip") {
+			zipReader, err := zip.OpenReader(filename)
+			if err != nil {
+				return nil, err
+			}
+			defer zipReader.Close()
 
-			// Add to map
-			txs[txHash] = &txSummary
-			cntTxInFileNew += 1
+			for _, f := range zipReader.File {
+				if !strings.HasSuffix(f.Name, ".csv") {
+					continue
+				}
+
+				r, err := f.Open()
+				if err != nil {
+					return nil, err
+				}
+				defer r.Close()
+				err = readTxFile(log, r, prevKnownTxs, &txs)
+				if err != nil {
+					log.Errorw("readTxFile", "error", err, "file", filename)
+					return nil, err
+				}
+			}
+		} else {
+			log.Errorf("Unknown file type: %s", filename)
+			return nil, ErrUnsupportedFileFormat
 		}
+
 		log.Infow("Processed file",
-			"txInFile", Printer.Sprintf("%d", cntTxInFileTotal),
-			"txNew", Printer.Sprintf("%d", cntTxInFileNew),
 			"txTotal", Printer.Sprintf("%d", len(txs)),
 			"memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()),
 		)
-		// break
 	}
+
 	return txs, nil
+}
+
+// readTxFile reads a single transaction CSV file line-by-line
+func readTxFile(log *zap.SugaredLogger, rd io.Reader, prevKnownTxs map[string]bool, txs *map[string]*TxSummaryEntry) (err error) {
+	fileReader := bufio.NewReader(rd)
+	for {
+		l, err := fileReader.ReadString('\n')
+		if len(l) == 0 && err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return err
+		}
+
+		if len(l) < 66 {
+			continue
+		}
+
+		l = strings.Trim(l, "\n")
+		items := strings.Split(l, ",") // timestamp,hash,rlp
+		if len(items) != 3 {
+			log.Warnw("invalid line", "line", l)
+			continue
+		}
+
+		ts, err := strconv.Atoi(items[0])
+		if err != nil {
+			log.Warnw("strconv.Atoi", "error", err, "line", l)
+			continue
+		}
+		txTimestamp := int64(ts)
+		txHash := strings.ToLower(items[1])
+
+		// Don't store transactions that were already seen previously (in knownTxsFiles)
+		if prevKnownTxs[txHash] {
+			log.Debugf("Skipping tx that was already seen previously: %s", txHash)
+			continue
+		}
+
+		// Dedupe transactions, and make sure to store the lowest timestamp
+		if _, ok := (*txs)[txHash]; ok {
+			log.Debugf("Skipping duplicate tx: %s", txHash)
+			if txTimestamp < (*txs)[txHash].Timestamp {
+				(*txs)[txHash].Timestamp = txTimestamp
+				log.Debugw("Updating timestamp for duplicate tx", "line", l)
+			}
+			continue
+		}
+
+		// Process this tx
+		txSummary, _, err := parseTx(txTimestamp, items[2])
+		if err != nil {
+			log.Errorw("parseTx", "error", err, "line", l)
+			continue
+		}
+
+		// Add to map
+		(*txs)[txHash] = &txSummary
+	}
+
+	return nil
 }
 
 func parseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transaction, error) {

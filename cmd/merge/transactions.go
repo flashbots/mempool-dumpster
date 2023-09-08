@@ -41,7 +41,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	common.MustNotExist(log, fnParquetTxs)
 	common.MustNotExist(log, fnCSVMeta)
 	common.MustNotExist(log, fnCSVTxs)
-	log.Infow("Output files", "fnParquetTxs", fnParquetTxs, "fnCSVMeta", fnCSVMeta, "fnCSVTxs", fnCSVTxs)
+	log.Infow("Output files", "fnCSVMeta", fnCSVMeta, "fnParquetTxs", fnParquetTxs, "fnCSVTxs", fnCSVTxs)
 
 	// Check input files
 	for _, fn := range inputFiles {

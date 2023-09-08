@@ -110,8 +110,8 @@ func MustBeFile(log *zap.SugaredLogger, fn string) {
 	}
 	if s.IsDir() {
 		log.Fatalf("Input file is a directory: %s", fn)
-	} else if filepath.Ext(fn) != ".csv" {
-		log.Fatalf("Input file is not a CSV file: %s", fn)
+	} else if filepath.Ext(fn) != ".csv" && !strings.HasSuffix(fn, ".csv.zip") {
+		log.Fatalf("Input file is not a .csv or .csv.zip file: %s", fn)
 	}
 }
 
