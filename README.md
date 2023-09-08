@@ -5,16 +5,15 @@
 
 Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
-**The data is freely available at https://mempool-dumpster.flashbots.net**
+Notes:
 
-Output files:
+- **The data is freely available at https://mempool-dumpster.flashbots.net**
+- This project is under active development, although relatively stable and ready to use in production
+- Observing about 1M - 1.5M unique transactions per day
 
-1. Raw transactions CSV (`timestamp_ms, tx_hash, rlp_hex`; about 800MB/day zipped)
-1. Sourcelog CSV - list of received transactions by any source (`timestamp_ms, hash, source`; about 100MB/day zipped)
-1. [Transaction metadata](/common/types.go#L5-L22) in CSV and Parquet format (~100MB/day zipped)
-1. Summary file with information about transaction sources and latency ([example](https://gist.github.com/metachris/65b674b27b5d931bca77a43db4c95a02))
+---
 
-Available mempool sources:
+## Available mempool sources
 
 1. Generic EL nodes (`newPendingTransactions`) (i.e. go-ethereum, Infura, etc.)
 2. Alchemy ([`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
@@ -22,14 +21,24 @@ Available mempool sources:
 4. [Chainbound Fiber](https://fiber.chainbound.io/docs/usage/getting-started/)
 5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc)
 
-Notes:
+---
 
-- This project is under active development, although relatively stable and ready to use in production
-- Observing about 1M - 1.5M unique transactions per day
+## Output files
+
+**Collector:**
+1. Raw transactions CSV (`timestamp_ms, tx_hash, rlp_hex`; about 800MB/day zipped)
+1. Sourcelog CSV - all received transactions by any source (`timestamp_ms, hash, source`; about 100MB/day zipped)
+
+Merger:
+1. [Raw transaction + tx metadata](/common/types.go#L7) in Parquet format (~1GB/day)
+1. Transaction metadata in CSV format (~100MB/day zipped)
+
+Analyzer:
+1. Summary file with information about transaction sources and latency ([example](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-07_summary.txt))
 
 ---
 
-# FAQ
+## FAQ
 
 - _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
 - _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source)

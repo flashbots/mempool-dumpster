@@ -85,7 +85,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 			}
 
 			// Process this tx
-			txSummary, _, err := parseTx(txTimestamp, txHash, items[2])
+			txSummary, _, err := parseTx(txTimestamp, items[2])
 			if err != nil {
 				log.Errorw("parseTx", "error", err, "line", l)
 				continue
@@ -106,7 +106,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 	return txs, nil
 }
 
-func parseTx(timestampMs int64, hash, rawTxHex string) (TxSummaryEntry, *types.Transaction, error) {
+func parseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transaction, error) {
 	tx, err := RLPStringToTx(rawTxHex)
 	if err != nil {
 		return TxSummaryEntry{}, nil, err

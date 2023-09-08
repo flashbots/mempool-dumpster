@@ -2,6 +2,13 @@ This directory contains a bunch of useful scripts.
 
 ---
 
+Working with Parquet files:
+
+```bash
+# You can query parquet files using clickhouse-local (https://clickhouse.com/docs/en/operations/utilities/clickhouse-local)
+clickhouse local -q 'select hash,hex(rawTx) from "transactions.parquet" limit 1;'
+```
+
 More helpers:
 
 ```bash
