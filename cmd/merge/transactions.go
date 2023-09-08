@@ -31,16 +31,16 @@ func mergeTransactions(cCtx *cli.Context) error {
 	// Ensure output files are don't yet exist
 	fnCSVMeta := filepath.Join(outDir, "metadata.csv")
 	fnCSVTxs := filepath.Join(outDir, "transactions.csv")
-	fnParquetMeta := filepath.Join(outDir, "transactions.parquet")
+	fnParquetTxs := filepath.Join(outDir, "transactions.parquet")
 	if fnPrefix != "" {
-		fnParquetMeta = filepath.Join(outDir, fmt.Sprintf("%s.parquet", fnPrefix))
+		fnParquetTxs = filepath.Join(outDir, fmt.Sprintf("%s.parquet", fnPrefix))
 		fnCSVMeta = filepath.Join(outDir, fmt.Sprintf("%s.csv", fnPrefix))
 		fnCSVTxs = filepath.Join(outDir, fmt.Sprintf("%s_transactions.csv", fnPrefix))
 	}
-	common.MustNotExist(log, fnParquetMeta)
+	common.MustNotExist(log, fnParquetTxs)
 	common.MustNotExist(log, fnCSVMeta)
 	common.MustNotExist(log, fnCSVTxs)
-	log.Infow("Output files", "fnParquetMeta", fnParquetMeta, "fnCSVMeta", fnCSVMeta, "fnCSVTxs", fnCSVTxs)
+	log.Infow("Output files", "fnParquetTxs", fnParquetTxs, "fnCSVMeta", fnCSVMeta, "fnCSVTxs", fnCSVTxs)
 
 	// Check input files
 	for _, fn := range inputFiles {
@@ -84,8 +84,8 @@ func mergeTransactions(cCtx *cli.Context) error {
 	check(err, "fCSVTxs.WriteCSVHeader")
 
 	// Setup parquet writer
-	log.Infof("Output Parquet file: %s", fnParquetMeta)
-	fw, err := local.NewLocalFileWriter(fnParquetMeta)
+	log.Infof("Output Parquet file: %s", fnParquetTxs)
+	fw, err := local.NewLocalFileWriter(fnParquetTxs)
 	check(err, "parquet.NewLocalFileWriter")
 	pw, err := writer.NewParquetWriter(fw, new(common.TxSummaryEntry), 4)
 	check(err, "parquet.NewParquetWriter")
