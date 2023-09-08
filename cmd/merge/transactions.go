@@ -50,7 +50,8 @@ func mergeTransactions(cCtx *cli.Context) error {
 	//
 	// Load input files
 	//
-	txs := common.LoadTransactionCSVFiles(log, inputFiles, knownTxsFiles)
+	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, knownTxsFiles)
+	check(err, "LoadTransactionCSVFiles")
 	log.Infow("Processed all input files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
 	//

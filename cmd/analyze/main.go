@@ -31,6 +31,12 @@ var (
 	// printer = message.NewPrinter(language.English)
 )
 
+func check(err error, msg string) {
+	if err != nil {
+		log.Fatalw(msg, "error", err)
+	}
+}
+
 func main() {
 	log = common.GetLogger(debug, false)
 	defer func() { _ = log.Sync() }()
@@ -90,7 +96,8 @@ func analyze(cCtx *cli.Context) error {
 	)
 
 	// Load reference input files (i.e. transactions before the current date to remove false positives)
-	prevKnownTxs := common.LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+	prevKnownTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+	check(err, "LoadTxHashesFromMetadataCSVFiles")
 	if len(knownTxsFiles) > 0 {
 		log.Infow("Processed all reference input files",
 			"refTxFiles", knownTxsFiles,
