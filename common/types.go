@@ -2,11 +2,6 @@ package common
 
 import "fmt"
 
-type TxEnvelope struct {
-	Rlp     string
-	Summary *TxSummaryEntry
-}
-
 // TxSummaryEntry is a struct that represents a single transaction in the summary CSV and Parquet file
 // see also https://github.com/xitongsys/parquet-go for more details on parquet tags
 type TxSummaryEntry struct {
@@ -26,6 +21,8 @@ type TxSummaryEntry struct {
 
 	DataSize   int64  `parquet:"name=dataSize, type=INT64"`
 	Data4Bytes string `parquet:"name=data4Bytes, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+
+	RawTx string `parquet:"name=rawTx, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
 }
 
 func (t TxSummaryEntry) ToCSVRow() []string {

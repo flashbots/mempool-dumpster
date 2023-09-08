@@ -17,12 +17,12 @@ import (
 
 // LoadTransactionCSVFiles loads transaction CSV files into a map[txHash]*TxEnvelope
 // All transactions occurring in []knownTxsFiles are skipped
-func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxEnvelope) { //nolint:gocognit
+func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxSummaryEntry) { //nolint:gocognit
 	// load previously known transaction hashes
 	prevKnownTxs := LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
 
 	cntProcessedFiles := 0
-	txs = make(map[string]*TxEnvelope)
+	txs = make(map[string]*TxSummaryEntry)
 	for _, filename := range files {
 		log.Infof("Loading %s ...", filename)
 		cntProcessedFiles += 1
@@ -78,8 +78,8 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 			// Dedupe transactions, and make sure to store the lowest timestamp
 			if _, ok := txs[txHash]; ok {
 				log.Debugf("Skipping duplicate tx: %s", txHash)
-				if txTimestamp < txs[txHash].Summary.Timestamp {
-					txs[txHash].Summary.Timestamp = txTimestamp
+				if txTimestamp < txs[txHash].Timestamp {
+					txs[txHash].Timestamp = txTimestamp
 					log.Debugw("Updating timestamp for duplicate tx", "line", l)
 				}
 				continue
@@ -93,7 +93,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 			}
 
 			// Add to map
-			txs[txHash] = &TxEnvelope{items[2], &txSummary}
+			txs[txHash] = &txSummary
 			cntTxInFileNew += 1
 		}
 		log.Infow("Processed file",
@@ -146,6 +146,8 @@ func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Tran
 
 		DataSize:   int64(len(tx.Data())),
 		Data4Bytes: data4Bytes,
+
+		RawTx: rawTx,
 	}, tx, nil
 }
 

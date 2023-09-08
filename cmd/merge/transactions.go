@@ -29,9 +29,9 @@ func mergeTransactions(cCtx *cli.Context) error {
 	check(err, "os.MkdirAll")
 
 	// Ensure output files are don't yet exist
-	fnParquetMeta := filepath.Join(outDir, "metadata.parquet")
 	fnCSVMeta := filepath.Join(outDir, "metadata.csv")
 	fnCSVTxs := filepath.Join(outDir, "transactions.csv")
+	fnParquetMeta := filepath.Join(outDir, "transactions.parquet")
 	if fnPrefix != "" {
 		fnParquetMeta = filepath.Join(outDir, fmt.Sprintf("%s.parquet", fnPrefix))
 		fnCSVMeta = filepath.Join(outDir, fmt.Sprintf("%s.csv", fnPrefix))
@@ -57,12 +57,12 @@ func mergeTransactions(cCtx *cli.Context) error {
 	// Convert map to slice sorted by summary.timestamp
 	//
 	log.Info("Sorting transactions by timestamp...")
-	txsSlice := make([]*common.TxEnvelope, 0, len(txs))
+	txsSlice := make([]*common.TxSummaryEntry, 0, len(txs))
 	for _, v := range txs {
 		txsSlice = append(txsSlice, v)
 	}
 	sort.Slice(txsSlice, func(i, j int) bool {
-		return txsSlice[i].Summary.Timestamp < txsSlice[j].Summary.Timestamp
+		return txsSlice[i].Timestamp < txsSlice[j].Timestamp
 	})
 	log.Infow("Transactions sorted...", "txs", printer.Sprintf("%d", len(txsSlice)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
@@ -83,7 +83,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	check(err, "fCSVTxs.WriteCSVHeader")
 
 	// Setup parquet writer
-	log.Infof("Output Parquet summary file: %s", fnParquetMeta)
+	log.Infof("Output Parquet file: %s", fnParquetMeta)
 	fw, err := local.NewLocalFileWriter(fnParquetMeta)
 	check(err, "parquet.NewLocalFileWriter")
 	pw, err := writer.NewParquetWriter(fw, new(common.TxSummaryEntry), 4)
@@ -104,17 +104,17 @@ func mergeTransactions(cCtx *cli.Context) error {
 	cntTxTotal := len(txsSlice)
 	for _, tx := range txsSlice {
 		// Write to parquet
-		if err = pw.Write(tx.Summary); err != nil {
+		if err = pw.Write(tx); err != nil {
 			log.Errorw("parquet.Write", "error", err)
 		}
 
 		// Write to transactions CSV
-		if _, err = fmt.Fprintf(fCSVTxs, "%d,%s,%s\n", tx.Summary.Timestamp, tx.Summary.Hash, tx.Rlp); err != nil {
+		if _, err = fmt.Fprintf(fCSVTxs, "%d,%s,%s\n", tx.Timestamp, tx.Hash, tx.RawTx); err != nil {
 			log.Errorw("fCSVTxs.WriteString", "error", err)
 		}
 
 		// Write to summary CSV
-		csvRow := strings.Join(tx.Summary.ToCSVRow(), ",")
+		csvRow := strings.Join(tx.ToCSVRow(), ",")
 		if _, err = fmt.Fprintf(fCSVMeta, "%s\n", csvRow); err != nil {
 			log.Errorw("fCSV.WriteString", "error", err)
 		}
