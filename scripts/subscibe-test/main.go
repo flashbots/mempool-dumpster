@@ -23,7 +23,9 @@ func pcheck(err error) {
 }
 
 func main() {
-	MainChainbound()
+	MainEden()
+	// MainBlx()
+	// MainChainbound()
 }
 
 func MainGeneric() {
@@ -42,6 +44,23 @@ func MainBlx() {
 	blxOpts := collector.BlxNodeOpts{ //nolint:exhaustruct
 		Log:        log,
 		AuthHeader: os.Getenv("BLX_AUTH_HEADER"),
+	}
+	nc := collector.NewBlxNodeConnection(blxOpts, txC)
+	go nc.Start()
+	for tx := range txC {
+		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
+	}
+}
+
+func MainEden() {
+	txC := make(chan collector.TxIn)
+	log := common.GetLogger(true, false)
+	blxOpts := collector.BlxNodeOpts{
+		Log:        log,
+		AuthHeader: os.Getenv("EDEN_AUTH_HEADER"),
+		URL:        "wss://speed-eu-west.edennetwork.io",
+		IsEden:     true,
+		SourceTag:  "eden",
 	}
 	nc := collector.NewBlxNodeConnection(blxOpts, txC)
 	go nc.Start()
