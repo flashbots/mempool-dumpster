@@ -25,6 +25,10 @@ type TxSummaryEntry struct {
 	RawTx string `parquet:"name=rawTx, type=BYTE_ARRAY, encoding=PLAIN, omitstats=true"`
 }
 
+func (t TxSummaryEntry) RawTxHex() string {
+	return fmt.Sprintf("0x%x", t.RawTx)
+}
+
 func (t TxSummaryEntry) ToCSVRow() []string {
 	return []string{
 		fmt.Sprint(t.Timestamp),

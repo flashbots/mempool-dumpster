@@ -24,6 +24,7 @@ func TestParseTx(t *testing.T) {
 	require.Equal(t, ts, summary.Timestamp)
 	require.Equal(t, test1Hash, summary.Hash)
 	require.Equal(t, "0xd8aa8f3be2fb0c790d3579dcf68a04701c1e33db", summary.From)
+	require.Equal(t, test1Rlp, summary.RawTxHex())
 }
 
 func TestParquet(t *testing.T) {

@@ -160,7 +160,7 @@ func LoadTxHashesFromMetadataCSVFiles(log *zap.SugaredLogger, files []string) (t
 	txs = make(map[string]bool)
 
 	for _, filename := range files {
-		log.Infof("Loading %s ...", filename)
+		log.Infof("Loading tx hashes from %s ...", filename)
 
 		rows, err := GetCSV(filename)
 		if err != nil {

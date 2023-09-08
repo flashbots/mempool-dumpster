@@ -110,7 +110,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 		}
 
 		// Write to transactions CSV
-		if _, err = fmt.Fprintf(fCSVTxs, "%d,%s,%s\n", tx.Timestamp, tx.Hash, tx.RawTx); err != nil {
+		if _, err = fmt.Fprintf(fCSVTxs, "%d,%s,%s\n", tx.Timestamp, tx.Hash, tx.RawTxHex()); err != nil {
 			log.Errorw("fCSVTxs.WriteString", "error", err)
 		}
 
