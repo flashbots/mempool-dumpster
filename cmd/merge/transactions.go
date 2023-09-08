@@ -17,7 +17,9 @@ import (
 func mergeTransactions(cCtx *cli.Context) error {
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")
+	knownTxsFiles := cCtx.StringSlice("known-txs")
 	inputFiles := cCtx.Args().Slice()
+
 	if cCtx.NArg() == 0 {
 		log.Fatal("no input files specified as arguments")
 	}
@@ -45,11 +47,15 @@ func mergeTransactions(cCtx *cli.Context) error {
 		common.MustBeFile(log, fn)
 	}
 
+	//
 	// Load input files
-	txs := common.LoadTransactionCSVFiles(log, inputFiles)
+	//
+	txs := common.LoadTransactionCSVFiles(log, inputFiles, knownTxsFiles)
 	log.Infow("Processed all input files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
+	//
 	// Convert map to slice sorted by summary.timestamp
+	//
 	log.Info("Sorting transactions by timestamp...")
 	txsSlice := make([]*common.TxEnvelope, 0, len(txs))
 	for _, v := range txs {
@@ -60,7 +66,9 @@ func mergeTransactions(cCtx *cli.Context) error {
 	})
 	log.Infow("Transactions sorted...", "txs", printer.Sprintf("%d", len(txsSlice)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
-	// Starting to write output files
+	//
+	// Prepare output files
+	//
 	log.Infof("Output transactions CSV file: %s", fnCSVTxs)
 	fCSVTxs, err := os.OpenFile(fnCSVTxs, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	check(err, "os.Create")
@@ -88,6 +96,9 @@ func mergeTransactions(cCtx *cli.Context) error {
 	// Parquet compression: must be gzip for compatibility with both Clickhouse and S3 Select
 	pw.CompressionType = parquet.CompressionCodec_GZIP
 
+	//
+	// Write output files
+	//
 	log.Info("Writing output files...")
 	cntTxWritten := 0
 	cntTxTotal := len(txsSlice)

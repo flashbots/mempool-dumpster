@@ -62,7 +62,7 @@ func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 				continue
 			}
 			txTimestamp := int64(ts)
-			txHash := items[1]
+			txHash := strings.ToLower(items[1])
 			txSource := TxSourcName(items[2])
 
 			// that it's a valid hash

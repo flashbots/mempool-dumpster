@@ -101,7 +101,7 @@ if [ -z ${YES:-} ]; then
   fi
 fi
 
-# rm -rf transactions "${date}_transactions.csv" "${date}.csv"
-# rm -rf sourcelog "${date}_sourcelog.csv"
+rm -rf transactions "${date}_transactions.csv" "${date}.csv"
+rm -rf sourcelog "${date}_sourcelog.csv"
 echo "All done!"
 echo ""
