@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -137,8 +138,8 @@ func parseTx(timestampMs int64, hash, rawTx string) (TxSummaryEntry, *types.Tran
 		From:      from.Hex(),
 		To:        to,
 		Value:     tx.Value().String(),
-		Nonce:     tx.Nonce(),
-		Gas:       tx.Gas(),
+		Nonce:     fmt.Sprint(tx.Nonce()),
+		Gas:       fmt.Sprint(tx.Gas()),
 		GasPrice:  tx.GasPrice().String(),
 		GasTipCap: tx.GasTipCap().String(),
 		GasFeeCap: tx.GasFeeCap().String(),
