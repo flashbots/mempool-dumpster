@@ -22,7 +22,7 @@ type TxSummaryEntry struct {
 	DataSize   int64  `parquet:"name=dataSize, type=INT64"`
 	Data4Bytes string `parquet:"name=data4Bytes, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
 
-	RawTx string `parquet:"name=rawTx, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
+	RawTx string `parquet:"name=rawTx, type=BYTE_ARRAY, encoding=PLAIN, omitstats=true"`
 }
 
 func (t TxSummaryEntry) ToCSVRow() []string {
