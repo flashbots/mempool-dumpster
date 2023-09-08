@@ -14,6 +14,7 @@ import (
 	"github.com/xitongsys/parquet-go/writer"
 )
 
+// mergeTransactions merges multiple transaction CSV files into transactions.parquet + metadata.csv files
 func mergeTransactions(cCtx *cli.Context) error {
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")

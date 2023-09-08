@@ -45,6 +45,40 @@ Analyzer:
 
 ---
 
+# Working with Parquet
+
+[Apache Parquet](https://parquet.apache.org/) is a column-oriented data file format designed for efficient data storage and retrieval. It provides efficient data compression and encoding schemes with enhanced performance to handle complex data in bulk (more [here](https://www.databricks.com/glossary/what-is-parquet#:~:text=What%20is%20Parquet%3F,handle%20complex%20data%20in%20bulk.)).
+
+We recommend to use [clickhouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
+
+```bash
+# count rows
+$ clickhouse local -q 'select count(*) from "transactions.parquet" limit 1;'
+
+# get the first hash+rawTx
+$ clickhouse local -q 'select hash,hex(rawTx) from "transactions.parquet" limit 1;'
+
+# show the schema
+$ clickhouse local -q 'describe table "transactions.parquet";'
+timestamp	Nullable(DateTime64(3))
+hash	Nullable(String)
+chainId	Nullable(String)
+from	Nullable(String)
+to	Nullable(String)
+value	Nullable(String)
+nonce	Nullable(String)
+gas	Nullable(String)
+gasPrice	Nullable(String)
+gasTipCap	Nullable(String)
+gasFeeCap	Nullable(String)
+dataSize	Nullable(Int64)
+data4Bytes	Nullable(String)
+rawTx	Nullable(String)
+```
+
+
+---
+
 # System architecture
 
 1. [Collector](cmd/collect/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding.

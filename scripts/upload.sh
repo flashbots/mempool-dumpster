@@ -83,7 +83,8 @@ aws --profile aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbot
 # Create analysis
 #
 echo "Creating summary..."
-/root/mempool-dumpster/build/analyze sourcelog --out "${date}_summary.txt" "${date}_sourcelog.csv"
+yesterday=$(date -I -d "$date - 1 day")
+/root/mempool-dumpster/build/analyze sourcelog --known-txs "../${yesterday}/${yesterday}.csv.zip" --out "${date}_summary.txt" "${date}_sourcelog.csv"
 
 echo "Uploading ${date}_summary.txt ..."
 aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
