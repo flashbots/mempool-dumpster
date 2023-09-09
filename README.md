@@ -25,16 +25,12 @@ Notes:
 
 ## Output files
 
-**Collector:**
-1. Raw transactions CSV (`timestamp_ms, tx_hash, rlp_hex`; about 800MB/day zipped)
-1. Sourcelog CSV - all received transactions by any source (`timestamp_ms, hash, source`; about 100MB/day zipped)
+What are the files finally uploaded by mempool-dumpster (i.e. for [September 2023](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/index.html))?
 
-Merger:
-1. [Raw transaction + tx metadata](/common/types.go#L7) in Parquet format (~1GB/day)
-1. Transaction metadata in CSV format (~100MB/day zipped)
-
-Analyzer:
-1. Summary file with information about transaction sources and latency ([example](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-07_summary.txt))
+1. Parquet file with [transaction metadata and raw transaction](/common/types.go#L7) (~800MB/day, i.e. [`2023-09-08.parquet`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08.csv.zip))
+1. CSV file with only the transaction metadata (~100MB/day zipped, i.e. [`2023-09-08.csv.zip`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08.csv.zip))
+1. CSV file with details about when each transaction was received by any source (~100MB/day zipped, i.e. [`2023-09-08_sourcelog.csv.zip`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08_sourcelog.csv.zip))
+1. Daily summary in text format (~2kB, i.e. [`2023-09-08_summary.txt`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08_summary.txt))
 
 ---
 
@@ -81,7 +77,7 @@ rawTx	Nullable(String)
 
 # System architecture
 
-1. [Collector](cmd/collect/main.go): Connects to EL nodes and writes new mempool transactions to CSV files. Multiple collector instances can run without colliding.
+1. [Collector](cmd/collect/main.go): Connects to EL nodes and writes new mempool transactions and sourcelog to hourly CSV files. Multiple collector instances can run without colliding.
 2. [Merger](cmd/merge/main.go): Takes collector CSV files as input, de-duplicates, sorts by timestamp and writes CSV + Parquet output files.
 3. [Analyzer](cmd/analyze/main.go): Analyzes sourcelog CSV files and produces summary report.
 4. [Website](cmd/website/main.go): Website dev-mode as well as build + upload.
