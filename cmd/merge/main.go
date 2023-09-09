@@ -15,6 +15,11 @@ var (
 	version = "dev" // is set during build process
 	debug   = os.Getenv("DEBUG") == "1"
 
+	// Helpers
+	log     *zap.SugaredLogger
+	printer = message.NewPrinter(language.English)
+
+	// Flags
 	commonFlags = []cli.Flag{
 		&cli.StringFlag{ //nolint:exhaustruct
 			Name:  "out",
@@ -26,16 +31,20 @@ var (
 			Value: "",
 			Usage: "output file prefix (i.e. date)",
 		},
+	}
+
+	mergeTxFlags = []cli.Flag{
 		&cli.StringSliceFlag{ //nolint:exhaustruct
 			Name:  "known-txs",
 			Value: &cli.StringSlice{},
 			Usage: "reference transaction input files",
 		},
+		&cli.BoolFlag{ //nolint:exhaustruct
+			Name:  "write-tx-csv",
+			Value: false,
+			Usage: "write a CSV with all received transactions (timestamp_ms,hash,raw_tx)",
+		},
 	}
-
-	// Helpers
-	log     *zap.SugaredLogger
-	printer = message.NewPrinter(language.English)
 )
 
 func check(err error, msg string) {
@@ -49,14 +58,14 @@ func main() {
 	defer func() { _ = log.Sync() }()
 
 	app := &cli.App{ //nolint:exhaustruct
-		Name:  "merger",
+		Name:  "merge",
 		Usage: "Load input CSV files, deduplicate, sort and produce single output file",
 		Commands: []*cli.Command{
 			{
 				Name:    "transactions",
 				Aliases: []string{"tx", "t"},
 				Usage:   "merge transaction CSVs",
-				Flags:   commonFlags,
+				Flags:   append(commonFlags, mergeTxFlags...),
 				Action:  mergeTransactions,
 			},
 			{

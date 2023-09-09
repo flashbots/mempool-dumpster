@@ -19,6 +19,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")
 	knownTxsFiles := cCtx.StringSlice("known-txs")
+	writeTxCSV := cCtx.Bool("write-tx-csv")
 	inputFiles := cCtx.Args().Slice()
 
 	if cCtx.NArg() == 0 {
@@ -31,8 +32,8 @@ func mergeTransactions(cCtx *cli.Context) error {
 
 	// Ensure output files are don't yet exist
 	fnCSVMeta := filepath.Join(outDir, "metadata.csv")
-	fnCSVTxs := filepath.Join(outDir, "transactions.csv")
 	fnParquetTxs := filepath.Join(outDir, "transactions.parquet")
+	fnCSVTxs := filepath.Join(outDir, "transactions.csv")
 	if fnPrefix != "" {
 		fnParquetTxs = filepath.Join(outDir, fmt.Sprintf("%s.parquet", fnPrefix))
 		fnCSVMeta = filepath.Join(outDir, fmt.Sprintf("%s.csv", fnPrefix))
@@ -41,7 +42,12 @@ func mergeTransactions(cCtx *cli.Context) error {
 	common.MustNotExist(log, fnParquetTxs)
 	common.MustNotExist(log, fnCSVMeta)
 	common.MustNotExist(log, fnCSVTxs)
-	log.Infow("Output files", "fnCSVMeta", fnCSVMeta, "fnParquetTxs", fnParquetTxs, "fnCSVTxs", fnCSVTxs)
+
+	log.Infof("Output Parquet file: %s", fnParquetTxs)
+	log.Infof("Output metadata CSV file: %s", fnCSVMeta)
+	if writeTxCSV {
+		log.Infof("Output transactions CSV file: %s", fnCSVTxs)
+	}
 
 	// Check input files
 	for _, fn := range inputFiles {
@@ -71,21 +77,21 @@ func mergeTransactions(cCtx *cli.Context) error {
 	//
 	// Prepare output files
 	//
-	log.Infof("Output transactions CSV file: %s", fnCSVTxs)
-	fCSVTxs, err := os.OpenFile(fnCSVTxs, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	check(err, "os.Create")
-	_, err = fmt.Fprintf(fCSVTxs, "timestamp_ms,hash,raw_tx\n")
-	check(err, "fCSVTxs.WriteCSVHeader")
-
-	log.Infof("Output summary CSV file: %s", fnCSVMeta)
 	fCSVMeta, err := os.OpenFile(fnCSVMeta, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	check(err, "os.Create")
 	csvHeader := strings.Join(common.TxSummaryEntryCSVHeader, ",")
 	_, err = fmt.Fprintf(fCSVMeta, "%s\n", csvHeader)
 	check(err, "fCSVTxs.WriteCSVHeader")
 
+	var fCSVTxs *os.File
+	if writeTxCSV {
+		fCSVTxs, err = os.OpenFile(fnCSVTxs, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		check(err, "os.Create")
+		_, err = fmt.Fprintf(fCSVTxs, "timestamp_ms,hash,raw_tx\n")
+		check(err, "fCSVTxs.WriteCSVHeader")
+	}
+
 	// Setup parquet writer
-	log.Infof("Output Parquet file: %s", fnParquetTxs)
 	fw, err := local.NewLocalFileWriter(fnParquetTxs)
 	check(err, "parquet.NewLocalFileWriter")
 	pw, err := writer.NewParquetWriter(fw, new(common.TxSummaryEntry), 4)
@@ -111,8 +117,10 @@ func mergeTransactions(cCtx *cli.Context) error {
 		}
 
 		// Write to transactions CSV
-		if _, err = fmt.Fprintf(fCSVTxs, "%d,%s,%s\n", tx.Timestamp, tx.Hash, tx.RawTxHex()); err != nil {
-			log.Errorw("fCSVTxs.WriteString", "error", err)
+		if writeTxCSV {
+			if _, err = fmt.Fprintf(fCSVTxs, "%d,%s,%s\n", tx.Timestamp, tx.Hash, tx.RawTxHex()); err != nil {
+				log.Errorw("fCSVTxs.WriteString", "error", err)
+			}
 		}
 
 		// Write to summary CSV
@@ -129,8 +137,10 @@ func mergeTransactions(cCtx *cli.Context) error {
 	log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
 	log.Info("Flushing and closing files...")
-	err = fCSVTxs.Close()
-	check(err, "fCSVTxs.Close")
+	if writeTxCSV {
+		err = fCSVTxs.Close()
+		check(err, "fCSVTxs.Close")
+	}
 	err = fCSVMeta.Close()
 	check(err, "fCSVMeta.Close")
 	err = pw.WriteStop()

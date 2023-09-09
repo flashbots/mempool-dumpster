@@ -34,6 +34,7 @@ fi
 # extract date from directory name
 date=$(basename $1)
 ym=${date:0:7}
+yesterday=$(date -I -d "$date - 1 day")
 
 # confirm
 if [ -z ${YES:-} ]; then
@@ -50,7 +51,7 @@ fi
 # PROCESS RAW FILES
 #
 echo "Merging transactions..."
-/root/mempool-dumpster/build/merge transactions --out $1 --fn-prefix $date $1/transactions/*.csv
+/root/mempool-dumpster/build/merge transactions --write-tx-csv --known-txs "../${yesterday}/${yesterday}.csv.zip" --out $1 --fn-prefix $date $1/transactions/*.csv
 
 echo "Merging sourcelog..."
 /root/mempool-dumpster/build/merge sourcelog --out $1 --fn-prefix $date $1/sourcelog/*.csv
@@ -83,7 +84,6 @@ aws --profile aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbot
 # Create analysis
 #
 echo "Creating summary..."
-yesterday=$(date -I -d "$date - 1 day")
 /root/mempool-dumpster/build/analyze sourcelog --known-txs "../${yesterday}/${yesterday}.csv.zip" --out "${date}_summary.txt" "${date}_sourcelog.csv"
 
 echo "Uploading ${date}_summary.txt ..."
