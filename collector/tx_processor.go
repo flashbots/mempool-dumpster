@@ -84,6 +84,9 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	// count all transactions per source
 	p.srcCntAllLock.Lock()
 	p.srcCntAll[txIn.Source]++
+	if p.srcCntUnique[txIn.Source] == nil {
+		p.srcCntUnique[txIn.Source] = make(map[string]bool)
+	}
 	p.srcCntUnique[txIn.Source][txHash.Hex()] = true
 	p.srcCntAllLock.Unlock()
 
