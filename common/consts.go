@@ -3,7 +3,7 @@ package common
 import "strings"
 
 const (
-	BloxrouteTag  = "blx"
+	BloxrouteTag  = "bloxroute"
 	ChainboundTag = "chainbound"
 )
 

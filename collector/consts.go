@@ -13,6 +13,7 @@ const (
 	// bucketMinutes is the number of minutes to write into each CSV file (i.e. new file created for every X minutes bucket)
 	bucketMinutes = 60
 
+	// exponential backoff settings
 	initialBackoffSec = 5
 	maxBackoffSec     = 120
 )
@@ -23,6 +24,8 @@ var (
 	// wss://uk.eth.blxrbdn.com/ws
 	// wss://singapore.eth.blxrbdn.com/ws
 	// wss://germany.eth.blxrbdn.com/ws
-	blxDefaultURL        = common.GetEnv("BLX_URI", "wss://virginia.eth.blxrbdn.com/ws")
+	blxDefaultURL = common.GetEnv("BLX_URI", "wss://virginia.eth.blxrbdn.com/ws")
+
+	// Chainbound Fiber URL
 	chainboundDefaultURL = common.GetEnv("CHAINBOUND_URI", "beta.fiberapi.io:8080")
 )
