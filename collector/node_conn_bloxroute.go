@@ -65,9 +65,11 @@ func (nc *BlxNodeConnection) Start() {
 }
 
 func (nc *BlxNodeConnection) reconnect() {
-	time.Sleep(time.Duration(nc.backoffSec) * time.Second)
+	backoffDuration := time.Duration(nc.backoffSec) * time.Second
+	nc.log.Infof("reconnecting to %s in %s sec ...", nc.srcTag, backoffDuration.String())
+	time.Sleep(backoffDuration)
 
-	// increase backoff timeout
+	// increase backoff timeout for next try
 	nc.backoffSec *= 2
 	if nc.backoffSec > maxBackoffSec {
 		nc.backoffSec = maxBackoffSec
