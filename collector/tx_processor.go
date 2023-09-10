@@ -241,7 +241,7 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		for timestamp, file := range p.outFiles {
 			usageSec := bucketMinutes * 60 * 2
 			if time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
-				p.log.Infow("closing file", "timestamp", timestamp, "filename", file.Name())
+				p.log.Infow("closing tx file", "timestamp", timestamp, "filename", file.Name())
 				delete(p.outFiles, timestamp)
 				_ = file.Close()
 			}
@@ -249,7 +249,7 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		for timestamp, file := range p.outFilesSrcStats {
 			usageSec := bucketMinutes * 60 * 2
 			if time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
-				p.log.Infow("closing file", "timestamp", timestamp, "filename", file.Name())
+				p.log.Infow("closing sourcelog file", "timestamp", timestamp, "filename", file.Name())
 				delete(p.outFilesSrcStats, timestamp)
 				_ = file.Close()
 			}

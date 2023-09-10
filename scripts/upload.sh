@@ -51,7 +51,7 @@ fi
 # PROCESS RAW FILES
 #
 echo "Merging transactions..."
-/root/mempool-dumpster/build/merge transactions --write-tx-csv --known-txs "../${yesterday}/${yesterday}.csv.zip" --out $1 --fn-prefix $date $1/transactions/*.csv
+/root/mempool-dumpster/build/merge transactions --write-tx-csv --known-txs "$1/../${yesterday}/${yesterday}.csv.zip" --out $1 --fn-prefix $date $1/transactions/*.csv
 
 echo "Merging sourcelog..."
 /root/mempool-dumpster/build/merge sourcelog --out $1 --fn-prefix $date $1/sourcelog/*.csv
@@ -84,7 +84,7 @@ aws --profile aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbot
 # Create analysis
 #
 echo "Creating summary..."
-/root/mempool-dumpster/build/analyze sourcelog --known-txs "../${yesterday}/${yesterday}.csv.zip" --out "${date}_summary.txt" "${date}_sourcelog.csv"
+/root/mempool-dumpster/build/analyze sourcelog --known-txs "$1/../${yesterday}/${yesterday}.csv.zip" --out "${date}_summary.txt" "${date}_sourcelog.csv"
 
 echo "Uploading ${date}_summary.txt ..."
 aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"

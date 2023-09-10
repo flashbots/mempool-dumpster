@@ -1,10 +1,6 @@
 package common
 
 import (
-	"bufio"
-	"errors"
-	"io"
-	"os"
 	"strconv"
 	"strings"
 
@@ -12,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// LoadSourceLogFiles loads sourcelog CSV files (format: <timestamp_ms>,<tx_hash>,<source>) and returns a map[hash][source] = timestampMs
+// LoadSourceLogFiles loads sourcelog .csv (or .csv.zip) files (format: <timestamp_ms>,<tx_hash>,<source>) and returns a map[hash][source] = timestampMs
 func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]map[string]int64, cntProcessedRecords int64) { //nolint:gocognit
 	txs = make(map[string]map[string]int64)
 
@@ -25,40 +21,27 @@ func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 		cntProcessedFiles += 1
 		cntTxInFileTotal := 0
 
-		readFile, err := os.Open(filename)
+		rows, err := GetCSV(filename)
 		if err != nil {
-			log.Errorw("os.Open", "error", err, "file", filename)
+			log.Errorw("GetCSV", "error", err)
 			return
 		}
-		defer readFile.Close()
 
-		fileReader := bufio.NewReader(readFile)
-		for {
-			l, err := fileReader.ReadString('\n')
-			if len(l) == 0 && err != nil {
-				if errors.Is(err, io.EOF) {
-					break
-				}
-				log.Errorw("fileReader.ReadString", "error", err)
-				break
-			}
-
-			l = strings.Trim(l, "\n")
-			items := strings.Split(l, ",") // timestamp,hash,source
+		for _, items := range rows {
 			if len(items) != 3 {
-				log.Errorw("invalid line", "line", l)
+				log.Errorw("invalid line", "line", items)
 				continue
 			}
 
 			cntTxInFileTotal += 1
 
-			if len(l) < 66 {
+			if len(items[1]) < 66 {
 				continue
 			}
 
 			ts, err := strconv.Atoi(items[0])
 			if err != nil {
-				log.Errorw("strconv.Atoi", "error", err, "line", l)
+				log.Errorw("strconv.Atoi", "error", err, "line", items)
 				continue
 			}
 			txTimestamp := int64(ts)
@@ -71,7 +54,7 @@ func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 				continue
 			}
 			if _, err = hexutil.Decode(txHash); err != nil {
-				log.Errorw("hexutil.Decode", "error", err, "line", l)
+				log.Errorw("hexutil.Decode", "error", err, "line", items)
 				continue
 			}
 
