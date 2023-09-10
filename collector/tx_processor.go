@@ -203,10 +203,12 @@ func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (fTx, fSrcStats *os.Fil
 	}
 
 	// if one file was opened, record it now
-	if !fTxOk || (p.recSourcelog && !fSrcStatsOk) {
+	if !fTxOk {
 		p.outFilesLock.Lock()
 		p.outFiles[bucketTS] = fTx
-		p.outFilesSrcStats[bucketTS] = fSrcStats
+		if p.recSourcelog && !fSrcStatsOk {
+			p.outFilesSrcStats[bucketTS] = fSrcStats
+		}
 		p.outFilesLock.Unlock()
 		isCreated = true
 	}
