@@ -25,12 +25,12 @@ Notes:
 
 ## Output files
 
-Files uploaded by mempool-dumpster (i.e. for [September 2023](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/index.html)):
+Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/index.html)):
 
-1. Parquet file with [transaction metadata and raw transaction](/common/types.go#L7) (~800MB/day, i.e. [`2023-09-08.parquet`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08.csv.zip))
+1. Parquet file with [transaction metadata and raw transactions](/common/types.go#L7) (~800MB/day, i.e. [`2023-09-08.parquet`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08.csv.zip))
 1. CSV file with only the transaction metadata (~100MB/day zipped, i.e. [`2023-09-08.csv.zip`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08.csv.zip))
 1. CSV file with details about when each transaction was received by any source (~100MB/day zipped, i.e. [`2023-09-08_sourcelog.csv.zip`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08_sourcelog.csv.zip))
-1. Daily summary in text format (~2kB, i.e. [`2023-09-08_summary.txt`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08_summary.txt))
+1. Summary in text format (~2kB, i.e. [`2023-09-08_summary.txt`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08_summary.txt))
 
 ---
 
