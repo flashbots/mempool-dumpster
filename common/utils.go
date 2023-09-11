@@ -55,6 +55,9 @@ func RLPDecode(rlpBytes []byte) (*types.Transaction, error) {
 }
 
 func RLPStringToTx(rlpHex string) (*types.Transaction, error) {
+	if !strings.HasPrefix(rlpHex, "0x") {
+		rlpHex = "0x" + rlpHex
+	}
 	rawtx, err := hexutil.Decode(rlpHex)
 	if err != nil {
 		return nil, err
