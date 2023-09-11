@@ -46,9 +46,9 @@ func PrintMemUsage() {
 
 func RLPDecode(rlpBytes []byte) (*types.Transaction, error) {
 	var tx types.Transaction
-	err := rlp.DecodeBytes(rlpBytes, &tx)
+	err := tx.UnmarshalBinary(rlpBytes)
 	if err != nil {
-		err = tx.UnmarshalBinary(rlpBytes)
+		err = rlp.DecodeBytes(rlpBytes, &tx)
 	}
 	return &tx, err
 }
