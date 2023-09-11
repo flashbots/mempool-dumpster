@@ -165,7 +165,7 @@ func ParseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transac
 		data4Bytes = hexutil.Encode(tx.Data()[:4])
 	}
 
-	rawTxBytes, err := hexutil.Decode(rawTxHex)
+	rawTxBytes, err := tx.MarshalBinary()
 	if err != nil {
 		return TxSummaryEntry{}, nil, err
 	}
