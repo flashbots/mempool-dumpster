@@ -19,7 +19,7 @@ var (
 // test parseTx
 func TestParseTx(t *testing.T) {
 	ts := int64(1693785600337)
-	summary, _, err := parseTx(ts, test1Rlp)
+	summary, _, err := ParseTx(ts, test1Rlp)
 	require.NoError(t, err)
 	require.Equal(t, ts, summary.Timestamp)
 	require.Equal(t, test1Hash, summary.Hash)
@@ -28,7 +28,7 @@ func TestParseTx(t *testing.T) {
 }
 
 func TestParquet(t *testing.T) {
-	summary, _, err := parseTx(int64(1693785600337), test1Rlp)
+	summary, _, err := ParseTx(int64(1693785600337), test1Rlp)
 	require.NoError(t, err)
 
 	// Create a new Parquet file
@@ -93,7 +93,7 @@ func TestParquet(t *testing.T) {
 	//
 	// Double-check - parse the final rawTx
 	//
-	summary2, _, err := parseTx(int64(1693785600337), test1Rlp)
+	summary2, _, err := ParseTx(int64(1693785600337), test1Rlp)
 	require.NoError(t, err)
 	require.Equal(t, summary.Hash, summary2.Hash)
 }
