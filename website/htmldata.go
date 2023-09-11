@@ -3,7 +3,7 @@ package website
 import (
 	"text/template"
 
-	"github.com/dustin/go-humanize"
+	"github.com/flashbots/mempool-dumpster/common"
 )
 
 type HTMLData struct {
@@ -65,7 +65,7 @@ var funcMap = template.FuncMap{
 	"prettyInt":  prettyInt,
 	"caseIt":     caseIt,
 	"percent":    percent,
-	"humanBytes": humanize.Bytes,
+	"humanBytes": common.HumanBytes,
 	"substr10":   substr10,
 }
 

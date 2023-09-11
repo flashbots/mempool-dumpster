@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/dustin/go-humanize"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -154,4 +155,13 @@ func GetCSV(filename string) (rows [][]string, err error) {
 		return rows, nil
 	}
 	return nil, ErrUnsupportedFileFormat
+}
+
+// HumanBytes returns size in the same format as AWS S3
+func HumanBytes(n uint64) string {
+	s := humanize.IBytes(n)
+	s = strings.Replace(s, "MiB", "MB", 1)
+	s = strings.Replace(s, "GiB", "GB", 1)
+	s = strings.Replace(s, "KiB", "KB", 1)
+	return s
 }

@@ -11,10 +11,6 @@ import (
 	"golang.org/x/text/message"
 )
 
-const (
-	referenceLocalSource = "local"
-)
-
 var (
 	bucketsMS = []int64{1, 10, 50, 100, 250, 500, 1000, 5000} // note: 0 would be equal timestamps
 
@@ -32,6 +28,7 @@ func prettyInt64(i int64) string {
 type Analyzer struct {
 	txs          map[string]map[string]int64 // [hash][src] = timestamp
 	prevKnownTxs map[string]bool             // [hash] = true
+	sourceComps  []common.SourceComp
 
 	sources   []string // sorted alphabetically
 	nUniqueTx int
@@ -53,10 +50,11 @@ type Analyzer struct {
 	duration       time.Duration
 }
 
-func NewAnalyzer(transactions map[string]map[string]int64, prevKnownTxs map[string]bool) *Analyzer {
+func NewAnalyzer(transactions map[string]map[string]int64, prevKnownTxs map[string]bool, sourceComps []common.SourceComp) *Analyzer {
 	a := &Analyzer{ //nolint:exhaustruct
 		txs:                    transactions,
 		prevKnownTxs:           prevKnownTxs,
+		sourceComps:            sourceComps,
 		nTransactionsPerSource: make(map[string]int64),
 		nUniqueTxPerSource:     make(map[string]int64),
 		nNotSeenLocalPerSource: make(map[string]int64),
@@ -82,7 +80,7 @@ func (a *Analyzer) init() {
 		a.nAllTx += len(sources)
 
 		// count all tx that were not seen locally
-		if sources[referenceLocalSource] == 0 {
+		if sources[common.LocalTag] == 0 {
 			a.nOverallNotSeenLocal += 1
 		}
 
@@ -95,7 +93,7 @@ func (a *Analyzer) init() {
 			}
 
 			// remember if this transaction was not seen by the reference source
-			if sources[referenceLocalSource] == 0 {
+			if sources[common.LocalTag] == 0 {
 				a.nNotSeenLocalPerSource[src] += 1
 			}
 
@@ -210,7 +208,7 @@ func (a *Analyzer) Sprint() string {
 	out += fmt.Sprintln("")
 	out += fmt.Sprintf("Transactions not seen by local node: %s / %s (%s)\n", prettyInt64(a.nOverallNotSeenLocal), prettyInt(a.nUniqueTx), common.Int64DiffPercentFmt(a.nOverallNotSeenLocal, int64(a.nUniqueTx)))
 	for _, src := range a.sources {
-		if a.nTransactionsPerSource[src] > 0 && src != referenceLocalSource {
+		if a.nTransactionsPerSource[src] > 0 && src != common.LocalTag {
 			cnt := a.nNotSeenLocalPerSource[src]
 			out += fmt.Sprintf("- %-10s %10s\n", src, prettyInt64(cnt))
 		}
@@ -218,22 +216,19 @@ func (a *Analyzer) Sprint() string {
 
 	// latency analysis for various sources:
 	out += fmt.Sprintln("")
-	out += fmt.Sprintln("------------------")
-	out += fmt.Sprintln("Latency comparison")
-	out += fmt.Sprintln("------------------")
-	latencyComps := []struct{ src, ref string }{
-		{common.BloxrouteTag, referenceLocalSource},
-		{common.ChainboundTag, referenceLocalSource},
-		{common.BloxrouteTag, common.ChainboundTag},
-		{common.ChainboundTag, common.BloxrouteTag},
-	}
+	out += fmt.Sprintln("-----------------")
+	out += fmt.Sprintln("Source comparison")
+	out += fmt.Sprintln("-----------------")
 
-	for _, comp := range latencyComps {
-		srcFirstBuckets, totalFirstBySrc, totalSeenByBoth := a.benchmarkSourceVsLocal(comp.src, comp.ref)
+	for _, comp := range a.sourceComps {
+		if a.nTransactionsPerSource[comp.Source] == 0 || a.nTransactionsPerSource[comp.Reference] == 0 {
+			continue
+		}
 
+		srcFirstBuckets, totalFirstBySrc, totalSeenByBoth := a.benchmarkSourceVsLocal(comp.Source, comp.Reference)
 		out += fmt.Sprintln("")
-		// out += fmt.Sprintf("%s transactions received before %s: %s / %s (%s) \n", comp.src, comp.ref, prettyInt64(int64(totalFirstBySrc)), prettyInt64(int64(totalSeenByBoth)), common.Int64DiffPercentFmt(int64(totalFirstBySrc), int64(totalSeenByBoth)))
-		out += fmt.Sprintf("%s transactions received before %s: %s / %s (%s)\n", comp.src, comp.ref, prettyInt(totalFirstBySrc), prettyInt(totalSeenByBoth), common.Int64DiffPercentFmt(int64(totalFirstBySrc), int64(totalSeenByBoth)))
+		// out += fmt.Sprintf("%s transactions received before %s: %s / %s (%s) \n", comp.Source, comp.Reference, prettyInt64(int64(totalFirstBySrc)), prettyInt64(int64(totalSeenByBoth)), common.Int64DiffPercentFmt(int64(totalFirstBySrc), int64(totalSeenByBoth)))
+		out += fmt.Sprintf("%s transactions received before %s: %s / %s (%s)\n", comp.Source, comp.Reference, prettyInt(totalFirstBySrc), prettyInt(totalSeenByBoth), common.Int64DiffPercentFmt(int64(totalFirstBySrc), int64(totalSeenByBoth)))
 		for _, bucketMS := range bucketsMS {
 			s := fmt.Sprintf("%d ms", bucketMS)
 			cnt := srcFirstBuckets[bucketMS]
