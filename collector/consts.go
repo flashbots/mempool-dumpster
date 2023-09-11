@@ -19,12 +19,8 @@ const (
 )
 
 var (
-	// blxDefaultURL options - via https://docs.bloxroute.com/introduction/cloud-api-ips
-	// wss://virginia.eth.blxrbdn.com/ws
-	// wss://uk.eth.blxrbdn.com/ws
-	// wss://singapore.eth.blxrbdn.com/ws
-	// wss://germany.eth.blxrbdn.com/ws
-	blxDefaultURL = common.GetEnv("BLX_URI", "wss://virginia.eth.blxrbdn.com/ws")
+	// Bloxroute URL - should point to local Gateway GRPC port
+	blxDefaultURL = common.GetEnv("BLX_URI", "127.0.0.1:1001")
 
 	// Chainbound Fiber URL
 	chainboundDefaultURL = common.GetEnv("CHAINBOUND_URI", "beta.fiberapi.io:8080")

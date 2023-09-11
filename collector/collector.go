@@ -30,7 +30,7 @@ func Start(opts *CollectorOpts) {
 			Log:        opts.Log,
 			AuthHeader: opts.BloxrouteAuthToken,
 		}
-		blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
+		blxConn := NewBlxNodeConnectionGRPC(blxOpts, processor.txC)
 		go blxConn.Start()
 	}
 
