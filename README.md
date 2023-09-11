@@ -9,7 +9,8 @@ Notes:
 
 - **The data is freely available at https://mempool-dumpster.flashbots.net**
 - This project is under active development, although relatively stable and ready to use in production
-- Observing about 1M - 1.5M unique transactions per day
+- Observing about 1M - 1.2M unique transactions per day
+- Related tooling: https://github.com/dvush/mempool-dumpster-rs
 
 ---
 
