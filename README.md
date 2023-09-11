@@ -8,8 +8,9 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 Notes:
 
 - **The data is freely available at https://mempool-dumpster.flashbots.net**
+- Observing about 1M - 1.3M unique transactions per day
 - This project is under active development, although relatively stable and ready to use in production
-- Observing about 1M - 1.5M unique transactions per day
+- Related tooling: https://github.com/dvush/mempool-dumpster-rs
 
 ---
 

@@ -211,6 +211,9 @@ func LoadTxHashesFromMetadataCSVFiles(log *zap.SugaredLogger, files []string) (t
 			}
 
 			txHash := strings.ToLower(record[1])
+			if len(txHash) < 66 {
+				continue
+			}
 			txs[txHash] = true
 		}
 	}
