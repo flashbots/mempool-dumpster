@@ -19,10 +19,13 @@ var (
 	version = "dev" // is set during build process
 
 	// Default values
-	defaultDebug            = os.Getenv("DEBUG") == "1"
-	defaultLogProd          = os.Getenv("LOG_PROD") == "1"
-	defaultLogService       = os.Getenv("LOG_SERVICE")
+	defaultDebug      = os.Getenv("DEBUG") == "1"
+	defaultLogProd    = os.Getenv("LOG_PROD") == "1"
+	defaultLogService = os.Getenv("LOG_SERVICE")
+
+	// API keys
 	defaultblxAuthToken     = os.Getenv("BLX_AUTH_HEADER")
+	defaultEdenAuthToken    = os.Getenv("EDEN_AUTH_HEADER")
 	defaultChainboundAPIKey = os.Getenv("CHAINBOUND_API_KEY")
 
 	// Flags
@@ -33,10 +36,11 @@ var (
 	nodesPtr      = flag.String("nodes", "ws://localhost:8546", "comma separated list of EL nodes")
 	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
 	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
-	sourcelog     = flag.Bool("sourcelog", true, "write a CSV with all received transactions from any source (timestamp_ms,hash,source)")
+	noSourcelog   = flag.Bool("no-sourcelog", false, "disable writign the sourcelog CSV (timestamp_ms,hash,source)")
 
-	blxAuthToken     = flag.String("blx-token", defaultblxAuthToken, "bloxroute auth token (optional)")
-	chainboundAPIKey = flag.String("chainbound-api-key", defaultChainboundAPIKey, "chainbound API key (optional)")
+	blxAuthToken     = flag.String("blx-token", defaultblxAuthToken, "bloXroute auth token (optional)")
+	edenAuthToken    = flag.String("eden-token", defaultEdenAuthToken, "Eden auth token (optional)")
+	chainboundAPIKey = flag.String("chainbound-api-key", defaultChainboundAPIKey, "Chainbound API key (optional)")
 )
 
 func main() {
@@ -107,8 +111,9 @@ func main() {
 		UID:                *uidPtr,
 		Nodes:              nodes,
 		OutDir:             *outDirPtr,
-		WriteSourcelog:     *sourcelog,
+		WriteSourcelog:     !*noSourcelog,
 		BloxrouteAuthToken: *blxAuthToken,
+		EdenAuthToken:      *edenAuthToken,
 		ChainboundAPIKey:   *chainboundAPIKey,
 	}
 

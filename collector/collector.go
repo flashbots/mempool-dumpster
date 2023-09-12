@@ -7,12 +7,14 @@ import (
 )
 
 type CollectorOpts struct {
-	Log                *zap.SugaredLogger
-	UID                string
-	Nodes              []string
-	OutDir             string
-	WriteSourcelog     bool
+	Log            *zap.SugaredLogger
+	UID            string
+	Nodes          []string
+	OutDir         string
+	WriteSourcelog bool
+
 	BloxrouteAuthToken string
+	EdenAuthToken      string
 	ChainboundAPIKey   string
 }
 
@@ -41,6 +43,16 @@ func Start(opts *CollectorOpts) {
 			blxConn := NewBlxNodeConnectionGRPC(blxOpts, processor.txC)
 			go blxConn.Start()
 		}
+	}
+
+	if opts.EdenAuthToken != "" {
+		blxOpts := BlxNodeOpts{ //nolint:exhaustruct
+			Log:        opts.Log,
+			AuthHeader: opts.EdenAuthToken,
+			IsEden:     true,
+		}
+		blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
+		go blxConn.Start()
 	}
 
 	if opts.ChainboundAPIKey != "" {

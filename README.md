@@ -8,8 +8,9 @@ Dump mempool transactions from EL nodes, and archive them in [Parquet](https://g
 Notes:
 
 - **The data is freely available at https://mempool-dumpster.flashbots.net**
+- Observing about 1M - 1.3M unique transactions per day
 - This project is under active development, although relatively stable and ready to use in production
-- Observing about 1M - 1.5M unique transactions per day
+- Related tooling: https://github.com/dvush/mempool-dumpster-rs
 
 ---
 
@@ -45,17 +46,20 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 
 [Apache Parquet](https://parquet.apache.org/) is a column-oriented data file format designed for efficient data storage and retrieval. It provides efficient data compression and encoding schemes with enhanced performance to handle complex data in bulk (more [here](https://www.databricks.com/glossary/what-is-parquet#:~:text=What%20is%20Parquet%3F,handle%20complex%20data%20in%20bulk.)).
 
-We recommend to use [clickhouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
+We recommend to use [clickhouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) (as well as [DuckDB](https://duckdb.org/)) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
 
 ```bash
 # count rows
-$ clickhouse local -q 'select count(*) from "transactions.parquet" limit 1;'
+$ clickhouse local -q "SELECT count(*) FROM 'transactions.parquet' LIMIT 1;"
 
 # get the first hash+rawTx
-$ clickhouse local -q 'select hash,hex(rawTx) from "transactions.parquet" limit 1;'
+$ clickhouse local -q "SELECT hash,hex(rawTx) FROM 'transactions.parquet' LIMIT 1;"
+
+# get details of a particular hash
+$ clickhouse local -q "SELECT timestamp,hash,from,to,hex(rawTx) FROM 'transactions.parquet' WHERE hash='0x152065ad73bcf63f68572f478e2dc6e826f1f434cb488b993e5956e6b7425eed';"
 
 # show the schema
-$ clickhouse local -q 'describe table "transactions.parquet";'
+$ clickhouse local -q "DESCRIBE TABLE 'transactions.parquet';"
 timestamp	Nullable(DateTime64(3))
 hash	Nullable(String)
 chainId	Nullable(String)
@@ -71,7 +75,6 @@ dataSize	Nullable(Int64)
 data4Bytes	Nullable(String)
 rawTx	Nullable(String)
 ```
-
 
 ---
 

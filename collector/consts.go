@@ -22,6 +22,9 @@ var (
 	// Bloxroute URL - should point to local Gateway GRPC port
 	blxDefaultURL = common.GetEnv("BLX_URI", "127.0.0.1:1001")
 
+	// Eden URL: https://docs.edennetwork.io/eden-rpc/speed-rpc
+	edenDefaultURL = common.GetEnv("EDEN_URI", "wss://speed-eu-west.edennetwork.io")
+
 	// Chainbound Fiber URL
 	chainboundDefaultURL = common.GetEnv("CHAINBOUND_URI", "beta.fiberapi.io:8080")
 )

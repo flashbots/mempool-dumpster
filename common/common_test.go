@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/require"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/parquet"
@@ -12,23 +13,51 @@ import (
 )
 
 var (
-	test1Rlp  = "0x02f873018305643b840f2c19f08503f8bfbbb2832ab980940ed1bcc400acd34593451e76f854992198995f52808498e5b12ac080a051eb99ae13fd1ace55dd93a4b36eefa5d34e115cd7b9fd5d0ffac07300cbaeb2a0782d9ad12490b45af932d8c98cb3c2fd8c02cdd6317edb36bde2df7556fa9132"
 	test1Hash = "0xbb59e550e4730da43af01b7ae6e1d05b1df501baa4119b8ab6a3427d9b3635b1"
+	test1Rlp  = "0x02f873018305643b840f2c19f08503f8bfbbb2832ab980940ed1bcc400acd34593451e76f854992198995f52808498e5b12ac080a051eb99ae13fd1ace55dd93a4b36eefa5d34e115cd7b9fd5d0ffac07300cbaeb2a0782d9ad12490b45af932d8c98cb3c2fd8c02cdd6317edb36bde2df7556fa9132"
+
+	test2Hash         = "0xdd00ae95e4dc13fdf92682137223d697e346852a61c268faa8806b59a8cb2c9b"
+	test2RlpIncorrect = "0xb87502f8720101841dcd65008502540be40082520894b2d513b9a54a999912a57b705bcadf7e71ed595c8701bf330f70d20080c001a090f9ab3c4bed558ce05b50b28a92f39d98c8974977dd0ed925d2b5f1c77a2c40a008ea8be2f31edf3467e2553c1fbabff563a4af458716434c354c771501a6168a"
+	test2RlpCorrect   = "0x02f8720101841dcd65008502540be40082520894b2d513b9a54a999912a57b705bcadf7e71ed595c8701bf330f70d20080c001a090f9ab3c4bed558ce05b50b28a92f39d98c8974977dd0ed925d2b5f1c77a2c40a008ea8be2f31edf3467e2553c1fbabff563a4af458716434c354c771501a6168a"
 )
 
 // test parseTx
 func TestParseTx(t *testing.T) {
 	ts := int64(1693785600337)
-	summary, _, err := parseTx(ts, test1Rlp)
+
+	//
+	// check the first rlp
+	///
+	summary, tx, err := ParseTx(ts, test1Rlp)
 	require.NoError(t, err)
 	require.Equal(t, ts, summary.Timestamp)
 	require.Equal(t, test1Hash, summary.Hash)
+	require.Equal(t, summary.Hash, tx.Hash().Hex())
 	require.Equal(t, "0xd8aa8f3be2fb0c790d3579dcf68a04701c1e33db", summary.From)
 	require.Equal(t, test1Rlp, summary.RawTxHex())
+
+	// re-encode
+	rlpNew, err := TxToRLPString(tx)
+	require.NoError(t, err)
+	require.Equal(t, test1Rlp, rlpNew)
+
+	//
+	// check the incorrect rlp... ParseTx should fix it internally
+	//
+	summary, tx, err = ParseTx(ts, test2RlpIncorrect)
+	require.NoError(t, err)
+	require.Equal(t, test2Hash, summary.Hash)
+	require.Equal(t, summary.Hash, tx.Hash().Hex())
+	require.Equal(t, test2RlpCorrect, summary.RawTxHex())
+
+	// re-encoding to rlp yields a different result
+	rlpNew, err = TxToRLPString(tx)
+	require.NoError(t, err)
+	require.Equal(t, test2RlpCorrect, rlpNew)
 }
 
 func TestParquet(t *testing.T) {
-	summary, _, err := parseTx(int64(1693785600337), test1Rlp)
+	summary, _, err := ParseTx(int64(1693785600337), test1Rlp)
 	require.NoError(t, err)
 
 	// Create a new Parquet file
@@ -93,7 +122,26 @@ func TestParquet(t *testing.T) {
 	//
 	// Double-check - parse the final rawTx
 	//
-	summary2, _, err := parseTx(int64(1693785600337), test1Rlp)
+	summary2, _, err := ParseTx(int64(1693785600337), test1Rlp)
 	require.NoError(t, err)
 	require.Equal(t, summary.Hash, summary2.Hash)
+}
+
+func TestBytesFormat(t *testing.T) {
+	n := uint64(795025173)
+
+	s := humanize.Bytes(n)
+	require.Equal(t, "795 MB", s)
+
+	s = humanize.IBytes(n)
+	require.Equal(t, "758 MiB", s)
+
+	s = HumanBytes(n)
+	require.Equal(t, "758 MB", s)
+
+	s = HumanBytes(n * 10)
+	require.Equal(t, "7.4 GB", s)
+
+	s = HumanBytes(n / 1000)
+	require.Equal(t, "776 KB", s)
 }

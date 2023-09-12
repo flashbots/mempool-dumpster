@@ -37,7 +37,7 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts, txC chan TxIn) *Chainb
 
 	srcTag := opts.SourceTag
 	if srcTag == "" {
-		srcTag = common.ChainboundTag
+		srcTag = common.SourceTagChainbound
 	}
 
 	return &ChainboundNodeConnection{

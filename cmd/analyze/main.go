@@ -13,6 +13,17 @@ var (
 	version = "dev" // is set during build process
 	debug   = os.Getenv("DEBUG") == "1"
 
+	// Helpers
+	log *zap.SugaredLogger
+
+	defaultSourceComparisons = cli.NewStringSlice(
+		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagLocal),
+		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagLocal),
+		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagChainbound),
+		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagBloxroute),
+	)
+
+	// CLI flags
 	commonFlags = []cli.Flag{
 		&cli.StringFlag{ //nolint:exhaustruct
 			Name:  "out",
@@ -24,11 +35,12 @@ var (
 			Value: &cli.StringSlice{},
 			Usage: "reference transaction input files",
 		},
+		&cli.StringSliceFlag{ //nolint:exhaustruct
+			Name:  "cmp",
+			Value: defaultSourceComparisons,
+			Usage: "compare these sources",
+		},
 	}
-
-	// Helpers
-	log *zap.SugaredLogger
-	// printer = message.NewPrinter(language.English)
 )
 
 func check(err error, msg string) {
@@ -70,13 +82,15 @@ func main() {
 func analyze(cCtx *cli.Context) error {
 	fnCSVSourcelog := cCtx.String("out")
 	knownTxsFiles := cCtx.StringSlice("known-txs")
+	sourceComps := common.NewSourceComps(cCtx.StringSlice("cmp"))
 
 	inputFiles := cCtx.Args().Slice()
 	if cCtx.NArg() == 0 {
 		log.Fatal("no input files specified as arguments")
 	}
 
-	log.Infow("Merge sourcelog", "version", version)
+	log.Infow("Analyze sourcelog", "version", version)
+	log.Infow("Comparing:", "sources", sourceComps)
 
 	// Ensure output files are don't yet exist
 	common.MustNotExist(log, fnCSVSourcelog)
@@ -87,6 +101,16 @@ func analyze(cCtx *cli.Context) error {
 		common.MustBeFile(log, fn)
 	}
 
+	// Load reference input files (i.e. transactions before the current date to remove false positives)
+	prevKnownTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+	check(err, "LoadTxHashesFromMetadataCSVFiles")
+	if len(knownTxsFiles) > 0 {
+		log.Infow("Processed all reference input files",
+			"refTxTotal", printer.Sprintf("%d", len(prevKnownTxs)),
+			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		)
+	}
+
 	// Load input files
 	sourcelog, cntProcessedRecords := common.LoadSourceLogFiles(log, inputFiles)
 	log.Infow("Processed all input files",
@@ -95,19 +119,8 @@ func analyze(cCtx *cli.Context) error {
 		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
 	)
 
-	// Load reference input files (i.e. transactions before the current date to remove false positives)
-	prevKnownTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
-	check(err, "LoadTxHashesFromMetadataCSVFiles")
-	if len(knownTxsFiles) > 0 {
-		log.Infow("Processed all reference input files",
-			"refTxFiles", knownTxsFiles,
-			"refTxTotal", printer.Sprintf("%d", len(prevKnownTxs)),
-			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
-		)
-	}
-
 	log.Info("Analyzing...")
-	analyzer := NewAnalyzer(sourcelog, prevKnownTxs)
+	analyzer := NewAnalyzer(sourcelog, prevKnownTxs, sourceComps)
 	s := analyzer.Sprint()
 
 	if fnCSVSourcelog != "" {

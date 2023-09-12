@@ -45,12 +45,20 @@ type BlxNodeConnection struct {
 func NewBlxNodeConnection(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnection {
 	url := opts.URL
 	if url == "" {
-		url = blxDefaultURL
+		if opts.IsEden {
+			url = edenDefaultURL
+		} else {
+			url = blxDefaultURL
+		}
 	}
 
 	srcTag := opts.SourceTag
 	if srcTag == "" {
-		srcTag = common.BloxrouteTag
+		if opts.IsEden {
+			srcTag = common.SourceTagEden
+		} else {
+			srcTag = common.SourceTagBloxroute
+		}
 	}
 
 	return &BlxNodeConnection{
@@ -181,10 +189,10 @@ func NewBlxNodeConnectionGRPC(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnectio
 	}
 
 	return &BlxNodeConnectionGRPC{
-		log:        opts.Log.With("src", common.BloxrouteTag),
+		log:        opts.Log.With("src", common.SourceTagBloxroute),
 		authHeader: opts.AuthHeader,
 		url:        url,
-		srcTag:     common.BloxrouteTag,
+		srcTag:     common.SourceTagBloxroute,
 		txC:        txC,
 		backoffSec: initialBackoffSec,
 	}

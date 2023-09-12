@@ -3,13 +3,15 @@ package common
 import "strings"
 
 const (
-	BloxrouteTag  = "bloxroute"
-	ChainboundTag = "chainbound"
-
-	// GRPCWindowSize is recommended window size by bloxroute-labs:
-	// https://docs.bloxroute.com/streams/working-with-streams/creating-a-subscription/grpc
-	GRPCWindowSize = 128 * 1024
+	SourceTagLocal      = "local"
+	SourceTagBloxroute  = "bloxroute"
+	SourceTagChainbound = "chainbound"
+	SourceTagEden       = "eden"
 )
+
+// GRPCWindowSize is recommended window size by bloxroute-labs:
+// https://docs.bloxroute.com/streams/working-with-streams/creating-a-subscription/grpc
+const GRPCWindowSize = 128 * 1024
 
 func TxSourcName(uri string) string {
 	sourceAlias := SourceAliasesFromEnv()
