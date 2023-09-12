@@ -26,6 +26,9 @@ var (
 	// wss://germany.eth.blxrbdn.com/ws
 	blxDefaultURL = common.GetEnv("BLX_URI", "wss://virginia.eth.blxrbdn.com/ws")
 
+	// Eden URL: https://docs.edennetwork.io/eden-rpc/speed-rpc
+	edenDefaultURL = common.GetEnv("EDEN_URI", "wss://speed-eu-west.edennetwork.io")
+
 	// Chainbound Fiber URL
 	chainboundDefaultURL = common.GetEnv("CHAINBOUND_URI", "beta.fiberapi.io:8080")
 )

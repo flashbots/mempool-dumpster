@@ -80,7 +80,7 @@ func (a *Analyzer) init() {
 		a.nAllTx += len(sources)
 
 		// count all tx that were not seen locally
-		if sources[common.LocalTag] == 0 {
+		if sources[common.SourceTagLocal] == 0 {
 			a.nOverallNotSeenLocal += 1
 		}
 
@@ -93,7 +93,7 @@ func (a *Analyzer) init() {
 			}
 
 			// remember if this transaction was not seen by the reference source
-			if sources[common.LocalTag] == 0 {
+			if sources[common.SourceTagLocal] == 0 {
 				a.nNotSeenLocalPerSource[src] += 1
 			}
 
@@ -208,7 +208,7 @@ func (a *Analyzer) Sprint() string {
 	out += fmt.Sprintln("")
 	out += fmt.Sprintf("Transactions not seen by local node: %s / %s (%s)\n", prettyInt64(a.nOverallNotSeenLocal), prettyInt(a.nUniqueTx), common.Int64DiffPercentFmt(a.nOverallNotSeenLocal, int64(a.nUniqueTx)))
 	for _, src := range a.sources {
-		if a.nTransactionsPerSource[src] > 0 && src != common.LocalTag {
+		if a.nTransactionsPerSource[src] > 0 && src != common.SourceTagLocal {
 			cnt := a.nNotSeenLocalPerSource[src]
 			out += fmt.Sprintf("- %-10s %10s\n", src, prettyInt64(cnt))
 		}

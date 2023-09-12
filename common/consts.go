@@ -3,9 +3,10 @@ package common
 import "strings"
 
 const (
-	LocalTag      = "local"
-	BloxrouteTag  = "bloxroute"
-	ChainboundTag = "chainbound"
+	SourceTagLocal      = "local"
+	SourceTagBloxroute  = "bloxroute"
+	SourceTagChainbound = "chainbound"
+	SourceTagEden       = "eden"
 )
 
 func TxSourcName(uri string) string {

@@ -17,10 +17,10 @@ var (
 	log *zap.SugaredLogger
 
 	defaultSourceComparisons = cli.NewStringSlice(
-		fmt.Sprintf("%s-%s", common.BloxrouteTag, common.LocalTag),
-		fmt.Sprintf("%s-%s", common.ChainboundTag, common.LocalTag),
-		fmt.Sprintf("%s-%s", common.BloxrouteTag, common.ChainboundTag),
-		fmt.Sprintf("%s-%s", common.ChainboundTag, common.BloxrouteTag),
+		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagLocal),
+		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagLocal),
+		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagChainbound),
+		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagBloxroute),
 	)
 
 	// CLI flags
