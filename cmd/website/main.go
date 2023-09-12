@@ -14,6 +14,9 @@ import (
 
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/flashbots/mempool-dumpster/website"
+	"github.com/tdewolff/minify"
+	"github.com/tdewolff/minify/css"
+	"github.com/tdewolff/minify/html"
 	"go.uber.org/zap"
 )
 
@@ -71,6 +74,13 @@ func buildWebsite() {
 	}
 
 	dir := "ethereum/mainnet/"
+
+	// Setup minifier
+	minifier := minify.New()
+	minifier.AddFunc("text/html", html.Minify)
+	minifier.AddFunc("text/css", css.Minify)
+
+	// Load month folders from S3
 	log.Infof("Getting folders from S3 for %s ...", dir)
 	months, err := getFoldersFromS3(dir)
 	if err != nil {
@@ -97,10 +107,16 @@ func buildWebsite() {
 		log.Fatal(err)
 	}
 
+	// minify
+	mBytes, err := minifier.Bytes("text/html", buf.Bytes())
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// write to file
 	fn := filepath.Join(*outDir, "index.html")
 	log.Infof("Writing to %s ...", fn)
-	err = os.WriteFile(fn, buf.Bytes(), 0o0600)
+	err = os.WriteFile(fn, mBytes, 0o0600)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -117,7 +133,6 @@ func buildWebsite() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		// fmt.Println(files)
 
 		rootPageData := website.HTMLData{ //nolint:exhaustruct
 			Title: month,
@@ -139,6 +154,12 @@ func buildWebsite() {
 			log.Fatal(err)
 		}
 
+		// minify
+		mBytes, err := minifier.Bytes("text/html", buf.Bytes())
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		// write to file
 		_outDir := filepath.Join(*outDir, dir)
 		err = os.MkdirAll(_outDir, os.ModePerm)
@@ -148,7 +169,7 @@ func buildWebsite() {
 
 		fn := filepath.Join(_outDir, "index.html")
 		log.Infof("Writing to %s ...", fn)
-		err = os.WriteFile(fn, buf.Bytes(), 0o0600)
+		err = os.WriteFile(fn, mBytes, 0o0600)
 		if err != nil {
 			log.Fatal(err)
 		}
