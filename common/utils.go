@@ -155,3 +155,7 @@ func GetCSV(filename string) (rows [][]string, err error) {
 	}
 	return nil, ErrUnsupportedFileFormat
 }
+
+func IsWebsocketProtocol(url string) bool {
+	return strings.HasPrefix(url, "ws://") || strings.HasPrefix(url, "wss://")
+}

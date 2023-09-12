@@ -169,7 +169,6 @@ type BlxNodeConnectionGRPC struct {
 	log        *zap.SugaredLogger
 	authHeader string
 	url        string
-	isEden     bool
 	srcTag     string
 	txC        chan TxIn
 	backoffSec int
@@ -209,14 +208,10 @@ func (nc *BlxNodeConnectionGRPC) reconnect() {
 	nc.connect()
 }
 
-// recommended from bloxroute documentation:
-// https://docs.bloxroute.com/streams/working-with-streams/creating-a-subscription/grpc
-const windowSize = 128 * 1024
-
 func (nc *BlxNodeConnectionGRPC) connect() {
 	nc.log.Infow("connecting...", "uri", nc.url)
 
-	conn, err := grpc.Dial(nc.url, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithInitialWindowSize(windowSize))
+	conn, err := grpc.Dial(nc.url, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithInitialWindowSize(common.GRPCWindowSize))
 	if err != nil {
 		nc.log.Errorw("failed to connect to bloxroute gRPC", "error", err)
 		go nc.reconnect()
@@ -230,7 +225,6 @@ func (nc *BlxNodeConnectionGRPC) connect() {
 	stream, err := client.NewTxs(ctx, &pb.TxsRequest{
 		AuthHeader: nc.authHeader,
 	})
-
 	if err != nil {
 		nc.log.Errorw("failed to invoke NewTxs stream on bloxroute gRPC client", "error", err)
 		go nc.reconnect()

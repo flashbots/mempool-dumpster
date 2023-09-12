@@ -5,6 +5,10 @@ import "strings"
 const (
 	BloxrouteTag  = "bloxroute"
 	ChainboundTag = "chainbound"
+
+	// GRPCWindowSize is recommended window size by bloxroute-labs:
+	// https://docs.bloxroute.com/streams/working-with-streams/creating-a-subscription/grpc
+	GRPCWindowSize = 128 * 1024
 )
 
 func TxSourcName(uri string) string {
