@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	// Bloxroute URL - should point to local Gateway GRPC port
+	// Bloxroute URL - local Gateway GRPC port or websocket URI (https://docs.bloxroute.com/introduction/cloud-api-ips)
 	blxDefaultURL = common.GetEnv("BLX_URI", "127.0.0.1:1001")
 
 	// Eden URL: https://docs.edennetwork.io/eden-rpc/speed-rpc

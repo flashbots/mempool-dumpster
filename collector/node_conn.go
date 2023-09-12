@@ -72,7 +72,7 @@ func (nc *NodeConnection) connect(txC chan *types.Transaction) (*rpc.ClientSubsc
 }
 
 func (nc *NodeConnection) connectGeneric(txC chan *types.Transaction) (*rpc.ClientSubscription, error) {
-	nc.log.Infow("connecting to node...", "uri", nc.uri)
+	nc.log.Infow("connecting...", "uri", nc.uri)
 	rpcClient, err := rpc.Dial(nc.uri)
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (nc *NodeConnection) connectGeneric(txC chan *types.Transaction) (*rpc.Clie
 }
 
 func (nc *NodeConnection) connectAlchemy(txC chan *types.Transaction) (*rpc.ClientSubscription, error) {
-	nc.log.Infow("connecting to node...", "uri", nc.uri)
+	nc.log.Infow("connecting...", "uri", nc.uri)
 	client, err := ethclient.Dial(nc.uri)
 	if err != nil {
 		return nil, err

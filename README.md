@@ -16,11 +16,11 @@ Notes:
 
 ## Available mempool sources
 
-1. Generic EL nodes (`newPendingTransactions`) (i.e. go-ethereum, Infura, etc.)
-2. Alchemy ([`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
-3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs) (at least ["Professional" plan](https://bloxroute.com/pricing/))
-4. [Chainbound Fiber](https://fiber.chainbound.io/docs/usage/getting-started/)
-5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc)
+1. Generic EL nodes - go-ethereum, Infura, etc. (Websockets, using `newPendingTransactions`)
+2. Alchemy (Websockets, using [`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
+3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs) (Websockets and gRPC)
+4. [Chainbound Fiber](https://fiber.chainbound.io/docs/usage/getting-started/) (gRPC)
+5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc) (Websockets)
 
 ---
 
