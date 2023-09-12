@@ -230,7 +230,7 @@ func (nc *BlxNodeConnectionGRPC) connect() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := client.NewTxs(ctx, &pb.TxsRequest{
+	stream, err := client.NewTxs(ctx, &pb.TxsRequest{ //nolint:exhaustruct
 		AuthHeader: nc.authHeader,
 	})
 	if err != nil {
