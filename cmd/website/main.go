@@ -81,7 +81,8 @@ func buildWebsite() {
 	// build root page
 	log.Infof("Building root page ...")
 	rootPageData := website.HTMLData{ //nolint:exhaustruct
-		Title:            "Flashbots Mempool Dumpster",
+		Title:            "",
+		Path:             "/index.html",
 		EthMainnetMonths: months,
 	}
 
@@ -119,7 +120,9 @@ func buildWebsite() {
 		// fmt.Println(files)
 
 		rootPageData := website.HTMLData{ //nolint:exhaustruct
-			Title:          "Flashbots Mempool Dumpster - " + month,
+			Title: month,
+			Path:  fmt.Sprintf("ethereum/mainnet/%s/index.html", month),
+
 			CurrentNetwork: "Ethereum Mainnet",
 			CurrentMonth:   month,
 			Files:          files,

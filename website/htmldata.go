@@ -7,7 +7,10 @@ import (
 )
 
 type HTMLData struct {
-	Title            string
+	Title string
+	Path  string
+
+	// Root page
 	EthMainnetMonths []string
 
 	// File-listing page
@@ -40,7 +43,9 @@ func substr10(s string) string {
 }
 
 var DummyHTMLData = &HTMLData{
-	Title: "Flashbots Mempool Dumpster",
+	Title: "",
+	Path:  "",
+
 	EthMainnetMonths: []string{
 		"2023-08",
 		"2023-09",

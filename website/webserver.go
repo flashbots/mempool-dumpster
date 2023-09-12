@@ -4,6 +4,7 @@ package website
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"time"
@@ -122,58 +123,31 @@ func (srv *Webserver) RespondOK(w http.ResponseWriter, response any) {
 }
 
 func (srv *Webserver) handleRoot(w http.ResponseWriter, req *http.Request) {
-	// timespan := req.URL.Query().Get("t")
-
 	tpl, err := ParseIndexTemplate()
 	if err != nil {
 		srv.log.Error("wroot: error parsing template", "error", err)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	err = tpl.ExecuteTemplate(w, "base", DummyHTMLData)
+
+	data := *DummyHTMLData
+	data.Path = "/"
+	err = tpl.ExecuteTemplate(w, "base", data)
 	if err != nil {
 		srv.log.Error("wroot: error executing template", "error", err)
 		return
 	}
-
-	// production flow...
-	// htmlBuf := bytes.Buffer{}
-
-	// // Render template
-	// if err := srv.templateIndex.ExecuteTemplate(&htmlBuf, "base", htmlData); err != nil {
-	// 	srv.log.WithError(err).Error("error rendering template")
-	// 	srv.RespondError(w, http.StatusInternalServerError, "error rendering template")
-	// 	return
-	// }
-
-	// // Minify
-	// htmlBytes, err := srv.minifier.Bytes("text/html", htmlBuf.Bytes())
-	// if err != nil {
-	// 	srv.log.WithError(err).Error("error minifying html")
-	// 	srv.RespondError(w, http.StatusInternalServerError, "error minifying html")
-	// 	return
-	// }
-
-	// w.WriteHeader(http.StatusOK)
-	// _, _ = w.Write(htmlBytes)
 }
-
-// func (srv *Webserver) handleStatsAPI(w http.ResponseWriter, req *http.Request) {
-// 	srv.statsAPIRespLock.RLock()
-// 	defer srv.statsAPIRespLock.RUnlock()
-// 	_, _ = w.Write(*srv.statsAPIResp)
-// }
 
 func (srv *Webserver) handleMonth(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 
 	layout := "2006-01"
-	t, err := time.Parse(layout, vars["month"])
+	_, err := time.Parse(layout, vars["month"])
 	if err != nil {
 		srv.RespondError(w, http.StatusBadRequest, "invalid date")
 		return
 	}
-	_ = t
 
 	tpl, err := ParseFilesTemplate()
 	if err != nil {
@@ -181,7 +155,12 @@ func (srv *Webserver) handleMonth(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	err = tpl.ExecuteTemplate(w, "base", DummyHTMLData)
+
+	data := *DummyHTMLData
+	data.Title = vars["month"]
+	data.Path = fmt.Sprintf("ethereum/mainnet/%s/index.html", vars["month"])
+
+	err = tpl.ExecuteTemplate(w, "base", &data)
 	if err != nil {
 		srv.log.Error("wroot: error executing template", "error", err)
 		return

@@ -1,5 +1,11 @@
 {{ define "base" }}
 
+{{ $title:="Mempool Dumpster ♻️" }}
+
+{{ if ne .Title "" }}
+{{ $title = (printf "%v | %v" .Title $title) }}
+{{ end }}
+
 <!doctype html>
 <html lang="en">
 
@@ -17,8 +23,23 @@
     <link rel="manifest" href="/static/favicon/site.webmanifest">
 
     <!-- HTML Meta Tags -->
-    <title>Mempool Dumpster 🗑️♻️</title>
-    <meta name="description" content="Free archive of mempool transactions, brought to you by ⚡️🤖">
+    <title>{{ $title }}</title>
+    <meta name="description" content="Free mempool transactions archive, brought to you by Flashbots ⚡️🤖">
+
+    <!-- Facebook Meta Tags -->
+    <meta property="og:url" content="https://mempool-dumpster.flashbots.net{{ .Path }}">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{ $title }}">
+    <meta property="og:description" content="Free mempool transactions archive, brought to you by Flashbots ⚡️🤖">
+    <meta property="og:image" content="https://mempool-dumpster.flashbots.net/static/favicon/android-chrome-512x512.png">
+
+    <!-- Twitter Meta Tags -->
+    <meta name="twitter:card" content="summary">
+    <meta property="twitter:domain" content="mempool-dumpster.flashbots.net">
+    <meta property="twitter:url" content="https://mempool-dumpster.flashbots.net{{ .Path }}">
+    <meta name="twitter:title" content="{{ $title }}">
+    <meta name="twitter:description" content="Free mempool transactions archive, brought to you by Flashbots ⚡️🤖">
+    <meta name="twitter:image" content="https://mempool-dumpster.flashbots.net/static/favicon/android-chrome-512x512.png">
 
     <style>
         body {
