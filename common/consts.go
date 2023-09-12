@@ -9,6 +9,10 @@ const (
 	SourceTagEden       = "eden"
 )
 
+// GRPCWindowSize is recommended window size by bloxroute-labs:
+// https://docs.bloxroute.com/streams/working-with-streams/creating-a-subscription/grpc
+const GRPCWindowSize = 128 * 1024
+
 func TxSourcName(uri string) string {
 	sourceAlias := SourceAliasesFromEnv()
 	if alias, ok := sourceAlias[uri]; ok {

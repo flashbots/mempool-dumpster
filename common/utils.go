@@ -168,3 +168,7 @@ func HumanBytes(n uint64) string {
 	s = strings.Replace(s, "KiB", "KB", 1)
 	return s
 }
+
+func IsWebsocketProtocol(url string) bool {
+	return strings.HasPrefix(url, "ws://") || strings.HasPrefix(url, "wss://")
+}

@@ -45,7 +45,7 @@ func MainBlx() {
 		Log:        log,
 		AuthHeader: os.Getenv("BLX_AUTH_HEADER"),
 	}
-	nc := collector.NewBlxNodeConnection(blxOpts, txC)
+	nc := collector.NewBlxNodeConnectionGRPC(blxOpts, txC)
 	go nc.Start()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
