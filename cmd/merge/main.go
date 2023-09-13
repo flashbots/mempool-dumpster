@@ -80,6 +80,12 @@ func main() {
 				Flags:   commonFlags,
 				Action:  mergeSourcelog,
 			},
+			{
+				Name:   "trash",
+				Usage:  "merge trash CSVs",
+				Flags:  commonFlags,
+				Action: mergeTrash,
+			},
 		},
 	}
 

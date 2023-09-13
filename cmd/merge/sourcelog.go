@@ -37,7 +37,7 @@ func mergeSourcelog(cCtx *cli.Context) error {
 	}
 
 	// Load input files
-	sourcelog, cntProcessedRecords := common.LoadSourceLogFiles(log, inputFiles)
+	sourcelog, cntProcessedRecords := common.LoadSourcelogFiles(log, inputFiles)
 	log.Infow("Processed all input files",
 		"txTotal", printer.Sprintf("%d", len(sourcelog)),
 		"records", printer.Sprintf("%d", cntProcessedRecords),

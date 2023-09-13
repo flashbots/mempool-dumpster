@@ -66,7 +66,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
 	// Update txs with sources, in order of receiving them
-	sourcelog, _ := common.LoadSourceLogFiles(log, sourcelogFiles)
+	sourcelog, _ := common.LoadSourcelogFiles(log, sourcelogFiles)
 	// log.Infow("Processed all input sourcelog files", "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 	cntUpdated := 0
 	type srcWithTS struct {

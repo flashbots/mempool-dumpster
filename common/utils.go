@@ -119,6 +119,18 @@ func MustBeFile(log *zap.SugaredLogger, fn string) {
 	}
 }
 
+func GetCSVFromFiles(filenames []string) (rows [][]string, err error) {
+	rows = make([][]string, 0)
+	for _, filename := range filenames {
+		_rows, err := GetCSV(filename)
+		if err != nil {
+			return nil, err
+		}
+		rows = append(rows, _rows...)
+	}
+	return rows, nil
+}
+
 // GetCSV returns a CSV content from a file (.csv or .csv.zip)
 func GetCSV(filename string) (rows [][]string, err error) {
 	rows = make([][]string, 0)
