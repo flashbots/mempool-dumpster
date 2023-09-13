@@ -44,7 +44,7 @@ fmt:
 	gci write .
 	go mod tidy
 
-lt: lint test
+lt: fmt lint test
 
 gofumpt:
 	gofumpt -l -w -extra .

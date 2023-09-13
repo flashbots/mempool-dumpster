@@ -24,7 +24,7 @@ func LoadSourceLogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 		rows, err := GetCSV(filename)
 		if err != nil {
 			log.Errorw("GetCSV", "error", err)
-			return
+			return txs, cntProcessedRecords
 		}
 
 		for _, items := range rows {

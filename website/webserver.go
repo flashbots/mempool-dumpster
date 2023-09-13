@@ -45,7 +45,7 @@ func NewWebserver(opts *WebserverOpts) (server *Webserver, err error) {
 	minifier.AddFunc("text/html", html.Minify)
 	minifier.AddFunc("application/javascript", html.Minify)
 
-	server = &Webserver{
+	server = &Webserver{ //nolint:exhaustruct
 		opts:     opts,
 		log:      opts.Log,
 		minifier: minifier,
@@ -69,7 +69,7 @@ func (srv *Webserver) StartServer() (err error) {
 		return ErrServerAlreadyStarted
 	}
 
-	srv.srv = &http.Server{
+	srv.srv = &http.Server{ //nolint:exhaustruct
 		Addr:    srv.opts.ListenAddress,
 		Handler: srv.getRouter(),
 

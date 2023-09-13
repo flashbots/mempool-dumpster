@@ -52,7 +52,7 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts, txC chan TxIn) *Chainb
 }
 
 func (cbc *ChainboundNodeConnection) Start() {
-	cbc.log.Info("chainbound stream starting...")
+	cbc.log.Debug("chainbound stream starting...")
 	cbc.fiberC = make(chan *fiber.Transaction)
 	go cbc.connect()
 

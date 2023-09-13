@@ -26,6 +26,7 @@ linters:
     - wsl
     - deadcode
     - varcheck
+    - depguard
 
     #
     # Disabled because of generics:

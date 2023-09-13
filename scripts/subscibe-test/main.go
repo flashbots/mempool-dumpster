@@ -32,7 +32,7 @@ func MainGeneric() {
 	txC := make(chan collector.TxIn)
 	log := common.GetLogger(true, false)
 	nc := collector.NewNodeConnection(log, url, txC)
-	go nc.Start()
+	nc.StartInBackground()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash())
 	}

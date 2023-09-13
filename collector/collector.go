@@ -25,7 +25,7 @@ func Start(opts *CollectorOpts) {
 
 	for _, node := range opts.Nodes {
 		conn := NewNodeConnection(opts.Log, node, processor.txC)
-		go conn.Start()
+		conn.StartInBackground()
 	}
 
 	if opts.BloxrouteAuthToken != "" {
