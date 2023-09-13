@@ -50,13 +50,21 @@ fi
 #
 # PROCESS RAW FILES
 #
-echo "Merging transactions..."
-/server/mempool-dumpster/build/merge transactions --write-tx-csv --known-txs "$1/../${yesterday}/${yesterday}.csv.zip" --out $1 --fn-prefix $date $1/transactions/*.csv
-
 echo "Merging sourcelog..."
 /server/mempool-dumpster/build/merge sourcelog --out $1 --fn-prefix $date $1/sourcelog/*.csv
 
-# compress
+echo "Merging transactions..."
+/server/mempool-dumpster/build/merge transactions \
+  --write-tx-csv \
+  --tx-blacklist "$1/../${yesterday}/${yesterday}.csv.zip" \
+  --sourcelog "$1/${date}_sourcelog.csv" \
+  --out $1 \
+  --fn-prefix $date \
+  $1/transactions/*.csv
+
+#
+# Compress & upload
+#
 cd $1
 echo "Compressing transaction files..."
 zip "${date}_transactions.csv.zip" "${date}_transactions.csv"
@@ -84,7 +92,8 @@ aws --profile aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbot
 # Create analysis
 #
 echo "Creating summary..."
-/server/mempool-dumpster/build/analyze sourcelog --known-txs "$1/../${yesterday}/${yesterday}.csv.zip" --out "${date}_summary.txt" "${date}_sourcelog.csv"
+cd $1
+/server/mempool-dumpster/build/analyze sourcelog --tx-blacklist "../${yesterday}/${yesterday}.csv.zip" --tx-whitelist "${date}.csv.zip" --out "${date}_summary.txt" "${date}_sourcelog.csv"
 
 echo "Uploading ${date}_summary.txt ..."
 aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"

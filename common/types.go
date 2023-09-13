@@ -27,8 +27,8 @@ type TxSummaryEntry struct {
 
 	Sources []string `parquet:"name=sources, type=MAP, convertedtype=LIST, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
 
-	BlockNumberReceived int64 `parquet:"name=blockNumberCurrent, type=INT64"`
-	BlockNumberIncluded int64 `parquet:"name=blockNumberIncluded, type=INT64"`
+	// BlockNumberReceived int64 `parquet:"name=blockNumberCurrent, type=INT64"`
+	// BlockNumberIncluded int64 `parquet:"name=blockNumberIncluded, type=INT64"`
 
 	RawTx string `parquet:"name=rawTx, type=BYTE_ARRAY, encoding=PLAIN, omitstats=true"`
 }

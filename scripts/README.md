@@ -27,5 +27,7 @@ CSV tricks
 ```bash
 # get unique hashes from sourcelog or main csv file
 cat file.csv | sed 's/,/ /g' | awk '{ print $2}' | sort | uniq > unique.txt
-```
 
+# who sent trash?
+cat /mnt/data/mempool-dumpster/2023-09-13/trash/*.csv | sed 's/,/ /g' | awk '{ print $3}' | sort | uniq -c
+```

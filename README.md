@@ -100,7 +100,10 @@ rawTx	Nullable(String)
 ## Mempool Collector
 
 1. Subscribes to new pending transactions at various data sources
-1. Writes `timestamp_ms` + `hash` + `raw_tx` to CSV file (one file per hour [by default](collector/consts.go))
+1. Writes 3 files:
+    1. Transactions CSV: `timestamp_ms, hash, raw_tx` (one file per hour by default)
+    1. Sourcelog CSV: `timestamp_ms, hash, source` (one entry for every single transaction received by any source)
+    1. Trash CSV: `timestamp_ms, hash, source, reason, note` (trash transactions received by any source, these are not added to the transactions CSV. currently only if already included in previous block)
 1. Note: the collector can store transactions repeatedly, and only the merger will properly deduplicate them later
 
 **Default filenames:**
@@ -112,6 +115,10 @@ Transactions
 Sourcelog
 - Schema: `<out_dir>/<date>/sourcelog/src_<date>_<uid>.csv`
 - Example: `out/2023-08-07/sourcelog/src_2023-08-07-10-00_collector1.csv`
+
+Trash
+- Schema: `<out_dir>/<date>/trash/trash_<date>_<uid>.csv`
+- Example: `out/2023-08-07/trash/trash_2023-08-07-10-00_collector1.csv`
 
 **Running the mempool collector:**
 

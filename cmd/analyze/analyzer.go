@@ -25,10 +25,16 @@ func prettyInt64(i int64) string {
 	return printer.Sprintf("%d", i)
 }
 
+type AnalyzerOpts struct {
+	Transactions map[string]map[string]int64 // [hash][src] = timestamp
+	TxBlacklist  map[string]bool             // optional, blacklist of txs (these will be ignored for analysis)
+	TxWhitelist  map[string]bool             // optional, whitelist of txs (only these will be used for analysis)
+	SourceComps  []common.SourceComp
+}
+
 type Analyzer struct {
-	txs          map[string]map[string]int64 // [hash][src] = timestamp
-	prevKnownTxs map[string]bool             // [hash] = true
-	sourceComps  []common.SourceComp
+	opts         AnalyzerOpts
+	useWhitelist bool
 
 	sources   []string // sorted alphabetically
 	nUniqueTx int
@@ -39,7 +45,6 @@ type Analyzer struct {
 
 	nNotSeenLocalPerSource map[string]int64
 	nOverallNotSeenLocal   int64
-	// nSeenOnlyByRef map[string]int64 // todo
 
 	nTxSeenBySingleSource int64
 
@@ -50,11 +55,11 @@ type Analyzer struct {
 	duration       time.Duration
 }
 
-func NewAnalyzer(transactions map[string]map[string]int64, prevKnownTxs map[string]bool, sourceComps []common.SourceComp) *Analyzer {
+func NewAnalyzer(opts AnalyzerOpts) *Analyzer {
 	a := &Analyzer{ //nolint:exhaustruct
-		txs:                    transactions,
-		prevKnownTxs:           prevKnownTxs,
-		sourceComps:            sourceComps,
+		opts:         opts,
+		useWhitelist: len(opts.TxWhitelist) > 0,
+
 		nTransactionsPerSource: make(map[string]int64),
 		nUniqueTxPerSource:     make(map[string]int64),
 		nNotSeenLocalPerSource: make(map[string]int64),
@@ -67,9 +72,13 @@ func NewAnalyzer(transactions map[string]map[string]int64, prevKnownTxs map[stri
 // Init does some efficient initial data analysis and preparation for later use
 func (a *Analyzer) init() {
 	// iterate over tx to
-	for txHash, sources := range a.txs {
+	for txHash, sources := range a.opts.Transactions {
 		txHashLower := strings.ToLower(txHash)
-		if a.prevKnownTxs[txHashLower] {
+		if a.opts.TxBlacklist[txHashLower] {
+			continue
+		}
+
+		if a.useWhitelist && !a.opts.TxWhitelist[txHashLower] {
 			continue
 		}
 
@@ -126,9 +135,13 @@ func (a *Analyzer) benchmarkSourceVsLocal(src, ref string) (srcFirstBuckets map[
 	srcFirstBuckets = make(map[int64]int64) // [bucket_ms] = count
 
 	// How much earlier were transactions received by blx vs. the local node?
-	for txHash, sources := range a.txs {
+	for txHash, sources := range a.opts.Transactions {
 		txHashLower := strings.ToLower(txHash)
-		if a.prevKnownTxs[txHashLower] {
+		if a.opts.TxBlacklist[txHashLower] {
+			continue
+		}
+
+		if a.useWhitelist && !a.opts.TxWhitelist[txHashLower] {
 			continue
 		}
 
@@ -220,7 +233,7 @@ func (a *Analyzer) Sprint() string {
 	out += fmt.Sprintln("Source comparison")
 	out += fmt.Sprintln("-----------------")
 
-	for _, comp := range a.sourceComps {
+	for _, comp := range a.opts.SourceComps {
 		if a.nTransactionsPerSource[comp.Source] == 0 || a.nTransactionsPerSource[comp.Reference] == 0 {
 			continue
 		}

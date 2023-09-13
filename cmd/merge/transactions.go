@@ -18,7 +18,7 @@ import (
 func mergeTransactions(cCtx *cli.Context) error {
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")
-	knownTxsFiles := cCtx.StringSlice("known-txs")
+	knownTxsFiles := cCtx.StringSlice("tx-blacklist")
 	sourcelogFiles := cCtx.StringSlice("sourcelog")
 	writeTxCSV := cCtx.Bool("write-tx-csv")
 	inputFiles := cCtx.Args().Slice()

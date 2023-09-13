@@ -35,14 +35,14 @@ var (
 
 	mergeTxFlags = []cli.Flag{
 		&cli.StringSliceFlag{ //nolint:exhaustruct
-			Name:  "known-txs",
+			Name:  "tx-blacklist",
 			Value: &cli.StringSlice{},
-			Usage: "reference transaction input files",
+			Usage: "blacklisted transaction input files (i.e. to ignore txs of previous day)",
 		},
 		&cli.StringSliceFlag{ //nolint:exhaustruct
 			Name:  "sourcelog",
 			Value: &cli.StringSlice{},
-			Usage: "reference sourcelog files (to add sources to transactions)",
+			Usage: "sourcelog files (to add sources to transactions)",
 		},
 		&cli.BoolFlag{ //nolint:exhaustruct
 			Name:  "write-tx-csv",

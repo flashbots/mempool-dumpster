@@ -31,9 +31,14 @@ var (
 			Usage: "output filename",
 		},
 		&cli.StringSliceFlag{ //nolint:exhaustruct
-			Name:  "known-txs",
+			Name:  "tx-blacklist",
 			Value: &cli.StringSlice{},
-			Usage: "reference transaction input files",
+			Usage: "metadata CSV/ZIP input files with transactions to ignore in analysis",
+		},
+		&cli.StringSliceFlag{ //nolint:exhaustruct
+			Name:  "tx-whitelist",
+			Value: &cli.StringSlice{},
+			Usage: "metadata CSV/ZIP input files to only use transactions in there for analysis",
 		},
 		&cli.StringSliceFlag{ //nolint:exhaustruct
 			Name:  "cmp",
@@ -57,13 +62,6 @@ func main() {
 		Name:  "analyze",
 		Usage: "Analyze sourcelog/transaction CSV files",
 		Commands: []*cli.Command{
-			// {
-			// 	Name:    "transactions",
-			// 	Aliases: []string{"tx", "t"},
-			// 	Usage:   "analyze transaction CSVs",
-			// 	Flags:   commonFlags,
-			// 	Action:  mergeTransactions,
-			// },
 			{
 				Name:    "sourcelog",
 				Aliases: []string{"s"},
@@ -81,7 +79,8 @@ func main() {
 
 func analyze(cCtx *cli.Context) error {
 	fnCSVSourcelog := cCtx.String("out")
-	knownTxsFiles := cCtx.StringSlice("known-txs")
+	ignoreTxsFiles := cCtx.StringSlice("tx-blacklist")
+	allowedTxsFiles := cCtx.StringSlice("tx-whitelist")
 	sourceComps := common.NewSourceComps(cCtx.StringSlice("cmp"))
 
 	inputFiles := cCtx.Args().Slice()
@@ -102,11 +101,20 @@ func analyze(cCtx *cli.Context) error {
 	}
 
 	// Load reference input files (i.e. transactions before the current date to remove false positives)
-	prevKnownTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+	ignoreTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, ignoreTxsFiles)
 	check(err, "LoadTxHashesFromMetadataCSVFiles")
-	if len(knownTxsFiles) > 0 {
-		log.Infow("Processed all reference input files",
-			"refTxTotal", printer.Sprintf("%d", len(prevKnownTxs)),
+	if len(ignoreTxsFiles) > 0 {
+		log.Infow("Processed all ignore-tx input files",
+			"ignoreTxTotal", printer.Sprintf("%d", len(ignoreTxs)),
+			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		)
+	}
+
+	allowedTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, allowedTxsFiles)
+	check(err, "LoadTxHashesFromMetadataCSVFiles")
+	if len(allowedTxsFiles) > 0 {
+		log.Infow("Processed all allowed-tx input files",
+			"allowedTxTotal", printer.Sprintf("%d", len(allowedTxs)),
 			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
 		)
 	}
@@ -120,7 +128,12 @@ func analyze(cCtx *cli.Context) error {
 	)
 
 	log.Info("Analyzing...")
-	analyzer := NewAnalyzer(sourcelog, prevKnownTxs, sourceComps)
+	analyzer := NewAnalyzer(AnalyzerOpts{
+		Transactions: sourcelog,
+		TxBlacklist:  ignoreTxs,
+		TxWhitelist:  allowedTxs,
+		SourceComps:  sourceComps,
+	})
 	s := analyzer.Sprint()
 
 	if fnCSVSourcelog != "" {
