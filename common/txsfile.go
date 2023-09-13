@@ -187,7 +187,8 @@ func ParseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transac
 		DataSize:   int64(len(tx.Data())),
 		Data4Bytes: data4Bytes,
 
-		RawTx: string(rawTxBytes),
+		RawTx:   string(rawTxBytes),
+		Sources: []string{},
 	}, tx, nil
 }
 

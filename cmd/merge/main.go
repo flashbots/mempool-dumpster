@@ -39,6 +39,11 @@ var (
 			Value: &cli.StringSlice{},
 			Usage: "reference transaction input files",
 		},
+		&cli.StringSliceFlag{ //nolint:exhaustruct
+			Name:  "sourcelog",
+			Value: &cli.StringSlice{},
+			Usage: "reference sourcelog files (to add sources to transactions)",
+		},
 		&cli.BoolFlag{ //nolint:exhaustruct
 			Name:  "write-tx-csv",
 			Value: false,

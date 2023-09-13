@@ -25,7 +25,8 @@ type TxSummaryEntry struct {
 	DataSize   int64  `parquet:"name=dataSize, type=INT64"`
 	Data4Bytes string `parquet:"name=data4Bytes, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
 
-	RawTx string `parquet:"name=rawTx, type=BYTE_ARRAY, encoding=PLAIN, omitstats=true"`
+	RawTx   string   `parquet:"name=rawTx, type=BYTE_ARRAY, encoding=PLAIN, omitstats=true"`
+	Sources []string `parquet:"name=sources, type=MAP, convertedtype=LIST, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
 }
 
 func (t TxSummaryEntry) RawTxHex() string {
@@ -47,6 +48,7 @@ func (t TxSummaryEntry) ToCSVRow() []string {
 		t.GasFeeCap,
 		fmt.Sprint(t.DataSize),
 		t.Data4Bytes,
+		strings.Join(t.Sources, " "),
 	}
 }
 
@@ -64,6 +66,7 @@ var TxSummaryEntryCSVHeader = []string{
 	"gas_fee_cap",
 	"data_size",
 	"data_4bytes",
+	"sources",
 }
 
 type BlxRawTxMsg struct { //nolint:musttag

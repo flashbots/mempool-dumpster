@@ -33,17 +33,11 @@ type TxProcessor struct {
 	outFilesLock sync.RWMutex
 	outFiles     map[int64]*OutFiles
 
-	txn     map[ethcommon.Hash]time.Time
-	txnLock sync.RWMutex
+	knownTxs     map[ethcommon.Hash]time.Time
+	knownTxsLock sync.RWMutex
 
-	txCnt atomic.Uint64
-
-	srcCntFirst     map[string]uint64
-	srcCntFirstLock sync.RWMutex
-
-	srcCntAll     map[string]uint64
-	srcCntUnique  map[string]map[string]bool
-	srcCntAllLock sync.RWMutex
+	txCnt  atomic.Uint64
+	srcCnt SourceCounter
 
 	writeSourcelog bool // whether to record source stats (a CSV file with timestamp_ms,hash,source)
 	checkNodeURI   string
@@ -65,10 +59,9 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 		outDir:   opts.OutDir,
 		outFiles: make(map[int64]*OutFiles),
 
-		txn:            make(map[ethcommon.Hash]time.Time),
-		srcCntFirst:    make(map[string]uint64),
-		srcCntAll:      make(map[string]uint64),
-		srcCntUnique:   make(map[string]map[string]bool),
+		knownTxs: make(map[ethcommon.Hash]time.Time),
+		srcCnt:   NewSourceCounter(),
+
 		writeSourcelog: opts.WriteSourcelog,
 		checkNodeURI:   opts.CheckNodeURI,
 	}
@@ -109,13 +102,8 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	log.Debug("processTx")
 
 	// count all transactions per source
-	p.srcCntAllLock.Lock()
-	p.srcCntAll[txIn.Source]++
-	if p.srcCntUnique[txIn.Source] == nil {
-		p.srcCntUnique[txIn.Source] = make(map[string]bool)
-	}
-	p.srcCntUnique[txIn.Source][txHash.Hex()] = true
-	p.srcCntAllLock.Unlock()
+	p.srcCnt.Inc("all", txIn.Source)
+	p.srcCnt.IncKey("unique", txIn.Source, txIn.Tx.Hash().Hex())
 
 	// get output file handles
 	outFiles, isCreated, err := p.getOutputCSVFiles(txIn.T.Unix())
@@ -138,9 +126,9 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	}
 
 	// process transactions only once
-	p.txnLock.RLock()
-	_, ok := p.txn[txHash]
-	p.txnLock.RUnlock()
+	p.knownTxsLock.RLock()
+	_, ok := p.knownTxs[txHash]
+	p.knownTxsLock.RUnlock()
 	if ok {
 		log.Debug("transaction already processed")
 		return
@@ -170,9 +158,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.txCnt.Inc()
 
 	// count first transactions per source (i.e. who delivers a given tx first)
-	p.srcCntFirstLock.Lock()
-	p.srcCntFirst[txIn.Source]++
-	p.srcCntFirstLock.Unlock()
+	p.srcCnt.Inc("first", txIn.Source)
 
 	// create tx rlp
 	rlpHex, err := common.TxToRLPString(txIn.Tx)
@@ -195,9 +181,9 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	}
 
 	// Remember that this transaction was processed
-	p.txnLock.Lock()
-	p.txn[txHash] = txIn.T
-	p.txnLock.Unlock()
+	p.knownTxsLock.Lock()
+	p.knownTxs[txHash] = txIn.T
+	p.knownTxsLock.Unlock()
 }
 
 // getOutputCSVFiles returns two file handles - one for the transactions and one for source stats, if needed - and a boolean indicating whether the file was created
@@ -278,14 +264,14 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		time.Sleep(time.Minute)
 
 		// Remove old transactions from cache
-		cachedBefore := len(p.txn)
-		p.txnLock.Lock()
-		for k, v := range p.txn {
+		cachedBefore := len(p.knownTxs)
+		p.knownTxsLock.Lock()
+		for k, v := range p.knownTxs {
 			if time.Since(v) > txCacheTime {
-				delete(p.txn, k)
+				delete(p.knownTxs, k)
 			}
 		}
-		p.txnLock.Unlock()
+		p.knownTxsLock.Unlock()
 
 		// Remove old files from cache
 		filesBefore := len(p.outFiles)
@@ -309,8 +295,8 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		// Print stats
 		p.log.Infow("stats",
 			"txcache_before", common.Printer.Sprint(cachedBefore),
-			"txcache_after", common.Printer.Sprint(len(p.txn)),
-			"txcache_removed", common.Printer.Sprint(cachedBefore-len(p.txn)),
+			"txcache_after", common.Printer.Sprint(len(p.knownTxs)),
+			"txcache_removed", common.Printer.Sprint(cachedBefore-len(p.knownTxs)),
 			"files_before", filesBefore,
 			"files_after", len(p.outFiles),
 			"goroutines", common.Printer.Sprint(runtime.NumGoroutine()),
@@ -320,33 +306,27 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		)
 
 		// print and reset stats about who got a tx first
-		srcStatsLog := p.log
-		p.srcCntFirstLock.Lock()
-		for k, v := range p.srcCntFirst {
-			srcStatsLog = srcStatsLog.With(k, common.Printer.Sprint(v))
-			p.srcCntFirst[k] = 0
-		}
-		p.srcCntFirstLock.Unlock()
-		srcStatsLog.Info("source_stats_first")
-
-		// print and reset stats about overall number of tx per source
 		srcStatsAllLog := p.log
+		for k, v := range p.srcCnt.Get("all") {
+			srcStatsAllLog = srcStatsAllLog.With(k, common.Printer.Sprint(v["all"]))
+		}
+
+		srcStatsFirstLog := p.log
+		for k, v := range p.srcCnt.Get("first") {
+			srcStatsFirstLog = srcStatsFirstLog.With(k, common.Printer.Sprint(v["first"]))
+		}
+
 		srcStatsUniqueLog := p.log
-		p.srcCntAllLock.Lock()
-		for k, v := range p.srcCntAll {
-			srcStatsAllLog = srcStatsAllLog.With(k, common.Printer.Sprint(v))
-			p.srcCntAll[k] = 0
-		}
-		for k, v := range p.srcCntUnique {
+		for k, v := range p.srcCnt.Get("unique") {
 			srcStatsUniqueLog = srcStatsUniqueLog.With(k, common.Printer.Sprint(len(v)))
-			p.srcCntUnique[k] = make(map[string]bool)
 		}
-		p.srcCntAllLock.Unlock()
 
-		srcStatsAllLog.Info("source_stats_all")
+		srcStatsFirstLog.Info("source_stats_first")
 		srcStatsUniqueLog.Info("source_stats_unique")
+		srcStatsAllLog.Info("source_stats_all")
 
-		// reset overall counter
+		// reset counters
+		p.srcCnt.Reset()
 		p.txCnt.Store(0)
 	}
 }

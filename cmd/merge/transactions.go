@@ -19,6 +19,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")
 	knownTxsFiles := cCtx.StringSlice("known-txs")
+	sourcelogFiles := cCtx.StringSlice("sourcelog")
 	writeTxCSV := cCtx.Bool("write-tx-csv")
 	inputFiles := cCtx.Args().Slice()
 
@@ -53,13 +54,45 @@ func mergeTransactions(cCtx *cli.Context) error {
 	for _, fn := range inputFiles {
 		common.MustBeFile(log, fn)
 	}
+	for _, fn := range sourcelogFiles {
+		common.MustBeFile(log, fn)
+	}
 
 	//
 	// Load input files
 	//
 	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, knownTxsFiles)
 	check(err, "LoadTransactionCSVFiles")
-	log.Infow("Processed all input files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+
+	// Update txs with sources, in order of receiving them
+	sourcelog, _ := common.LoadSourceLogFiles(log, sourcelogFiles)
+	// log.Infow("Processed all input sourcelog files", "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	cntUpdated := 0
+	type srcWithTS struct {
+		source    string
+		timestamp int64
+	}
+	for hash, tx := range txs {
+		txSources := make([]srcWithTS, 0, len(sourcelog[hash]))
+		for source := range sourcelog[hash] {
+			txSources = append(txSources, srcWithTS{source: source, timestamp: sourcelog[hash][source]})
+		}
+
+		// sort by timestamp
+		sort.Slice(txSources, func(i, j int) bool {
+			return txSources[i].timestamp < txSources[j].timestamp
+		})
+
+		// add to tx
+		tx.Sources = make([]string, len(txSources))
+		for i, src := range txSources {
+			tx.Sources[i] = src.source
+		}
+
+		cntUpdated += 1
+	}
+	log.Infow("Updated transactions with sources", "txUpdated", printer.Sprintf("%d", cntUpdated), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
 	//
 	// Convert map to slice sorted by summary.timestamp
