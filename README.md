@@ -37,8 +37,9 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 
 ## FAQ
 
-- _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
 - _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source)
+- _What does "XOF" stand for?_ ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions)
+- _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
 
 ---
 
@@ -75,6 +76,13 @@ dataSize	Nullable(Int64)
 data4Bytes	Nullable(String)
 rawTx	Nullable(String)
 ```
+
+---
+
+# Interesting analyses
+
+- Amount of transactions which eventually lands on chain (by source)
+- Transaction quality (i.e. for high-volume XOF sources)
 
 ---
 

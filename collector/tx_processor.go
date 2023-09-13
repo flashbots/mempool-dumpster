@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,10 +10,19 @@ import (
 	"time"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
+
+type TxProcessorOpts struct {
+	Log            *zap.SugaredLogger
+	OutDir         string
+	UID            string
+	CheckNodeURI   string
+	WriteSourcelog bool
+}
 
 type TxProcessor struct {
 	log    *zap.SugaredLogger
@@ -20,9 +30,8 @@ type TxProcessor struct {
 	outDir string
 	txC    chan TxIn // note: it's important that the value is sent in here instead of a pointer, otherwise there are memory race conditions
 
-	outFilesLock      sync.RWMutex
-	outFilesTxs       map[int64]*os.File
-	outFilesSourcelog map[int64]*os.File
+	outFilesLock sync.RWMutex
+	outFiles     map[int64]*OutFiles
 
 	txn     map[ethcommon.Hash]time.Time
 	txnLock sync.RWMutex
@@ -37,35 +46,53 @@ type TxProcessor struct {
 	srcCntAllLock sync.RWMutex
 
 	writeSourcelog bool // whether to record source stats (a CSV file with timestamp_ms,hash,source)
+	checkNodeURI   string
+	ethClient      *ethclient.Client
 }
 
-func NewTxProcessor(log *zap.SugaredLogger, outDir, uid string, writeSourcelog bool) *TxProcessor {
-	return &TxProcessor{ //nolint:exhaustruct
-		log: log, // .With("uid", uid),
-		txC: make(chan TxIn, 100),
-		uid: uid,
+type OutFiles struct {
+	FTxs       *os.File
+	FSourcelog *os.File
+	FTrash     *os.File
+}
 
-		outDir:            outDir,
-		outFilesTxs:       make(map[int64]*os.File),
-		outFilesSourcelog: make(map[int64]*os.File),
+func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
+	return &TxProcessor{ //nolint:exhaustruct
+		log: opts.Log, // .With("uid", uid),
+		txC: make(chan TxIn, 100),
+		uid: opts.UID,
+
+		outDir:   opts.OutDir,
+		outFiles: make(map[int64]*OutFiles),
 
 		txn:            make(map[ethcommon.Hash]time.Time),
 		srcCntFirst:    make(map[string]uint64),
 		srcCntAll:      make(map[string]uint64),
 		srcCntUnique:   make(map[string]map[string]bool),
-		writeSourcelog: writeSourcelog,
+		writeSourcelog: opts.WriteSourcelog,
+		checkNodeURI:   opts.CheckNodeURI,
 	}
 }
 
 func (p *TxProcessor) Start() {
-	// Ensure output directory exists
-	err := os.MkdirAll(p.outDir, os.ModePerm)
-	if err != nil {
-		p.log.Error(err)
-		return
+	p.log.Info("Starting TxProcessor ...")
+	var err error
+
+	if p.checkNodeURI != "" {
+		p.log.Infof("Conecting to check-node at %s ...", p.checkNodeURI)
+		p.ethClient, err = ethclient.Dial(p.checkNodeURI)
+		if err != nil {
+			p.log.Fatal(err)
+		}
 	}
 
-	p.log.Debug("Waiting for transactions...")
+	// Ensure output directory exists
+	err = os.MkdirAll(p.outDir, os.ModePerm)
+	if err != nil {
+		p.log.Fatal(err)
+	}
+
+	p.log.Info("Waiting for transactions...")
 
 	// start the txn map cleaner background task
 	go p.cleanupBackgroundTask()
@@ -78,7 +105,7 @@ func (p *TxProcessor) Start() {
 
 func (p *TxProcessor) processTx(txIn TxIn) {
 	txHash := txIn.Tx.Hash()
-	log := p.log.With("tx_hash", txHash.Hex())
+	log := p.log.With("tx_hash", txHash.Hex()).With("source", txIn.Source)
 	log.Debug("processTx")
 
 	// count all transactions per source
@@ -91,20 +118,19 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.srcCntAllLock.Unlock()
 
 	// get output file handles
-	fTx, fSourcelog, isCreated, err := p.getOutputCSVFiles(txIn.T.Unix())
+	outFiles, isCreated, err := p.getOutputCSVFiles(txIn.T.Unix())
 	if err != nil {
-		log.Errorw("getOutputCSVFiles", "error", err)
+		log.Errorw("getOutputFiles", "error", err)
 		return
 	} else if isCreated {
-		p.log.Infof("new file created: %s", fTx.Name())
-		if p.writeSourcelog {
-			p.log.Infof("new file created: %s", fSourcelog.Name())
-		}
+		p.log.Infof("new file created: %s", outFiles.FTxs.Name())
+		p.log.Infof("new file created: %s", outFiles.FSourcelog.Name())
+		p.log.Infof("new file created: %s", outFiles.FTrash.Name())
 	}
 
-	// record source stats
+	// write sourcelog
 	if p.writeSourcelog {
-		_, err = fmt.Fprintf(fSourcelog, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source)
+		_, err = fmt.Fprintf(outFiles.FSourcelog, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source)
 		if err != nil {
 			log.Errorw("fmt.Fprintf", "error", err)
 			return
@@ -118,6 +144,26 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	if ok {
 		log.Debug("transaction already processed")
 		return
+	}
+
+	// errNotFound := errors.New("not found")
+	// check if tx was already included
+	if p.ethClient != nil {
+		receipt, err := p.ethClient.TransactionReceipt(context.Background(), txHash)
+		if err != nil {
+			if err.Error() == "not found" {
+				// all good, mempool tx
+			} else {
+				log.Errorw("ethClient.TransactionReceipt", "error", err)
+			}
+		} else if receipt != nil {
+			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
+			_, err = fmt.Fprintf(outFiles.FTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source, TrashTxAlreadyOnChain, receipt.BlockNumber.String())
+			if err != nil {
+				log.Errorw("fmt.Fprintf", "error", err)
+			}
+			return
+		}
 	}
 
 	// Total unique tx count
@@ -142,7 +188,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		RawTx:     rlpHex,
 	}
 
-	_, err = fmt.Fprintf(fTx, "%d,%s,%s\n", txDetail.Timestamp, txDetail.Hash, txDetail.RawTx)
+	_, err = fmt.Fprintf(outFiles.FTxs, "%d,%s,%s\n", txDetail.Timestamp, txDetail.Hash, txDetail.RawTx)
 	if err != nil {
 		log.Errorw("fmt.Fprintf", "error", err)
 		return
@@ -155,64 +201,68 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 }
 
 // getOutputCSVFiles returns two file handles - one for the transactions and one for source stats, if needed - and a boolean indicating whether the file was created
-func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (fTx, fSourcelog *os.File, isCreated bool, err error) {
+func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (outFiles *OutFiles, isCreated bool, err error) {
 	// bucketTS := timestamp / secPerDay * secPerDay // down-round timestamp to start of bucket
 	sec := int64(bucketMinutes * 60)
 	bucketTS := timestamp / sec * sec // timestamp down-round to start of bucket
 	t := time.Unix(bucketTS, 0).UTC()
 
 	// files may already be opened
-	var fTxOk, fSourcelogOk bool
 	p.outFilesLock.RLock()
-	fTx, fTxOk = p.outFilesTxs[bucketTS]
-	fSourcelog, fSourcelogOk = p.outFilesSourcelog[bucketTS]
+	outFiles, outFilesOk := p.outFiles[bucketTS]
 	p.outFilesLock.RUnlock()
 
-	if !fTxOk {
-		// open transaction file for writing
-		dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
-		err = os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			p.log.Error(err)
-			return nil, nil, false, err
-		}
-
-		fn := filepath.Join(dir, p.getFilename("txs", bucketTS))
-		fTx, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-		if err != nil {
-			p.log.Errorw("os.Create", "error", err)
-			return nil, nil, false, err
-		}
+	if outFilesOk {
+		return outFiles, false, nil
+	}
+	// open transactions output files
+	dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "transactions")
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return nil, false, err
 	}
 
-	if p.writeSourcelog && !fSourcelogOk {
-		// open sourcelog for writing
-		dir := filepath.Join(p.outDir, t.Format(time.DateOnly), "sourcelog")
-		err = os.MkdirAll(dir, os.ModePerm)
-		if err != nil {
-			p.log.Error(err)
-			return nil, nil, false, err
-		}
-
-		fn := filepath.Join(dir, p.getFilename("src", bucketTS))
-		fSourcelog, err = os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-		if err != nil {
-			p.log.Errorw("os.Create", "error", err)
-			return nil, nil, false, err
-		}
+	fn := filepath.Join(dir, p.getFilename("txs", bucketTS))
+	fTx, err := os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, false, err
 	}
 
-	// if one file was opened, record it now
-	if !fTxOk {
-		p.outFilesLock.Lock()
-		p.outFilesTxs[bucketTS] = fTx
-		if p.writeSourcelog && !fSourcelogOk {
-			p.outFilesSourcelog[bucketTS] = fSourcelog
-		}
-		p.outFilesLock.Unlock()
-		isCreated = true
+	// open sourcelog for writing
+	dir = filepath.Join(p.outDir, t.Format(time.DateOnly), "sourcelog")
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return nil, false, err
 	}
-	return fTx, fSourcelog, isCreated, nil
+
+	fn = filepath.Join(dir, p.getFilename("src", bucketTS))
+	fSourcelog, err := os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// open trash for writing
+	dir = filepath.Join(p.outDir, t.Format(time.DateOnly), "trash")
+	err = os.MkdirAll(dir, os.ModePerm)
+	if err != nil {
+		return nil, false, err
+	}
+
+	fn = filepath.Join(dir, p.getFilename("trash", bucketTS))
+	fTrash, err := os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return nil, false, err
+	}
+
+	outFiles = &OutFiles{
+		FTxs:       fTx,
+		FSourcelog: fSourcelog,
+		FTrash:     fTrash,
+	}
+	p.outFilesLock.Lock()
+	p.outFiles[bucketTS] = outFiles
+	p.outFilesLock.Unlock()
+	return outFiles, true, nil
 }
 
 func (p *TxProcessor) getFilename(prefix string, timestamp int64) string {
@@ -238,22 +288,16 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		p.txnLock.Unlock()
 
 		// Remove old files from cache
-		filesBefore := len(p.outFilesTxs)
+		filesBefore := len(p.outFiles)
 		p.outFilesLock.Lock()
-		for timestamp, file := range p.outFilesTxs {
+		for timestamp, outFiles := range p.outFiles {
 			usageSec := bucketMinutes * 60 * 2
 			if time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
-				p.log.Infow("closing tx file", "timestamp", timestamp, "filename", file.Name())
-				delete(p.outFilesTxs, timestamp)
-				_ = file.Close()
-			}
-		}
-		for timestamp, file := range p.outFilesSourcelog {
-			usageSec := bucketMinutes * 60 * 2
-			if time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
-				p.log.Infow("closing sourcelog file", "timestamp", timestamp, "filename", file.Name())
-				delete(p.outFilesSourcelog, timestamp)
-				_ = file.Close()
+				p.log.Infow("closing output files", "timestamp", timestamp)
+				delete(p.outFiles, timestamp)
+				_ = outFiles.FTxs.Close()
+				_ = outFiles.FSourcelog.Close()
+				_ = outFiles.FTrash.Close()
 			}
 		}
 		p.outFilesLock.Unlock()
@@ -268,7 +312,7 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 			"txcache_after", common.Printer.Sprint(len(p.txn)),
 			"txcache_removed", common.Printer.Sprint(cachedBefore-len(p.txn)),
 			"files_before", filesBefore,
-			"files_after", len(p.outFilesTxs),
+			"files_after", len(p.outFiles),
 			"goroutines", common.Printer.Sprint(runtime.NumGoroutine()),
 			"alloc_mb", m.Alloc/1024/1024,
 			"num_gc", common.Printer.Sprint(m.NumGC),

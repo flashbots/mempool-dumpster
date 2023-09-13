@@ -19,9 +19,10 @@ var (
 	version = "dev" // is set during build process
 
 	// Default values
-	defaultDebug      = os.Getenv("DEBUG") == "1"
-	defaultLogProd    = os.Getenv("LOG_PROD") == "1"
-	defaultLogService = os.Getenv("LOG_SERVICE")
+	defaultDebug        = os.Getenv("DEBUG") == "1"
+	defaultLogProd      = os.Getenv("LOG_PROD") == "1"
+	defaultLogService   = os.Getenv("LOG_SERVICE")
+	defaultCheckNodeURI = os.Getenv("CHECK_NODE_URI")
 
 	// API keys
 	defaultblxAuthToken     = os.Getenv("BLX_AUTH_HEADER")
@@ -34,6 +35,7 @@ var (
 	logProdPtr    = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
 	logServicePtr = flag.String("log-service", defaultLogService, "'service' tag to logs")
 	nodesPtr      = flag.String("nodes", "ws://localhost:8546", "comma separated list of EL nodes")
+	checkNodeURI  = flag.String("check-node", defaultCheckNodeURI, "node to use for checking incoming transactions")
 	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
 	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
 	noSourcelog   = flag.Bool("no-sourcelog", false, "disable writign the sourcelog CSV (timestamp_ms,hash,source)")
@@ -115,6 +117,7 @@ func main() {
 		BloxrouteAuthToken: *blxAuthToken,
 		EdenAuthToken:      *edenAuthToken,
 		ChainboundAPIKey:   *chainboundAPIKey,
+		CheckNodeURI:       *checkNodeURI,
 	}
 
 	collector.Start(&opts)

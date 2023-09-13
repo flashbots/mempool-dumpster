@@ -12,6 +12,7 @@ type CollectorOpts struct {
 	Nodes          []string
 	OutDir         string
 	WriteSourcelog bool
+	CheckNodeURI   string
 
 	BloxrouteAuthToken string
 	EdenAuthToken      string
@@ -20,7 +21,13 @@ type CollectorOpts struct {
 
 // Start kicks off all the service components in the background
 func Start(opts *CollectorOpts) {
-	processor := NewTxProcessor(opts.Log, opts.OutDir, opts.UID, opts.WriteSourcelog)
+	processor := NewTxProcessor(TxProcessorOpts{
+		Log:            opts.Log,
+		OutDir:         opts.OutDir,
+		UID:            opts.UID,
+		WriteSourcelog: opts.WriteSourcelog,
+		CheckNodeURI:   opts.CheckNodeURI,
+	})
 	go processor.Start()
 
 	for _, node := range opts.Nodes {
