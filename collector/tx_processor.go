@@ -17,11 +17,10 @@ import (
 )
 
 type TxProcessorOpts struct {
-	Log            *zap.SugaredLogger
-	OutDir         string
-	UID            string
-	CheckNodeURI   string
-	WriteSourcelog bool
+	Log          *zap.SugaredLogger
+	OutDir       string
+	UID          string
+	CheckNodeURI string
 }
 
 type TxProcessor struct {
@@ -36,12 +35,11 @@ type TxProcessor struct {
 	knownTxs     map[ethcommon.Hash]time.Time
 	knownTxsLock sync.RWMutex
 
-	txCnt  atomic.Uint64
-	srcCnt SourceCounter
+	txCnt      atomic.Uint64
+	srcMetrics SourceMetrics
 
-	writeSourcelog bool // whether to record source stats (a CSV file with timestamp_ms,hash,source)
-	checkNodeURI   string
-	ethClient      *ethclient.Client
+	checkNodeURI string
+	ethClient    *ethclient.Client
 }
 
 type OutFiles struct {
@@ -59,11 +57,10 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 		outDir:   opts.OutDir,
 		outFiles: make(map[int64]*OutFiles),
 
-		knownTxs: make(map[ethcommon.Hash]time.Time),
-		srcCnt:   NewSourceCounter(),
+		knownTxs:   make(map[ethcommon.Hash]time.Time),
+		srcMetrics: NewMetricsCounter(),
 
-		writeSourcelog: opts.WriteSourcelog,
-		checkNodeURI:   opts.CheckNodeURI,
+		checkNodeURI: opts.CheckNodeURI,
 	}
 }
 
@@ -102,8 +99,8 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	log.Debug("processTx")
 
 	// count all transactions per source
-	p.srcCnt.Inc("all", txIn.Source)
-	p.srcCnt.IncKey("unique", txIn.Source, txIn.Tx.Hash().Hex())
+	p.srcMetrics.Inc(KeyStatsAll, txIn.Source)
+	p.srcMetrics.IncKey(KeyStatsUnique, txIn.Source, txIn.Tx.Hash().Hex())
 
 	// get output file handles
 	outFiles, isCreated, err := p.getOutputCSVFiles(txIn.T.Unix())
@@ -117,12 +114,10 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	}
 
 	// write sourcelog
-	if p.writeSourcelog {
-		_, err = fmt.Fprintf(outFiles.FSourcelog, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source)
-		if err != nil {
-			log.Errorw("fmt.Fprintf", "error", err)
-			return
-		}
+	_, err = fmt.Fprintf(outFiles.FSourcelog, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source)
+	if err != nil {
+		log.Errorw("fmt.Fprintf", "error", err)
+		return
 	}
 
 	// process transactions only once
@@ -145,6 +140,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 				log.Errorw("ethClient.TransactionReceipt", "error", err)
 			}
 		} else if receipt != nil {
+			p.srcMetrics.Inc(KeyStatsTxOnChain, txIn.Source)
 			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
 			_, err = fmt.Fprintf(outFiles.FTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source, TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			if err != nil {
@@ -158,7 +154,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.txCnt.Inc()
 
 	// count first transactions per source (i.e. who delivers a given tx first)
-	p.srcCnt.Inc("first", txIn.Source)
+	p.srcMetrics.Inc(KeyStatsFirst, txIn.Source)
 
 	// create tx rlp
 	rlpHex, err := common.TxToRLPString(txIn.Tx)
@@ -305,28 +301,14 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 			"tx_per_min", common.Printer.Sprint(p.txCnt.Load()),
 		)
 
-		// print and reset stats about who got a tx first
-		srcStatsAllLog := p.log
-		for k, v := range p.srcCnt.Get("all") {
-			srcStatsAllLog = srcStatsAllLog.With(k, common.Printer.Sprint(v["all"]))
-		}
-
-		srcStatsFirstLog := p.log
-		for k, v := range p.srcCnt.Get("first") {
-			srcStatsFirstLog = srcStatsFirstLog.With(k, common.Printer.Sprint(v["first"]))
-		}
-
-		srcStatsUniqueLog := p.log
-		for k, v := range p.srcCnt.Get("unique") {
-			srcStatsUniqueLog = srcStatsUniqueLog.With(k, common.Printer.Sprint(len(v)))
-		}
-
-		srcStatsFirstLog.Info("source_stats_first")
-		srcStatsUniqueLog.Info("source_stats_unique")
-		srcStatsAllLog.Info("source_stats_all")
+		// print source stats
+		p.srcMetrics.Logger(p.log, KeyStatsFirst, false).Info("source_stats/first")
+		p.srcMetrics.Logger(p.log, KeyStatsAll, false).Info("source_stats/all")
+		p.srcMetrics.Logger(p.log, KeyStatsUnique, true).Info("source_stats/unique")
+		p.srcMetrics.Logger(p.log, KeyStatsTxOnChain, false).Info("source_stats/tx_onchain")
 
 		// reset counters
-		p.srcCnt.Reset()
+		p.srcMetrics.Reset()
 		p.txCnt.Store(0)
 	}
 }

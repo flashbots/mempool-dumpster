@@ -7,12 +7,11 @@ import (
 )
 
 type CollectorOpts struct {
-	Log            *zap.SugaredLogger
-	UID            string
-	Nodes          []string
-	OutDir         string
-	WriteSourcelog bool
-	CheckNodeURI   string
+	Log          *zap.SugaredLogger
+	UID          string
+	Nodes        []string
+	OutDir       string
+	CheckNodeURI string
 
 	BloxrouteAuthToken string
 	EdenAuthToken      string
@@ -22,11 +21,10 @@ type CollectorOpts struct {
 // Start kicks off all the service components in the background
 func Start(opts *CollectorOpts) {
 	processor := NewTxProcessor(TxProcessorOpts{
-		Log:            opts.Log,
-		OutDir:         opts.OutDir,
-		UID:            opts.UID,
-		WriteSourcelog: opts.WriteSourcelog,
-		CheckNodeURI:   opts.CheckNodeURI,
+		Log:          opts.Log,
+		OutDir:       opts.OutDir,
+		UID:          opts.UID,
+		CheckNodeURI: opts.CheckNodeURI,
 	})
 	go processor.Start()
 

@@ -38,7 +38,6 @@ var (
 	checkNodeURI  = flag.String("check-node", defaultCheckNodeURI, "node to use for checking incoming transactions")
 	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
 	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
-	noSourcelog   = flag.Bool("no-sourcelog", false, "disable writign the sourcelog CSV (timestamp_ms,hash,source)")
 
 	blxAuthToken     = flag.String("blx-token", defaultblxAuthToken, "bloXroute auth token (optional)")
 	edenAuthToken    = flag.String("eden-token", defaultEdenAuthToken, "Eden auth token (optional)")
@@ -113,7 +112,6 @@ func main() {
 		UID:                *uidPtr,
 		Nodes:              nodes,
 		OutDir:             *outDirPtr,
-		WriteSourcelog:     !*noSourcelog,
 		BloxrouteAuthToken: *blxAuthToken,
 		EdenAuthToken:      *edenAuthToken,
 		ChainboundAPIKey:   *chainboundAPIKey,
