@@ -52,7 +52,7 @@ func main() {
 
 func runDevServer() {
 	log.Infof("Starting webserver on %s", listenAddr)
-	webserver, err := website.NewWebserver(&website.WebserverOpts{ //nolint:exhaustruct
+	webserver, err := website.NewDevWebserver(&website.DevWebserverOpts{ //nolint:exhaustruct
 		ListenAddress: listenAddr,
 		Log:           log,
 		Dev:           *dev,

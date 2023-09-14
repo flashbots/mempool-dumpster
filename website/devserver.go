@@ -19,7 +19,7 @@ import (
 
 var ErrServerAlreadyStarted = errors.New("server was already started")
 
-type WebserverOpts struct {
+type DevWebserverOpts struct {
 	ListenAddress string
 	Log           *zap.SugaredLogger
 	Dev           bool // reloads template on every request
@@ -27,8 +27,8 @@ type WebserverOpts struct {
 	// Only24h       bool
 }
 
-type Webserver struct {
-	opts *WebserverOpts
+type DevWebserver struct {
+	opts *DevWebserverOpts
 	log  *zap.SugaredLogger
 
 	srv        *http.Server
@@ -39,32 +39,22 @@ type Webserver struct {
 	// templateDailyStats *template.Template
 }
 
-func NewWebserver(opts *WebserverOpts) (server *Webserver, err error) {
+func NewDevWebserver(opts *DevWebserverOpts) (server *DevWebserver, err error) {
 	minifier := minify.New()
 	minifier.AddFunc("text/css", html.Minify)
 	minifier.AddFunc("text/html", html.Minify)
 	minifier.AddFunc("application/javascript", html.Minify)
 
-	server = &Webserver{ //nolint:exhaustruct
+	server = &DevWebserver{ //nolint:exhaustruct
 		opts:     opts,
 		log:      opts.Log,
 		minifier: minifier,
 	}
 
-	// server.templateDailyStats, err = ParseDailyStatsTemplate()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// server.templateIndex, err = ParseIndexTemplate()
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	return server, nil
 }
 
-func (srv *Webserver) StartServer() (err error) {
+func (srv *DevWebserver) StartServer() (err error) {
 	if srv.srvStarted.Swap(true) {
 		return ErrServerAlreadyStarted
 	}
@@ -86,7 +76,7 @@ func (srv *Webserver) StartServer() (err error) {
 	return err
 }
 
-func (srv *Webserver) getRouter() http.Handler {
+func (srv *DevWebserver) getRouter() http.Handler {
 	r := mux.NewRouter()
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./website/static"))))
 
@@ -103,7 +93,7 @@ func (srv *Webserver) getRouter() http.Handler {
 	return withGz
 }
 
-func (srv *Webserver) RespondError(w http.ResponseWriter, code int, message string) {
+func (srv *DevWebserver) RespondError(w http.ResponseWriter, code int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	resp := HTTPErrorResp{code, message}
@@ -113,7 +103,7 @@ func (srv *Webserver) RespondError(w http.ResponseWriter, code int, message stri
 	}
 }
 
-func (srv *Webserver) RespondOK(w http.ResponseWriter, response any) {
+func (srv *DevWebserver) RespondOK(w http.ResponseWriter, response any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
@@ -122,7 +112,7 @@ func (srv *Webserver) RespondOK(w http.ResponseWriter, response any) {
 	}
 }
 
-func (srv *Webserver) handleRoot(w http.ResponseWriter, req *http.Request) {
+func (srv *DevWebserver) handleRoot(w http.ResponseWriter, req *http.Request) {
 	tpl, err := ParseIndexTemplate()
 	if err != nil {
 		srv.log.Error("wroot: error parsing template", "error", err)
@@ -139,7 +129,7 @@ func (srv *Webserver) handleRoot(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (srv *Webserver) handleMonth(w http.ResponseWriter, req *http.Request) {
+func (srv *DevWebserver) handleMonth(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 
 	layout := "2006-01"
