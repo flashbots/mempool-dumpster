@@ -75,6 +75,10 @@ gasFeeCap	Nullable(String)
 dataSize	Nullable(Int64)
 data4Bytes	Nullable(String)
 rawTx	Nullable(String)
+sources Array(Nullable(String))
+
+# get exclusive transactions from bloxroute
+clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(sources) == 1 AND sources[1] == 'bloxroute';"
 ```
 
 ---
