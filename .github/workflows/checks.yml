@@ -43,7 +43,7 @@ jobs:
         run: go install honnef.co/go/tools/cmd/staticcheck@v0.4.2
 
       - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
 
       - name: Lint
         run: make lint
