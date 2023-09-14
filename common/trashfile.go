@@ -1,61 +1,103 @@
 package common
 
-// LoadTrashFiles loads sourcelog .csv (or .csv.zip) files (format: <timestamp_ms>,<tx_hash>,<source>) and returns a map[hash][source] = timestampMs
-// func LoadTrashFiles(log *zap.SugaredLogger, files []string) (txs map[string]map[string]int64, cntProcessedRecords int64) { //nolint:gocognit
-// 	txs = make(map[string]map[string]int64)
+import (
+	"strconv"
+	"strings"
 
-// 	rows, err := GetCSVFromFiles(files)
-// 	if err != nil {
-// 		log.Errorw("GetCSV", "error", err)
-// 		return txs, cntProcessedRecords
-// 	}
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"go.uber.org/zap"
+)
 
-// 	for _, items := range rows {
-// 		if len(items) != 3 {
-// 			log.Errorw("invalid line", "line", items)
-// 			continue
-// 		}
+type TrashEntry struct {
+	Timestamp int64
+	Hash      string
+	Source    string
+	Reason    string
+	Notes     string
+}
 
-// 		if len(items[1]) < 66 {
-// 			continue
-// 		}
+func (entry *TrashEntry) TrashEntryToCSVRow() string {
+	fields := []string{
+		strconv.Itoa(int(entry.Timestamp)),
+		entry.Hash,
+		entry.Source,
+		entry.Reason,
+		entry.Notes,
+	}
+	return strings.Join(fields, ",")
+}
 
-// 		ts, err := strconv.Atoi(items[0])
-// 		if err != nil {
-// 			log.Errorw("strconv.Atoi", "error", err, "line", items)
-// 			continue
-// 		}
-// 		txTimestamp := int64(ts)
-// 		txHash := strings.ToLower(items[1])
-// 		txSource := TxSourcName(items[2])
+func NewTrashEntryFromCSVRow(row []string) *TrashEntry {
+	if len(row) < 4 {
+		return nil
+	}
 
-// 		// that it's a valid hash
-// 		if len(txHash) != 66 {
-// 			log.Errorw("invalid hash length", "hash", txHash)
-// 			continue
-// 		}
-// 		if _, err = hexutil.Decode(txHash); err != nil {
-// 			log.Errorw("hexutil.Decode", "error", err, "line", items)
-// 			continue
-// 		}
+	ts, err := strconv.Atoi(row[0])
+	if err != nil {
+		return nil
+	}
+	txTimestamp := int64(ts)
+	txHash := strings.ToLower(row[1])
+	txSource := TxSourcName(row[2])
+	txReason := row[3]
+	txNotes := ""
+	if len(row) >= 5 {
+		txNotes = row[4]
+	}
 
-// 		cntProcessedRecords += 1
+	// that it's a valid hash
+	if len(txHash) != 66 {
+		return nil
+	}
+	if _, err = hexutil.Decode(txHash); err != nil {
+		return nil
+	}
 
-// 		// Add entry to txs map
-// 		if _, ok := txs[txHash]; !ok {
-// 			txs[txHash] = make(map[string]int64)
-// 			txs[txHash][txSource] = txTimestamp
-// 		}
+	return &TrashEntry{
+		Timestamp: txTimestamp,
+		Hash:      txHash,
+		Source:    txSource,
+		Reason:    txReason,
+		Notes:     txNotes,
+	}
+}
 
-// 		// Update timestamp if it's earlier (i.e. alchemy often sending duplicate entries, this makes sure we record the earliest timestamp)
-// 		if txs[txHash][txSource] == 0 || txTimestamp < txs[txHash][txSource] {
-// 			txs[txHash][txSource] = txTimestamp
-// 		}
-// 	}
-// 	log.Infow("Processed file",
-// 		"txTotal", Printer.Sprintf("%d", len(txs)),
-// 		"memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()),
-// 	)
+// LoadTrashFiles loads sourcelog .csv (or .csv.zip) files (format: <timestamp_ms>,<tx_hash>,<source>) and returns a map[hash][source] = *TrashEntry
+func LoadTrashFiles(log *zap.SugaredLogger, files []string) (txs map[string]map[string]*TrashEntry, err error) {
+	txs = make(map[string]map[string]*TrashEntry)
 
-// 	return txs, cntProcessedRecords
-// }
+	rows, err := GetCSVFromFiles(files)
+	if err != nil {
+		return txs, err
+	}
+
+	for _, items := range rows {
+		if len(items) < 4 {
+			continue
+		}
+
+		// discard CSV header
+		if txHashLower := strings.ToLower(items[1]); len(txHashLower) < 66 {
+			continue
+		}
+
+		entry := NewTrashEntryFromCSVRow(items)
+		if entry == nil {
+			log.Errorw("invalid line", "line", items)
+			continue
+		}
+
+		// Add entry to txs map
+		if _, ok := txs[entry.Hash]; !ok {
+			txs[entry.Hash] = make(map[string]*TrashEntry)
+			txs[entry.Hash][entry.Source] = entry
+		}
+
+		// Use earliest known timestamp (i.e. alchemy often sending duplicate entries, this makes sure we record the earliest timestamp)
+		if txs[entry.Hash][entry.Source] == nil || entry.Timestamp < txs[entry.Hash][entry.Source].Timestamp {
+			txs[entry.Hash][entry.Source] = entry
+		}
+	}
+
+	return txs, nil
+}

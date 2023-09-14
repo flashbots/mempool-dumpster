@@ -142,7 +142,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		} else if receipt != nil {
 			p.srcMetrics.Inc(KeyStatsTxOnChain, txIn.Source)
 			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
-			_, err = fmt.Fprintf(outFiles.FTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source, TrashTxAlreadyOnChain, receipt.BlockNumber.String())
+			_, err = fmt.Fprintf(outFiles.FTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			if err != nil {
 				log.Errorw("fmt.Fprintf", "error", err)
 			}

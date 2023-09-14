@@ -60,10 +60,6 @@ func LoadSourcelogFiles(log *zap.SugaredLogger, files []string) (txs map[string]
 			txs[txHash][txSource] = txTimestamp
 		}
 	}
-	log.Infow("Processed file",
-		"txTotal", Printer.Sprintf("%d", len(txs)),
-		"memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()),
-	)
 
 	return txs, cntProcessedRecords
 }

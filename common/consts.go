@@ -7,11 +7,16 @@ const (
 	SourceTagBloxroute  = "bloxroute"
 	SourceTagChainbound = "chainbound"
 	SourceTagEden       = "eden"
-)
+	SourceTagAlchemy    = "alchemy"
+	SourceTagInfura     = "infura"
 
-// GRPCWindowSize is recommended window size by bloxroute-labs:
-// https://docs.bloxroute.com/streams/working-with-streams/creating-a-subscription/grpc
-const GRPCWindowSize = 128 * 1024
+	// Trash tx reasons
+	TrashTxAlreadyOnChain = "tx-already-onchain"
+
+	// GRPCWindowSize is recommended window size by bloxroute-labs:
+	// https://docs.bloxroute.com/streams/working-with-streams/creating-a-subscription/grpc
+	GRPCWindowSize = 128 * 1024
+)
 
 func TxSourcName(uri string) string {
 	sourceAlias := SourceAliasesFromEnv()
@@ -20,11 +25,11 @@ func TxSourcName(uri string) string {
 	}
 
 	if strings.Contains(uri, "alchemy.com/") {
-		return "alchemy"
+		return SourceTagAlchemy
 	}
 
 	if strings.Contains(uri, "infura.io/") {
-		return "infura"
+		return SourceTagInfura
 	}
 
 	return uri

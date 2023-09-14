@@ -16,8 +16,6 @@ const (
 	// exponential backoff settings
 	initialBackoffSec = 5
 	maxBackoffSec     = 120
-
-	TrashTxAlreadyOnChain = "tx already on-chain"
 )
 
 var (
