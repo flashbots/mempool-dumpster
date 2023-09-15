@@ -134,7 +134,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	pw.RowGroupSize = 128 * 1024 * 1024 // 128M
 	pw.PageSize = 1024 * 1024           // 1M
 
-	// Parquet compression: must be gzip for compatibility with both Clickhouse and S3 Select
+	// Parquet compression: must be gzip for compatibility with both ClickHouse and S3 Select
 	pw.CompressionType = parquet.CompressionCodec_GZIP
 
 	//

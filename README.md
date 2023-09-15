@@ -3,24 +3,29 @@
 [![Goreport status](https://goreportcard.com/badge/github.com/flashbots/mempool-dumpster)](https://goreportcard.com/report/github.com/flashbots/mempool-dumpster)
 [![Test status](https://github.com/flashbots/mempool-dumpster/workflows/Checks/badge.svg?branch=main)](https://github.com/flashbots/mempool-dumpster/actions?query=workflow%3A%22Checks%22)
 
-Dump mempool transactions from EL nodes, and archive them in [Parquet](https://github.com/apache/parquet-format) and CSV format.
+Archiving mempool transactions in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
-Notes:
+**The data is freely available at https://mempool-dumpster.flashbots.net**
 
-- **The data is freely available at https://mempool-dumpster.flashbots.net** (under the [CC-0 public domain license](https://creativecommons.org/publicdomain/zero/1.0/))
-- Observing about 1M - 2M unique transactions per day
-- This project is under active development and the codebase might still change significantly without notice. The functionality itself is already pretty stable and ready to use in production.
+Overview:
+
+- Data is published under the [CC-0 public domain license](https://creativecommons.org/publicdomain/zero/1.0/)
+- Saving about 1M - 2M unique transactions per day
+- This project is under active development and the codebase might change significantly without notice. The functionality itself is pretty stable.
 - Related tooling: https://github.com/dvush/mempool-dumpster-rs
+- Introduction & guide: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
 
 ---
 
-## Available mempool sources
+## Available mempool transaction sources
 
 1. Generic EL nodes - go-ethereum, Infura, etc. (Websockets, using `newPendingTransactions`)
 2. Alchemy (Websockets, using [`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions))
 3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs) (Websockets and gRPC)
 4. [Chainbound Fiber](https://fiber.chainbound.io/docs/usage/getting-started/) (gRPC)
 5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc) (Websockets)
+
+Note: Some sources send transactions that are already included on-chain, which are discarded (not added to archive or summary)
 
 ---
 
@@ -45,9 +50,11 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 
 # Working with Parquet
 
+See this post for more details: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
+
 [Apache Parquet](https://parquet.apache.org/) is a column-oriented data file format designed for efficient data storage and retrieval. It provides efficient data compression and encoding schemes with enhanced performance to handle complex data in bulk (more [here](https://www.databricks.com/glossary/what-is-parquet#:~:text=What%20is%20Parquet%3F,handle%20complex%20data%20in%20bulk.)).
 
-We recommend to use [clickhouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) (as well as [DuckDB](https://duckdb.org/)) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
+We recommend to use [ClickHouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) (as well as [DuckDB](https://duckdb.org/)) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
 
 ```bash
 # count rows
@@ -160,7 +167,7 @@ go run cmd/merge/main.go -h
 - Merger produces the final archive (based on the input of multiple collector outputs)
 - The final archive:
   - Includes (1) parquet file with transaction metadata, and (2) compressed file of raw transaction CSV files
-  - Compatible with [Clickhouse](https://clickhouse.com/docs/en/integrations/s3) and [S3 Select](https://docs.aws.amazon.com/AmazonS3/latest/userguide/selecting-content-from-objects.html) (Parquet using gzip compression)
+  - Compatible with [ClickHouse](https://clickhouse.com/docs/en/integrations/s3) and [S3 Select](https://docs.aws.amazon.com/AmazonS3/latest/userguide/selecting-content-from-objects.html) (Parquet using gzip compression)
   - Easily distributable as torrent
 
 ## Collector
