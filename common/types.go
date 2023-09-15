@@ -26,11 +26,7 @@ type TxSummaryEntry struct {
 	Data4Bytes string `parquet:"name=data4Bytes, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
 
 	Sources []string `parquet:"name=sources, type=MAP, convertedtype=LIST, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
-
-	// BlockNumberReceived int64 `parquet:"name=blockNumberCurrent, type=INT64"`
-	// BlockNumberIncluded int64 `parquet:"name=blockNumberIncluded, type=INT64"`
-
-	RawTx string `parquet:"name=rawTx, type=BYTE_ARRAY, encoding=PLAIN, omitstats=true"`
+	RawTx   string   `parquet:"name=rawTx, type=BYTE_ARRAY, encoding=PLAIN, omitstats=true"`
 }
 
 func (t TxSummaryEntry) RawTxHex() string {

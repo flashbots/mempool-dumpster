@@ -21,6 +21,8 @@ var (
 		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagLocal),
 		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagChainbound),
 		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagBloxroute),
+		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagEden),
+		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagEden),
 	)
 
 	// CLI flags
@@ -80,7 +82,7 @@ func main() {
 func analyze(cCtx *cli.Context) error {
 	fnCSVSourcelog := cCtx.String("out")
 	ignoreTxsFiles := cCtx.StringSlice("tx-blacklist")
-	allowedTxsFiles := cCtx.StringSlice("tx-whitelist")
+	whitelistTxsFiles := cCtx.StringSlice("tx-whitelist")
 	sourceComps := common.NewSourceComps(cCtx.StringSlice("cmp"))
 
 	inputFiles := cCtx.Args().Slice()
@@ -110,11 +112,11 @@ func analyze(cCtx *cli.Context) error {
 		)
 	}
 
-	allowedTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, allowedTxsFiles)
+	whitelistedTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, whitelistTxsFiles)
 	check(err, "LoadTxHashesFromMetadataCSVFiles")
-	if len(allowedTxsFiles) > 0 {
-		log.Infow("Processed all allowed-tx input files",
-			"allowedTxTotal", printer.Sprintf("%d", len(allowedTxs)),
+	if len(whitelistTxsFiles) > 0 {
+		log.Infow("Processed all whitelist input files",
+			"whitelistedTxTotal", printer.Sprintf("%d", len(whitelistedTxs)),
 			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
 		)
 	}
@@ -131,7 +133,7 @@ func analyze(cCtx *cli.Context) error {
 	analyzer := NewAnalyzer(AnalyzerOpts{
 		Transactions: sourcelog,
 		TxBlacklist:  ignoreTxs,
-		TxWhitelist:  allowedTxs,
+		TxWhitelist:  whitelistedTxs,
 		SourceComps:  sourceComps,
 	})
 	s := analyzer.Sprint()
