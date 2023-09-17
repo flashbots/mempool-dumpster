@@ -15,7 +15,7 @@ const (
 )
 
 type SourceMetrics struct {
-	lock   sync.Mutex
+	lock   sync.RWMutex
 	counts map[string]map[string]map[string]uint64 // cntType -> source -> key -> count
 }
 
@@ -54,8 +54,8 @@ func (sc *SourceMetrics) IncKey(cntType, source, key string) {
 }
 
 func (sc *SourceMetrics) Get(cntType string) map[string]map[string]uint64 {
-	sc.lock.Lock()
-	defer sc.lock.Unlock()
+	sc.lock.RLock()
+	defer sc.lock.RUnlock()
 
 	return sc.counts[cntType]
 }
@@ -68,6 +68,9 @@ func (sc *SourceMetrics) Reset() {
 }
 
 func (sc *SourceMetrics) Logger(log *zap.SugaredLogger, cntType string, useLen bool) *zap.SugaredLogger {
+	sc.lock.RLock()
+	defer sc.lock.RUnlock()
+
 	for k, v := range sc.Get(cntType) {
 		if useLen {
 			log = log.With(k, common.Printer.Sprint(len(v)))
