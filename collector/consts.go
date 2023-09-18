@@ -27,4 +27,7 @@ var (
 
 	// Chainbound Fiber URL
 	chainboundDefaultURL = common.GetEnv("CHAINBOUND_URI", "beta.fiberapi.io:8080")
+
+	// https://healthchecks.io link (optional)
+	healthChecksIOURL = common.GetEnv("HEALTHCHECKS_IO_URI", "")
 )

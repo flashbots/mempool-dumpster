@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -40,6 +41,8 @@ type TxProcessor struct {
 
 	checkNodeURI string
 	ethClient    *ethclient.Client
+
+	lastHealthCheckCall time.Time
 }
 
 type OutFiles struct {
@@ -82,12 +85,11 @@ func (p *TxProcessor) Start() {
 		p.log.Fatal(err)
 	}
 
-	p.log.Info("Waiting for transactions...")
-
 	// start the txn map cleaner background task
-	go p.cleanupBackgroundTask()
+	go p.startHousekeeper()
 
 	// start listening for transactions coming in through the channel
+	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
 		p.processTx(txIn)
 	}
@@ -255,8 +257,13 @@ func (p *TxProcessor) getFilename(prefix string, timestamp int64) string {
 	return fmt.Sprintf("%s%s_%s.csv", prefix, t.Format("2006-01-02_15-04"), p.uid)
 }
 
-func (p *TxProcessor) cleanupBackgroundTask() {
+// startHousekeeper is an endless loop to clean up old transactions from the cache, log information, ping healthchecks.io, etc.
+func (p *TxProcessor) startHousekeeper() {
 	for {
+		// Call healthchecks.io
+		go p.healthCheckCall()
+
+		// Wait one minute in between runs
 		time.Sleep(time.Minute)
 
 		// Remove old transactions from cache
@@ -311,4 +318,20 @@ func (p *TxProcessor) cleanupBackgroundTask() {
 		p.srcMetrics.Reset()
 		p.txCnt.Store(0)
 	}
+}
+
+func (p *TxProcessor) healthCheckCall() {
+	if healthChecksIOURL == "" {
+		return
+	}
+
+	if time.Since(p.lastHealthCheckCall) < time.Minute*5 {
+		return
+	}
+
+	resp, err := http.Get(healthChecksIOURL) //nolint:gosec
+	if err != nil {
+		p.log.Errorw("[HealthCheckCall] ERROR", "error", err)
+	}
+	resp.Body.Close()
 }
