@@ -67,7 +67,10 @@ func (sc *SourceMetrics) Reset() {
 }
 
 func (sc *SourceMetrics) Logger(log *zap.SugaredLogger, cntType string, useLen bool) *zap.SugaredLogger {
-	for k, v := range sc.Get(cntType) {
+	sc.lock.RLock()
+	defer sc.lock.RUnlock()
+
+	for k, v := range sc.counts[cntType] {
 		if useLen {
 			log = log.With(k, common.Printer.Sprint(len(v)))
 		} else {
