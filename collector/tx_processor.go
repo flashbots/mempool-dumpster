@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
-	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/atomic"
@@ -33,7 +33,7 @@ type TxProcessor struct {
 	outFilesLock sync.RWMutex
 	outFiles     map[int64]*OutFiles
 
-	knownTxs     map[ethcommon.Hash]time.Time
+	knownTxs     map[string]time.Time
 	knownTxsLock sync.RWMutex
 
 	txCnt      atomic.Uint64
@@ -60,7 +60,7 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 		outDir:   opts.OutDir,
 		outFiles: make(map[int64]*OutFiles),
 
-		knownTxs:   make(map[ethcommon.Hash]time.Time),
+		knownTxs:   make(map[string]time.Time),
 		srcMetrics: NewMetricsCounter(),
 
 		checkNodeURI: opts.CheckNodeURI,
@@ -96,8 +96,8 @@ func (p *TxProcessor) Start() {
 }
 
 func (p *TxProcessor) processTx(txIn TxIn) {
-	txHash := txIn.Tx.Hash()
-	log := p.log.With("tx_hash", txHash.Hex()).With("source", txIn.Source)
+	txHashLower := strings.ToLower(txIn.Tx.Hash().Hex())
+	log := p.log.With("tx_hash", txHashLower).With("source", txIn.Source)
 	log.Debug("processTx")
 
 	// count all transactions per source
@@ -116,7 +116,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	}
 
 	// write sourcelog
-	_, err = fmt.Fprintf(outFiles.FSourcelog, "%d,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source)
+	_, err = fmt.Fprintf(outFiles.FSourcelog, "%d,%s,%s\n", txIn.T.UnixMilli(), txHashLower, txIn.Source)
 	if err != nil {
 		log.Errorw("fmt.Fprintf", "error", err)
 		return
@@ -124,17 +124,16 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	// process transactions only once
 	p.knownTxsLock.RLock()
-	_, ok := p.knownTxs[txHash]
+	_, ok := p.knownTxs[txHashLower]
 	p.knownTxsLock.RUnlock()
 	if ok {
 		log.Debug("transaction already processed")
 		return
 	}
 
-	// errNotFound := errors.New("not found")
 	// check if tx was already included
 	if p.ethClient != nil {
-		receipt, err := p.ethClient.TransactionReceipt(context.Background(), txHash)
+		receipt, err := p.ethClient.TransactionReceipt(context.Background(), txIn.Tx.Hash())
 		if err != nil {
 			if err.Error() == "not found" {
 				// all good, mempool tx
@@ -144,7 +143,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		} else if receipt != nil {
 			p.srcMetrics.Inc(KeyStatsTxOnChain, txIn.Source)
 			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
-			_, err = fmt.Fprintf(outFiles.FTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHash.Hex(), txIn.Source, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
+			_, err = fmt.Fprintf(outFiles.FTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHashLower, txIn.Source, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			if err != nil {
 				log.Errorw("fmt.Fprintf", "error", err)
 			}
@@ -165,14 +164,8 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		return
 	}
 
-	// build the summary
-	txDetail := TxDetail{
-		Timestamp: txIn.T.UnixMilli(),
-		Hash:      txHash.Hex(),
-		RawTx:     rlpHex,
-	}
-
-	_, err = fmt.Fprintf(outFiles.FTxs, "%d,%s,%s\n", txDetail.Timestamp, txDetail.Hash, txDetail.RawTx)
+	// write the transaction file
+	_, err = fmt.Fprintf(outFiles.FTxs, "%d,%s,%s\n", txIn.T.UnixMilli(), txHashLower, rlpHex)
 	if err != nil {
 		log.Errorw("fmt.Fprintf", "error", err)
 		return
@@ -180,7 +173,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	// Remember that this transaction was processed
 	p.knownTxsLock.Lock()
-	p.knownTxs[txHash] = txIn.T
+	p.knownTxs[txHashLower] = txIn.T
 	p.knownTxsLock.Unlock()
 }
 

@@ -205,7 +205,7 @@ func (a *Analyzer) Sprint() string {
 	out += "Transactions received: \n"
 	for _, src := range a.sources { // sorted iteration
 		if a.nTransactionsPerSource[src] > 0 {
-			out += fmt.Sprintf("- %-10s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
+			out += fmt.Sprintf("- %-11s %10s\n", src, prettyInt64(a.nTransactionsPerSource[src]))
 		}
 	}
 
@@ -214,7 +214,7 @@ func (a *Analyzer) Sprint() string {
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 {
 			cnt := a.nUniqueTxPerSource[src]
-			out += fmt.Sprintf("- %-10s %10s\n", src, prettyInt(int(cnt)))
+			out += fmt.Sprintf("- %-11s %10s\n", src, prettyInt(int(cnt)))
 		}
 	}
 
@@ -223,7 +223,7 @@ func (a *Analyzer) Sprint() string {
 	for _, src := range a.sources {
 		if a.nTransactionsPerSource[src] > 0 && src != common.SourceTagLocal {
 			cnt := a.nNotSeenLocalPerSource[src]
-			out += fmt.Sprintf("- %-10s %10s\n", src, prettyInt64(cnt))
+			out += fmt.Sprintf("- %-11s %10s\n", src, prettyInt64(cnt))
 		}
 	}
 
