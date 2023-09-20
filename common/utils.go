@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/dustin/go-humanize"
@@ -28,6 +29,16 @@ var (
 func GetEnv(key, defaultValue string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
+	}
+	return defaultValue
+}
+
+func GetEnvInt(key string, defaultValue int) int {
+	if value, ok := os.LookupEnv(key); ok {
+		val, err := strconv.Atoi(value)
+		if err == nil {
+			return val
+		}
 	}
 	return defaultValue
 }

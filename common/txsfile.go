@@ -170,7 +170,7 @@ func ParseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transac
 		return TxSummaryEntry{}, nil, err
 	}
 
-	return TxSummaryEntry{
+	return TxSummaryEntry{ //nolint:exhaustruct
 		Timestamp: timestampMs,
 		Hash:      tx.Hash().Hex(),
 

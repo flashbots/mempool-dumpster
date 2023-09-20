@@ -45,6 +45,7 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 - _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source)
 - _What does "XOF" stand for?_ ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions)
 - _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
+- _When is the data uploaded?_ ... The data preparation and upload for the previous day is started daily at UTC 2am.
 
 ---
 
