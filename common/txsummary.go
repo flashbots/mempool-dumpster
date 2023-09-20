@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -87,27 +88,27 @@ func (t *TxSummaryEntry) ToCSVRow() []string {
 	}
 }
 
-func (t *TxSummaryEntry) UpdateInclusionStatus(ethClient *ethclient.Client) error {
+func (t *TxSummaryEntry) UpdateInclusionStatus(ethClient *ethclient.Client) (*types.Header, error) {
 	receipt, err := ethClient.TransactionReceipt(context.Background(), common.HexToHash(t.Hash))
 	if err != nil {
 		if err.Error() == "not found" {
 			// not yet included
-			return nil
+			return nil, nil
 		} else {
-			return err
+			return nil, err
 		}
 	} else if receipt != nil {
 		// already included
 		t.IncludedAtBlockHeight = receipt.BlockNumber.Int64()
 	}
 
-	// Get block for the block timestamp
+	// Get header for the block timestamp
 	header, err := ethClient.HeaderByHash(context.Background(), receipt.BlockHash)
 	if err != nil {
-		return err
+		return nil, err
 	} else {
 		t.IncludedBlockTimestamp = int64(header.Time * 1000)
 		t.InclusionDelayMs = t.IncludedBlockTimestamp - t.Timestamp
 	}
-	return nil
+	return header, nil
 }

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/urfave/cli/v2"
 	"github.com/xitongsys/parquet-go-source/local"
@@ -16,8 +16,11 @@ import (
 	"go.uber.org/zap"
 )
 
-// Number of RPC workers for checking transaction inclusion status
-var numRPCWorkers = common.GetEnvInt("MERGER_RPC_WORKERS", 4)
+var (
+	// Number of RPC workers for checking transaction inclusion status
+	numRPCWorkers = common.GetEnvInt("MERGER_RPC_WORKERS", 8)
+	txLimit       = 0 // max transactions to process
+)
 
 // mergeTransactions merges multiple transaction CSV files into transactions.parquet + metadata.csv files
 func mergeTransactions(cCtx *cli.Context) error {
@@ -28,14 +31,19 @@ func mergeTransactions(cCtx *cli.Context) error {
 	knownTxsFiles := cCtx.StringSlice("tx-blacklist")
 	sourcelogFiles := cCtx.StringSlice("sourcelog")
 	writeTxCSV := cCtx.Bool("write-tx-csv")
-	checkNodeURI := cCtx.String("check-node")
+	checkNodeURIs := cCtx.StringSlice("check-node")
 	inputFiles := cCtx.Args().Slice()
 
 	if cCtx.NArg() == 0 {
 		log.Fatal("no input files specified as arguments")
 	}
 
-	log.Infow("Merge transactions", "outDir", outDir, "fnPrefix", fnPrefix, "version", version)
+	log.Infow("Merge transactions",
+		"version", version,
+		"outDir", outDir,
+		"fnPrefix", fnPrefix,
+		"checkNodes", checkNodeURIs,
+	)
 
 	err = os.MkdirAll(outDir, os.ModePerm)
 	check(err, "os.MkdirAll")
@@ -60,23 +68,21 @@ func mergeTransactions(cCtx *cli.Context) error {
 	}
 
 	// Check input files
-	for _, fn := range inputFiles {
-		common.MustBeFile(log, fn)
-	}
-	for _, fn := range sourcelogFiles {
+	for _, fn := range append(inputFiles, sourcelogFiles...) {
 		common.MustBeFile(log, fn)
 	}
 
-	//
+	// Load sourcelog files
+	log.Infow("Loading sourcelog files...", "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	sourcelog, _ := common.LoadSourcelogFiles(log, sourcelogFiles)
+	log.Infow("Loaded sourcelog files", "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+
 	// Load input files
-	//
 	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, knownTxsFiles)
 	check(err, "LoadTransactionCSVFiles")
 	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
-	// Update txs with sources, in order of receiving them
-	sourcelog, _ := common.LoadSourcelogFiles(log, sourcelogFiles)
-	// log.Infow("Processed all input sourcelog files", "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	// Attach sources (sorted by timestamp) to transactions
 	cntUpdated := 0
 	type srcWithTS struct {
 		source    string
@@ -104,7 +110,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	log.Infow("Updated transactions with sources", "txUpdated", printer.Sprintf("%d", cntUpdated), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
 	// Update txs with inclusion status
-	err = updateInclusionStatus(log, checkNodeURI, txs)
+	err = updateInclusionStatus(log, checkNodeURIs, txs)
 	check(err, "updateInclusionStatus")
 
 	//
@@ -185,6 +191,9 @@ func mergeTransactions(cCtx *cli.Context) error {
 		if cntTxWritten%100000 == 0 {
 			log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 		}
+		if txLimit > 0 && cntTxWritten == txLimit {
+			break
+		}
 	}
 	log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
 
@@ -203,19 +212,23 @@ func mergeTransactions(cCtx *cli.Context) error {
 	return nil
 }
 
-func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURI string, txs map[string]*common.TxSummaryEntry) (err error) {
+func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs map[string]*common.TxSummaryEntry) (err error) {
 	// Load inclusion status for all transactions
 	workers := numRPCWorkers
 	txC := make(chan *common.TxSummaryEntry, 2000000)
 	respC := make(chan error)
+	blockCache := NewBlockCache()
 
 	// start geth workers
-	for i := 0; i < workers; i++ {
-		w := NewTxUpdateWorker(log, checkNodeURI, txC, respC)
-		go w.start()
+	for _, checkNodeURI := range checkNodeURIs {
+		for i := 0; i < workers; i++ {
+			w := NewTxUpdateWorker(log, checkNodeURI, txC, respC, blockCache)
+			go w.start()
+		}
 	}
 
 	// send tx to worker
+	inclusionCheckStart := time.Now().UTC()
 	log.Info("Loading inclusion status - sending to workers...")
 	for _, entry := range txs {
 		txC <- entry
@@ -230,42 +243,26 @@ func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURI string, txs map[
 		}
 
 		if i%10000 == 0 {
-			log.Infow(printer.Sprintf("- inclusion check progress %-9d / %d", i, len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+			log.Infow(printer.Sprintf("- inclusion check progress %9d / %d", i, len(txs)),
+				"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+				"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
+				"cacheMisses", printer.Sprintf("%d", blockCache.cacheMisses),
+				"cachedBlocks", printer.Sprintf("%d", len(blockCache.blocks)),
+			)
+		}
+
+		if txLimit > 0 && i == txLimit {
+			break
 		}
 	}
 
+	log.Infow("Inclusion check done",
+		"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
+		"cacheMisses", printer.Sprintf("%d", blockCache.cacheMisses),
+		"cachedBlocks", printer.Sprintf("%d", len(blockCache.blocks)),
+		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		"duration", time.Since(inclusionCheckStart),
+	)
+
 	return nil
-}
-
-type TxUpdateWorker struct {
-	log          *zap.SugaredLogger
-	checkNodeURI string
-	ethClient    *ethclient.Client
-	txC          chan *common.TxSummaryEntry
-	respC        chan error
-}
-
-func NewTxUpdateWorker(log *zap.SugaredLogger, checkNodeURI string, txC chan *common.TxSummaryEntry, respC chan error) (p *TxUpdateWorker) {
-	return &TxUpdateWorker{ //nolint:exhaustruct
-		log:          log,
-		checkNodeURI: checkNodeURI,
-		txC:          txC,
-		respC:        respC,
-	}
-}
-
-func (p *TxUpdateWorker) start() {
-	var err error
-
-	log.Infof("- conecting to check-node at %s ...", p.checkNodeURI)
-	p.ethClient, err = ethclient.Dial(p.checkNodeURI)
-	if err != nil {
-		p.log.Fatal("ethclient.Dial", "error", err)
-		return
-	}
-
-	for tx := range p.txC {
-		err := tx.UpdateInclusionStatus(p.ethClient)
-		p.respC <- err
-	}
 }
