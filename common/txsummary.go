@@ -32,7 +32,7 @@ var TxSummaryEntryCSVHeader = []string{
 // TxSummaryEntry is a struct that represents a single transaction in the summary CSV and Parquet file
 // see also https://github.com/xitongsys/parquet-go for more details on parquet tags
 type TxSummaryEntry struct {
-	// The fields CSV, the order shouldn't change (for backwards compatibility)
+	// The fields are written to CSV, and the order shouldn't change (for backwards compatibility)
 	Timestamp int64  `parquet:"name=timestamp, type=INT64, convertedtype=TIMESTAMP_MILLIS"`
 	Hash      string `parquet:"name=hash, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
 

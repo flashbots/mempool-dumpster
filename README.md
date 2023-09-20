@@ -87,6 +87,9 @@ sources Array(Nullable(String))
 
 # get exclusive transactions from bloxroute
 clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(sources) == 1 AND sources[1] == 'bloxroute';"
+
+# get count of landed vs not-landed exclusive transactions, by source
+clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT sources[1], included, count(included) FROM 'out/out/transactions.parquet' WHERE length(sources) == 1 GROUP BY sources[1], included;"
 ```
 
 ---
