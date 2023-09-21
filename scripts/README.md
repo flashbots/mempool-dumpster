@@ -2,11 +2,26 @@ This directory contains a bunch of useful scripts.
 
 ---
 
-Working with Parquet files:
+## Clickhouse Local
+
+It's extremely fast and versatily, and can even query across multiple parquet files:
+
+- https://clickhouse.com/docs/en/operations/utilities/clickhouse-local
+- https://clickhouse.com/docs/en/sql-reference/statements
 
 ```bash
-# You can query parquet files using clickhouse-local (https://clickhouse.com/docs/en/operations/utilities/clickhouse-local)
-clickhouse local -q 'select hash,hex(rawTx) from "transactions.parquet" limit 1;'
+# You can query parquet files with SQL:
+clickhouse local -q "select hash,hex(rawTx) from 'out/out/transactions.parquet' limit 1;"
+clickhouse local -q "select count(*) from 'out/out/transactions.parquet';"
+
+# Show schema
+clickhouse local -q "DESCRIBE TABLE 'out/out/transactions.parquet';"
+
+# Get exclusive transactions for bloxroute
+clickhouse local -q "SELECT COUNT(*) FROM 'out/out/transactions.parquet' WHERE length(sources) == 1 AND sources[1] == 'bloxroute';"
+
+# Get number of included transactions (beta)
+clickhouse local -q "SELECT COUNT(*) FROM 'out/out/transactions.parquet' WHERE blockNumberIncluded>0;"
 ```
 
 More helpers:

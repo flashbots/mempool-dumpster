@@ -49,6 +49,10 @@ var (
 			Value: false,
 			Usage: "write a CSV with all received transactions (timestamp_ms,hash,raw_tx)",
 		},
+		&cli.StringSliceFlag{ //nolint:exhaustruct
+			Name:  "check-node",
+			Usage: "eth nodes for checking tx inclusion status",
+		},
 	}
 )
 

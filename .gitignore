@@ -25,3 +25,4 @@
 /tmp
 /docs
 /*.internal*
+/transactions.parquet

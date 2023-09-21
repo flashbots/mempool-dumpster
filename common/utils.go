@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/dustin/go-humanize"
@@ -28,6 +29,16 @@ var (
 func GetEnv(key, defaultValue string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
+	}
+	return defaultValue
+}
+
+func GetEnvInt(key string, defaultValue int) int {
+	if value, ok := os.LookupEnv(key); ok {
+		val, err := strconv.Atoi(value)
+		if err == nil {
+			return val
+		}
 	}
 	return defaultValue
 }
@@ -183,4 +194,12 @@ func HumanBytes(n uint64) string {
 
 func IsWebsocketProtocol(url string) bool {
 	return strings.HasPrefix(url, "ws://") || strings.HasPrefix(url, "wss://")
+}
+
+func PrettyInt(i int) string {
+	return Printer.Sprintf("%d", i)
+}
+
+func PrettyInt64(i int64) string {
+	return Printer.Sprintf("%d", i)
 }
