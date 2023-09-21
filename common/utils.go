@@ -195,3 +195,11 @@ func HumanBytes(n uint64) string {
 func IsWebsocketProtocol(url string) bool {
 	return strings.HasPrefix(url, "ws://") || strings.HasPrefix(url, "wss://")
 }
+
+func PrettyInt(i int) string {
+	return Printer.Sprintf("%d", i)
+}
+
+func PrettyInt64(i int64) string {
+	return Printer.Sprintf("%d", i)
+}

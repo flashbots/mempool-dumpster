@@ -25,6 +25,7 @@ var (
 // mergeTransactions merges multiple transaction CSV files into transactions.parquet + metadata.csv files
 func mergeTransactions(cCtx *cli.Context) error {
 	var err error
+	timeStart := time.Now().UTC()
 
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")
@@ -208,31 +209,31 @@ func mergeTransactions(cCtx *cli.Context) error {
 	check(err, "pw.WriteStop")
 	fw.Close()
 
-	log.Infof("Finished processing CSV files, wrote %s transactions", printer.Sprintf("%d", cntTxWritten))
+	log.Infow("Finished merging!", "cntTx", printer.Sprintf("%d", cntTxWritten), "duration", time.Since(timeStart).String())
 	return nil
 }
 
 func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs map[string]*common.TxSummaryEntry) (err error) {
-	// Load inclusion status for all transactions
-	workers := numRPCWorkers
-	txC := make(chan *common.TxSummaryEntry, 2000000)
-	respC := make(chan error)
+	inclusionCheckStart := time.Now().UTC()
+	txC := make(chan *common.TxSummaryEntry)
+	respC := make(chan error, 100)
 	blockCache := NewBlockCache()
 
-	// start geth workers
+	// kick off geth workers
 	for _, checkNodeURI := range checkNodeURIs {
-		for i := 0; i < workers; i++ {
+		for i := 0; i < numRPCWorkers; i++ {
 			w := NewTxUpdateWorker(log, checkNodeURI, txC, respC, blockCache)
 			go w.start()
 		}
 	}
 
 	// send tx to worker
-	inclusionCheckStart := time.Now().UTC()
-	log.Info("Loading inclusion status - sending to workers...")
-	for _, entry := range txs {
-		txC <- entry
-	}
+	go func() {
+		log.Info("Loading inclusion status - sending to workers...")
+		for _, entry := range txs {
+			txC <- entry
+		}
+	}()
 
 	// wait for results
 	log.Info("Loading inclusion status - waiting for results...")
@@ -242,7 +243,7 @@ func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs m
 			log.Errorw("updateInclusionStatus", "error", err)
 		}
 
-		if i%10000 == 0 {
+		if i+1%10000 == 0 {
 			log.Infow(printer.Sprintf("- inclusion check progress %9d / %d", i, len(txs)),
 				"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
 				"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),

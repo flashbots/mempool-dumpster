@@ -39,7 +39,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 				return nil, err
 			}
 			defer readFile.Close()
-			err = readTxFile(log, readFile, prevKnownTxs, &txs)
+			err = readTxFile(log, readFile, prevKnownTxs, &txs, true)
 			if err != nil {
 				log.Errorw("readTxFile", "error", err, "file", filename)
 				return nil, err
@@ -61,7 +61,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 					return nil, err
 				}
 				defer r.Close()
-				err = readTxFile(log, r, prevKnownTxs, &txs)
+				err = readTxFile(log, r, prevKnownTxs, &txs, true)
 				if err != nil {
 					log.Errorw("readTxFile", "error", err, "file", filename)
 					return nil, err
@@ -82,7 +82,8 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 }
 
 // readTxFile reads a single transaction CSV file line-by-line
-func readTxFile(log *zap.SugaredLogger, rd io.Reader, prevKnownTxs map[string]bool, txs *map[string]*TxSummaryEntry) (err error) {
+func readTxFile(log *zap.SugaredLogger, rd io.Reader, prevKnownTxs map[string]bool, txs *map[string]*TxSummaryEntry, logProgress bool) (err error) {
+	cnt := 0
 	fileReader := bufio.NewReader(rd)
 	for {
 		l, err := fileReader.ReadString('\n')
@@ -137,6 +138,11 @@ func readTxFile(log *zap.SugaredLogger, rd io.Reader, prevKnownTxs map[string]bo
 
 		// Add to map
 		(*txs)[txHash] = &txSummary
+
+		cnt += 1
+		if logProgress && cnt%100000 == 0 {
+			log.Infof("- loaded %s rows", PrettyInt(cnt))
+		}
 	}
 
 	return nil
