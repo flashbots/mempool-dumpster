@@ -149,7 +149,7 @@ func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs m
 			log.Errorw("updateInclusionStatus", "error", err)
 		}
 
-		if i+1%10000 == 0 {
+		if (i+1)%10000 == 0 {
 			log.Infow(printer.Sprintf("- inclusion check progress %9d / %d", i, len(txs)),
 				"memUsed", common.GetMemUsageHuman(),
 				"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
@@ -163,12 +163,28 @@ func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs m
 		}
 	}
 
+	// Run some stats
+	cnt := 0
+	cntIncluded := 0
+	cntNotIncluded := 0
+	for _, tx := range txs {
+		cnt += 1
+		if tx.IncludedAtBlockHeight > 0 {
+			cntIncluded += 1
+		} else {
+			cntNotIncluded += 1
+		}
+	}
+
 	log.Infow("Inclusion check done",
 		"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
 		"cacheMisses", printer.Sprintf("%d", blockCache.cacheMisses),
 		"cachedBlocks", printer.Sprintf("%d", len(blockCache.blocks)),
 		"memUsed", common.GetMemUsageHuman(),
-		"duration", time.Since(inclusionCheckStart),
+		"duration", common.FmtDuration(time.Since(inclusionCheckStart)),
+		"txTotal", printer.Sprintf("%d", cnt),
+		"txIncluded", printer.Sprintf("%d", cntIncluded),
+		"txNotIncluded", printer.Sprintf("%d", cntNotIncluded),
 	)
 
 	return nil

@@ -157,7 +157,8 @@ func FmtDateDayTime(t time.Time) string {
 }
 
 func FmtDuration(d time.Duration) string {
-	s := d.String()
+	x, _ := time.ParseDuration("1s")
+	s := d.Round(x).String()
 	s = strings.Replace(s, "h", "h ", 1)
 	s = strings.Replace(s, "m", "m ", 1)
 	s = strings.Replace(s, "s", "s ", 1)

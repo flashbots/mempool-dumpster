@@ -24,7 +24,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 		log.Errorw("LoadTxHashesFromMetadataCSVFiles", "error", err)
 		return nil, err
 	}
-	log.Infow("Loaded previously known transactions", "txTotal", Printer.Sprintf("%d", len(prevKnownTxs)), "memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()))
+	log.Infow("Loaded previously known transactions", "txTotal", Printer.Sprintf("%d", len(prevKnownTxs)), "memUsed", GetMemUsageHuman())
 
 	cntProcessedFiles := 0
 	txs = make(map[string]*TxSummaryEntry)
@@ -74,7 +74,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 
 		log.Infow("Processed file",
 			"txTotal", Printer.Sprintf("%d", len(txs)),
-			"memUsedMiB", Printer.Sprintf("%d", GetMemUsageMb()),
+			"memUsed", GetMemUsageHuman(),
 		)
 	}
 

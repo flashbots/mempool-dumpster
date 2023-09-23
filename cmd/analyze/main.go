@@ -136,7 +136,7 @@ func analyzeV2(cCtx *cli.Context) error {
 		sourcelog, _ = common.LoadSourcelogFiles(log, inputSourceLogFiles)
 		log.Infow("Processed input sourcelog files",
 			"txTotal", printer.Sprintf("%d", len(sourcelog)),
-			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+			"memUsed", common.GetMemUsageHuman(),
 		)
 	}
 

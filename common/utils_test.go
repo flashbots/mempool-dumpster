@@ -44,7 +44,7 @@ func TestDateFmtDay(t *testing.T) {
 	ts1 := int64(1619712000187)
 	ts2 := int64(1619712004321)
 	t1 := time.Unix(ts1, 0)
-	t2 := time.Unix(ts2, 0)
+	t2 := time.Unix(ts2, 28341)
 	d := t2.Sub(t1)
 	require.Equal(t, "1h 8m 54s", FmtDuration(d))
 }

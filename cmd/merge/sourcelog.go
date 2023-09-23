@@ -41,7 +41,7 @@ func mergeSourcelog(cCtx *cli.Context) error {
 	log.Infow("Processed all input files",
 		"txTotal", printer.Sprintf("%d", len(sourcelog)),
 		"records", printer.Sprintf("%d", cntProcessedRecords),
-		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		"memUsed", common.GetMemUsageHuman(),
 	)
 
 	// Write output files
