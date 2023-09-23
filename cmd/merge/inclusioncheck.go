@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"sync"
+	"time"
 
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -11,6 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// BlockCache - reuse already known blocks and avoid unnecessary lookups for transaction inclusion
 type BlockCache struct {
 	blocks      map[string]bool
 	txs         map[string]*types.Header
@@ -47,6 +49,7 @@ func (bc *BlockCache) getHeaderForTx(txHash string) *types.Header {
 	return nil
 }
 
+// TxUpdateWorker - independent EL connections for parallel tx inclusion checks
 type TxUpdateWorker struct {
 	log          *zap.SugaredLogger
 	checkNodeURI string
@@ -112,5 +115,61 @@ func (p *TxUpdateWorker) updateTx(tx *common.TxSummaryEntry) error {
 	p.blockCache.addBlock(block)
 	tx.IncludedBlockTimestamp = int64(block.Time() * 1000)
 	tx.InclusionDelayMs = tx.IncludedBlockTimestamp - tx.Timestamp
+	return nil
+}
+
+// updateInclusionStatus - load and set inclusion status for all transactions
+func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs map[string]*common.TxSummaryEntry) (err error) {
+	inclusionCheckStart := time.Now().UTC()
+	txC := make(chan *common.TxSummaryEntry)
+	respC := make(chan error, 100)
+	blockCache := NewBlockCache()
+
+	// kick off geth workers
+	for _, checkNodeURI := range checkNodeURIs {
+		for i := 0; i < numRPCWorkers; i++ {
+			w := NewTxUpdateWorker(log, checkNodeURI, txC, respC, blockCache)
+			go w.start()
+		}
+	}
+
+	// send tx to worker
+	go func() {
+		log.Info("Loading inclusion status - sending to workers...")
+		for _, entry := range txs {
+			txC <- entry
+		}
+	}()
+
+	// wait for results
+	log.Info("Loading inclusion status - waiting for results...")
+	for i := 0; i < len(txs); i++ {
+		err := <-respC
+		if err != nil {
+			log.Errorw("updateInclusionStatus", "error", err)
+		}
+
+		if i+1%10000 == 0 {
+			log.Infow(printer.Sprintf("- inclusion check progress %9d / %d", i, len(txs)),
+				"memUsed", common.GetMemUsageHuman(),
+				"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
+				"cacheMisses", printer.Sprintf("%d", blockCache.cacheMisses),
+				"cachedBlocks", printer.Sprintf("%d", len(blockCache.blocks)),
+			)
+		}
+
+		if txLimit > 0 && i == txLimit {
+			break
+		}
+	}
+
+	log.Infow("Inclusion check done",
+		"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
+		"cacheMisses", printer.Sprintf("%d", blockCache.cacheMisses),
+		"cachedBlocks", printer.Sprintf("%d", len(blockCache.blocks)),
+		"memUsed", common.GetMemUsageHuman(),
+		"duration", time.Since(inclusionCheckStart),
+	)
+
 	return nil
 }

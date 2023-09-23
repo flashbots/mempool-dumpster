@@ -55,6 +55,7 @@ echo "Merging sourcelog..."
 
 echo "Merging transactions..."
 /server/mempool-dumpster/build/merge transactions \
+  --check-node /mnt/data/geth/geth.ipc \
   --write-tx-csv \
   --tx-blacklist "$1/../${yesterday}/${yesterday}.csv.zip" \
   --sourcelog "$1/${date}_sourcelog.csv" \
@@ -93,11 +94,16 @@ aws --profile aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbot
 #
 echo "Creating summary..."
 cd $1
-/server/mempool-dumpster/build/analyze sourcelog \
-  --tx-blacklist "../${yesterday}/${yesterday}.csv.zip" \
-  --tx-whitelist "${date}.csv.zip" \
+/server/mempool-dumpster/build/analyze \
   --out "${date}_summary.txt" \
-  "${date}_sourcelog.csv"
+  --input-parquet "${date}.parquet" \
+  --input-sourcelog "${date}_sourcelog.csv.zip"
+
+# /server/mempool-dumpster/build/analyze test \
+#   --tx-blacklist "../${yesterday}/${yesterday}.csv.zip" \
+#   --tx-whitelist "${date}.csv.zip" \
+#   --out "${date}_summary.txt" \
+#   "${date}_sourcelog.csv"
 
 echo "Uploading ${date}_summary.txt ..."
 aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"

@@ -13,7 +13,6 @@ import (
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/parquet"
 	"github.com/xitongsys/parquet-go/writer"
-	"go.uber.org/zap"
 )
 
 var (
@@ -70,18 +69,22 @@ func mergeTransactions(cCtx *cli.Context) error {
 
 	// Check input files
 	for _, fn := range append(inputFiles, sourcelogFiles...) {
-		common.MustBeFile(log, fn)
+		common.MustBeCSVFile(log, fn)
 	}
 
+	//
 	// Load sourcelog files
-	log.Infow("Loading sourcelog files...", "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	//
+	log.Infow("Loading sourcelog files...", "memUsed", common.GetMemUsageHuman())
 	sourcelog, _ := common.LoadSourcelogFiles(log, sourcelogFiles)
-	log.Infow("Loaded sourcelog files", "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	log.Infow("Loaded sourcelog files", "memUsed", common.GetMemUsageHuman())
 
+	//
 	// Load input files
+	//
 	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, knownTxsFiles)
 	check(err, "LoadTransactionCSVFiles")
-	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsed", common.GetMemUsageHuman())
 
 	// Attach sources (sorted by timestamp) to transactions
 	cntUpdated := 0
@@ -108,9 +111,11 @@ func mergeTransactions(cCtx *cli.Context) error {
 
 		cntUpdated += 1
 	}
-	log.Infow("Updated transactions with sources", "txUpdated", printer.Sprintf("%d", cntUpdated), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	log.Infow("Updated transactions with sources", "txUpdated", printer.Sprintf("%d", cntUpdated), "memUsed", common.GetMemUsageHuman())
 
+	//
 	// Update txs with inclusion status
+	//
 	err = updateInclusionStatus(log, checkNodeURIs, txs)
 	check(err, "updateInclusionStatus")
 
@@ -125,11 +130,19 @@ func mergeTransactions(cCtx *cli.Context) error {
 	sort.Slice(txsSlice, func(i, j int) bool {
 		return txsSlice[i].Timestamp < txsSlice[j].Timestamp
 	})
-	log.Infow("Transactions sorted...", "txs", printer.Sprintf("%d", len(txsSlice)), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	log.Infow("Transactions sorted...", "txs", printer.Sprintf("%d", len(txsSlice)), "memUsed", common.GetMemUsageHuman())
 
 	//
 	// Prepare output files
 	//
+	cntTxWritten := writeFiles(txsSlice, fnParquetTxs, fnCSVTxs, fnCSVMeta)
+	log.Infow("Finished merging!", "cntTx", printer.Sprintf("%d", cntTxWritten), "duration", time.Since(timeStart).String())
+	return nil
+}
+
+func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta string) (cntTxWritten int) {
+	writeTxCSV := fnCSVTxs != ""
+
 	fCSVMeta, err := os.OpenFile(fnCSVMeta, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	check(err, "os.Create")
 	csvHeader := strings.Join(common.TxSummaryEntryCSVHeader, ",")
@@ -161,12 +174,12 @@ func mergeTransactions(cCtx *cli.Context) error {
 	// Write output files
 	//
 	log.Info("Writing output files...")
-	cntTxWritten := 0
-	cntTxTotal := len(txsSlice)
-	for _, tx := range txsSlice {
+
+	cntTxTotal := len(txs)
+	for _, tx := range txs {
 		// Skip transactions that were included before they were received
 		if tx.InclusionDelayMs <= -12_000 {
-			log.Infow("Skipping already included tx", "tx", tx.Hash, "block", tx.IncludedAtBlockHeight, "blockTs", tx.IncludedBlockTimestamp, "receivedAt", tx.Timestamp, "inclusionDelayMs", tx.InclusionDelayMs)
+			log.Infow("Skipping already included tx", "tx", tx.Hash, "src", tx.Sources, "block", tx.IncludedAtBlockHeight, "blockTs", tx.IncludedBlockTimestamp, "receivedAt", tx.Timestamp, "inclusionDelayMs", tx.InclusionDelayMs)
 			continue
 		}
 
@@ -190,13 +203,13 @@ func mergeTransactions(cCtx *cli.Context) error {
 
 		cntTxWritten += 1
 		if cntTxWritten%100000 == 0 {
-			log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+			log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsed", common.GetMemUsageHuman())
 		}
 		if txLimit > 0 && cntTxWritten == txLimit {
 			break
 		}
 	}
-	log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()))
+	log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsed", common.GetMemUsageHuman())
 
 	log.Info("Flushing and closing files...")
 	if writeTxCSV {
@@ -209,61 +222,5 @@ func mergeTransactions(cCtx *cli.Context) error {
 	check(err, "pw.WriteStop")
 	fw.Close()
 
-	log.Infow("Finished merging!", "cntTx", printer.Sprintf("%d", cntTxWritten), "duration", time.Since(timeStart).String())
-	return nil
-}
-
-func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs map[string]*common.TxSummaryEntry) (err error) {
-	inclusionCheckStart := time.Now().UTC()
-	txC := make(chan *common.TxSummaryEntry)
-	respC := make(chan error, 100)
-	blockCache := NewBlockCache()
-
-	// kick off geth workers
-	for _, checkNodeURI := range checkNodeURIs {
-		for i := 0; i < numRPCWorkers; i++ {
-			w := NewTxUpdateWorker(log, checkNodeURI, txC, respC, blockCache)
-			go w.start()
-		}
-	}
-
-	// send tx to worker
-	go func() {
-		log.Info("Loading inclusion status - sending to workers...")
-		for _, entry := range txs {
-			txC <- entry
-		}
-	}()
-
-	// wait for results
-	log.Info("Loading inclusion status - waiting for results...")
-	for i := 0; i < len(txs); i++ {
-		err := <-respC
-		if err != nil {
-			log.Errorw("updateInclusionStatus", "error", err)
-		}
-
-		if i+1%10000 == 0 {
-			log.Infow(printer.Sprintf("- inclusion check progress %9d / %d", i, len(txs)),
-				"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
-				"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
-				"cacheMisses", printer.Sprintf("%d", blockCache.cacheMisses),
-				"cachedBlocks", printer.Sprintf("%d", len(blockCache.blocks)),
-			)
-		}
-
-		if txLimit > 0 && i == txLimit {
-			break
-		}
-	}
-
-	log.Infow("Inclusion check done",
-		"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
-		"cacheMisses", printer.Sprintf("%d", blockCache.cacheMisses),
-		"cachedBlocks", printer.Sprintf("%d", len(blockCache.blocks)),
-		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
-		"duration", time.Since(inclusionCheckStart),
-	)
-
-	return nil
+	return cntTxWritten
 }

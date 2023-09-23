@@ -33,7 +33,7 @@ func mergeTrash(cCtx *cli.Context) error {
 
 	// Check input files
 	for _, fn := range inputFiles {
-		common.MustBeFile(log, fn)
+		common.MustBeCSVFile(log, fn)
 	}
 
 	// Load input files

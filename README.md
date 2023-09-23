@@ -42,8 +42,8 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 
 ## FAQ
 
-- _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source)
-- _What does "XOF" stand for?_ ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions)
+- _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source). These transactions might include recycled transactions (which were already seen long ago but not included, and resent by a transaction source).
+- _What does "XOF" stand for?_ ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions).
 - _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
 - _When is the data uploaded?_ ... The data preparation and upload for the previous day is started daily at UTC 2am.
 
@@ -69,21 +69,24 @@ $ clickhouse local -q "SELECT timestamp,hash,from,to,hex(rawTx) FROM 'transactio
 
 # show the schema
 $ clickhouse local -q "DESCRIBE TABLE 'transactions.parquet';"
-timestamp	Nullable(DateTime64(3))
-hash	Nullable(String)
-chainId	Nullable(String)
-from	Nullable(String)
-to	Nullable(String)
-value	Nullable(String)
-nonce	Nullable(String)
-gas	Nullable(String)
-gasPrice	Nullable(String)
-gasTipCap	Nullable(String)
-gasFeeCap	Nullable(String)
-dataSize	Nullable(Int64)
-data4Bytes	Nullable(String)
-rawTx	Nullable(String)
+timestamp       Nullable(DateTime64(3))
+hash    Nullable(String)
+chainId Nullable(String)
+from    Nullable(String)
+to      Nullable(String)
+value   Nullable(String)
+nonce   Nullable(String)
+gas     Nullable(String)
+gasPrice        Nullable(String)
+gasTipCap       Nullable(String)
+gasFeeCap       Nullable(String)
+dataSize        Nullable(Int64)
+data4Bytes      Nullable(String)
 sources Array(Nullable(String))
+includedAtBlockHeight   Nullable(Int64)
+includedBlockTimestamp  Nullable(DateTime64(3))
+inclusionDelayMs        Nullable(Int64)
+rawTx   Nullable(String)
 
 # get exclusive transactions from bloxroute
 clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(sources) == 1 AND sources[1] == 'bloxroute';"
@@ -96,8 +99,10 @@ clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT sources[1
 
 # Interesting analyses
 
-- Amount of transactions which eventually lands on chain (by source)
+- Amount of transactions which eventually lands on chain + inclusionDelay (by source)
 - Transaction quality (i.e. for high-volume XOF sources)
+- Trash transactions
+
 
 ---
 
@@ -193,6 +198,13 @@ go run cmd/merge/main.go -h
   - https://medium.com/@markodayansa/a-comprehensive-guide-to-rlp-encoding-in-ethereum-6bd75c126de0
   - https://blog.mycrypto.com/new-transaction-types-on-ethereum
   - https://eips.ethereum.org/EIPS/eip-2718
+
+## Stats libraries
+
+- currently using: https://github.com/HdrHistogram/hdrhistogram-go/
+- possibly more versatile: https://github.com/montanaflynn/stats
+- see also:
+    - https://github.com/guptarohit/asciigraph
 
 ---
 
