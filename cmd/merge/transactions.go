@@ -32,6 +32,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 	sourcelogFiles := cCtx.StringSlice("sourcelog")
 	writeTxCSV := cCtx.Bool("write-tx-csv")
 	checkNodeURIs := cCtx.StringSlice("check-node")
+	writeSummary := cCtx.Bool("write-summary")
 	inputFiles := cCtx.Args().Slice()
 
 	if cCtx.NArg() == 0 {
@@ -52,14 +53,19 @@ func mergeTransactions(cCtx *cli.Context) error {
 	fnCSVMeta := filepath.Join(outDir, "metadata.csv")
 	fnParquetTxs := filepath.Join(outDir, "transactions.parquet")
 	fnCSVTxs := filepath.Join(outDir, "transactions.csv")
+	fnSummary := filepath.Join(outDir, "summary.txt")
 	if fnPrefix != "" {
 		fnParquetTxs = filepath.Join(outDir, fmt.Sprintf("%s.parquet", fnPrefix))
 		fnCSVMeta = filepath.Join(outDir, fmt.Sprintf("%s.csv", fnPrefix))
 		fnCSVTxs = filepath.Join(outDir, fmt.Sprintf("%s_transactions.csv", fnPrefix))
+		fnSummary = filepath.Join(outDir, fmt.Sprintf("%s_summary.txt", fnPrefix))
 	}
 	common.MustNotExist(log, fnParquetTxs)
 	common.MustNotExist(log, fnCSVMeta)
 	common.MustNotExist(log, fnCSVTxs)
+	if writeSummary {
+		common.MustNotExist(log, fnSummary)
+	}
 
 	log.Infof("Output Parquet file: %s", fnParquetTxs)
 	log.Infof("Output metadata CSV file: %s", fnCSVMeta)
@@ -133,10 +139,24 @@ func mergeTransactions(cCtx *cli.Context) error {
 	log.Infow("Transactions sorted...", "txs", printer.Sprintf("%d", len(txsSlice)), "memUsed", common.GetMemUsageHuman())
 
 	//
-	// Prepare output files
+	// Write output files
 	//
 	cntTxWritten := writeFiles(txsSlice, fnParquetTxs, fnCSVTxs, fnCSVMeta)
 	log.Infow("Finished merging!", "cntTx", printer.Sprintf("%d", cntTxWritten), "duration", time.Since(timeStart).String())
+
+	// Analyze and write summary
+	if writeSummary {
+		log.Info("Analyzing...")
+		analyzer := common.NewAnalyzer2(common.Analyzer2Opts{ //nolint:exhaustruct
+			Transactions: txs,
+			Sourelog:     sourcelog,
+			SourceComps:  common.DefaultSourceComparisons,
+		})
+
+		err = analyzer.WriteToFile(fnSummary)
+		check(err, "analyzer.WriteToFile")
+		log.Infof("Wrote summary file %s", fnSummary)
+	}
 	return nil
 }
 

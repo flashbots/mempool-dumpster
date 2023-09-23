@@ -20,14 +20,6 @@ var (
 	// Helpers
 	log *zap.SugaredLogger
 
-	defaultSourceComparisons = cli.NewStringSlice(
-		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagLocal),
-		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagLocal),
-		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagChainbound),
-		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagEden),
-		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagEden),
-	)
-
 	// CLI flags
 	cliFlags = []cli.Flag{
 		&cli.StringFlag{
@@ -44,7 +36,6 @@ var (
 		// },
 		&cli.StringSliceFlag{
 			Name:  "cmp",
-			Value: defaultSourceComparisons,
 			Usage: "compare these sources",
 		},
 		&cli.StringSliceFlag{
@@ -77,7 +68,11 @@ func analyzeV2(cCtx *cli.Context) error {
 	// whitelistTxsFiles := cCtx.StringSlice("tx-whitelist")
 	parquetInputFiles := cCtx.StringSlice("input-parquet")
 	inputSourceLogFiles := cCtx.StringSlice("input-sourcelog")
-	sourceComps := common.NewSourceComps(cCtx.StringSlice("cmp"))
+	cmpSources := cCtx.StringSlice("cmp")
+	sourceComps := common.DefaultSourceComparisons
+	if len(cmpSources) > 0 {
+		sourceComps = common.NewSourceComps(cmpSources)
+	}
 
 	if len(parquetInputFiles) == 0 {
 		log.Fatal("no input-parquet files specified")
@@ -118,7 +113,7 @@ func analyzeV2(cCtx *cli.Context) error {
 			log.Errorw("Read error", "error", err)
 		}
 		if i%20_000 == 0 {
-			log.Infow(printer.Sprintf("- Loaded %10d / %d rows", i, num), "memUsed", common.GetMemUsageHuman())
+			log.Infow(common.Printer.Sprintf("- Loaded %10d / %d rows", i, num), "memUsed", common.GetMemUsageHuman())
 		}
 		entries[stus[0].Hash] = &stus[0]
 		if i+1 == max {
@@ -127,7 +122,7 @@ func analyzeV2(cCtx *cli.Context) error {
 	}
 	pr.ReadStop()
 	fr.Close()
-	log.Infow(printer.Sprintf("- Loaded %10d / %d rows", i+1, num), "memUsed", common.GetMemUsageHuman(), "timeTaken", time.Since(timeStart).String())
+	log.Infow(common.Printer.Sprintf("- Loaded %10d / %d rows", i+1, num), "memUsed", common.GetMemUsageHuman(), "timeTaken", time.Since(timeStart).String())
 
 	// Load input files
 	var sourcelog map[string]map[string]int64 // [hash][source] = timestampMs
@@ -135,13 +130,13 @@ func analyzeV2(cCtx *cli.Context) error {
 		log.Info("Loading sourcelog files...")
 		sourcelog, _ = common.LoadSourcelogFiles(log, inputSourceLogFiles)
 		log.Infow("Processed input sourcelog files",
-			"txTotal", printer.Sprintf("%d", len(sourcelog)),
+			"txTotal", common.Printer.Sprintf("%d", len(sourcelog)),
 			"memUsed", common.GetMemUsageHuman(),
 		)
 	}
 
 	log.Info("Analyzing...")
-	analyzer := NewAnalyzer2(Analyzer2Opts{ //nolint:exhaustruct
+	analyzer := common.NewAnalyzer2(common.Analyzer2Opts{ //nolint:exhaustruct
 		Transactions: entries,
 		Sourelog:     sourcelog,
 		SourceComps:  sourceComps,
@@ -153,7 +148,10 @@ func analyzeV2(cCtx *cli.Context) error {
 	fmt.Println(s)
 
 	if outFile != "" {
-		writeSummary(outFile, s+"\n")
+		err = analyzer.WriteToFile(outFile)
+		if err != nil {
+			log.Errorw("Can't write to file", "error", err)
+		}
 	}
 
 	return nil

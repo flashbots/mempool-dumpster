@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// LoadTransactionCSVFiles loads transaction CSV files into a map[txHash]*TxEnvelope
+// LoadTransactionCSVFiles loads transaction CSV files into a map[txHash]*TxSummaryEntry
 // All transactions occurring in []knownTxsFiles are skipped
 func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxSummaryEntry, err error) {
 	// load previously known transaction hashes

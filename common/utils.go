@@ -16,13 +16,18 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/olekukonko/tablewriter"
+	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 )
 
 var (
-	Printer                  = message.NewPrinter(language.English)
 	ErrUnsupportedFileFormat = errors.New("unsupported file format")
+
+	Printer = message.NewPrinter(language.English)
+	Caser   = cases.Title(language.English)
+	Title   = Caser.String
 )
 
 func GetEnv(key, defaultValue string) string {
@@ -163,4 +168,9 @@ func FmtDuration(d time.Duration) string {
 	s = strings.Replace(s, "m", "m ", 1)
 	s = strings.Replace(s, "s", "s ", 1)
 	return strings.Trim(s, " ")
+}
+
+func SetupMarkdownTableWriter(table *tablewriter.Table) {
+	table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
+	table.SetCenterSeparator("|")
 }

@@ -150,7 +150,7 @@ func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs m
 		}
 
 		if (i+1)%10000 == 0 {
-			log.Infow(printer.Sprintf("- inclusion check progress %9d / %d", i, len(txs)),
+			log.Infow(printer.Sprintf("- inclusion check progress %9d / %d", i+1, len(txs)),
 				"memUsed", common.GetMemUsageHuman(),
 				"cacheHits", printer.Sprintf("%d", blockCache.cacheHits),
 				"cacheMisses", printer.Sprintf("%d", blockCache.cacheMisses),

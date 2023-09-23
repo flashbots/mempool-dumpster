@@ -55,12 +55,13 @@ echo "Merging sourcelog..."
 
 echo "Merging transactions..."
 /server/mempool-dumpster/build/merge transactions \
-  --check-node /mnt/data/geth/geth.ipc \
-  --write-tx-csv \
-  --tx-blacklist "$1/../${yesterday}/${yesterday}.csv.zip" \
-  --sourcelog "$1/${date}_sourcelog.csv" \
   --out $1 \
   --fn-prefix $date \
+  --write-tx-csv \
+  --write-summary \
+  --check-node /mnt/data/geth/geth.ipc \
+  --tx-blacklist "$1/../${yesterday}/${yesterday}.csv.zip" \
+  --sourcelog "$1/${date}_sourcelog.csv" \
   $1/transactions/*.csv
 
 #
@@ -90,14 +91,14 @@ aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbots-mempool-dump
 aws --profile aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
 #
-# Create analysis
-#
-echo "Creating summary..."
-cd $1
-/server/mempool-dumpster/build/analyze \
-  --out "${date}_summary.txt" \
-  --input-parquet "${date}.parquet" \
-  --input-sourcelog "${date}_sourcelog.csv.zip"
+# # Create analysis
+# #
+# echo "Creating summary..."
+# cd $1
+# /server/mempool-dumpster/build/analyze \
+#   --out "${date}_summary.txt" \
+#   --input-parquet "${date}.parquet" \
+#   --input-sourcelog "${date}_sourcelog.csv.zip"
 
 # /server/mempool-dumpster/build/analyze test \
 #   --tx-blacklist "../${yesterday}/${yesterday}.csv.zip" \

@@ -41,3 +41,11 @@ func NewSourceComps(args []string) (srcComp []SourceComp) {
 
 	return
 }
+
+var DefaultSourceComparisons = []SourceComp{
+	{SourceTagBloxroute, SourceTagLocal},
+	{SourceTagChainbound, SourceTagLocal},
+	{SourceTagBloxroute, SourceTagChainbound},
+	{SourceTagBloxroute, SourceTagEden},
+	{SourceTagChainbound, SourceTagEden},
+}
