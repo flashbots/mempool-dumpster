@@ -3,75 +3,58 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/urfave/cli/v2"
+	"github.com/xitongsys/parquet-go-source/local"
+	"github.com/xitongsys/parquet-go/reader"
 	"go.uber.org/zap"
 )
 
 var (
 	version = "dev" // is set during build process
 	debug   = os.Getenv("DEBUG") == "1"
+	max     = common.GetEnvInt("MAX", 0)
 
 	// Helpers
 	log *zap.SugaredLogger
 
-	defaultSourceComparisons = cli.NewStringSlice(
-		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagLocal),
-		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagLocal),
-		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagChainbound),
-		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagBloxroute),
-		fmt.Sprintf("%s-%s", common.SourceTagBloxroute, common.SourceTagEden),
-		fmt.Sprintf("%s-%s", common.SourceTagChainbound, common.SourceTagEden),
-	)
-
 	// CLI flags
-	commonFlags = []cli.Flag{
-		&cli.StringFlag{ //nolint:exhaustruct
+	cliFlags = []cli.Flag{
+		&cli.StringFlag{
 			Name:  "out",
-			Value: "",
 			Usage: "output filename",
 		},
-		&cli.StringSliceFlag{ //nolint:exhaustruct
-			Name:  "tx-blacklist",
-			Value: &cli.StringSlice{},
-			Usage: "metadata CSV/ZIP input files with transactions to ignore in analysis",
-		},
-		&cli.StringSliceFlag{ //nolint:exhaustruct
-			Name:  "tx-whitelist",
-			Value: &cli.StringSlice{},
-			Usage: "metadata CSV/ZIP input files to only use transactions in there for analysis",
-		},
-		&cli.StringSliceFlag{ //nolint:exhaustruct
+		// &cli.StringSliceFlag{
+		// 	Name:  "tx-blacklist",
+		// 	Usage: "metadata CSV/ZIP input files with transactions to ignore in analysis",
+		// },
+		// &cli.StringSliceFlag{
+		// 	Name:  "tx-whitelist",
+		// 	Usage: "metadata CSV/ZIP input files to only use transactions in there for analysis",
+		// },
+		&cli.StringSliceFlag{
 			Name:  "cmp",
-			Value: defaultSourceComparisons,
 			Usage: "compare these sources",
+		},
+		&cli.StringSliceFlag{
+			Name: "input-parquet",
+		}, &cli.StringSliceFlag{
+			Name: "input-sourcelog",
 		},
 	}
 )
-
-func check(err error, msg string) {
-	if err != nil {
-		log.Fatalw(msg, "error", err)
-	}
-}
 
 func main() {
 	log = common.GetLogger(debug, false)
 	defer func() { _ = log.Sync() }()
 
-	app := &cli.App{ //nolint:exhaustruct
-		Name:  "analyze",
-		Usage: "Analyze sourcelog/transaction CSV files",
-		Commands: []*cli.Command{
-			{
-				Name:    "sourcelog",
-				Aliases: []string{"s"},
-				Usage:   "analyze sourcelog CSVs",
-				Flags:   commonFlags,
-				Action:  analyze,
-			},
-		},
+	app := &cli.App{
+		Name:   "analyze",
+		Usage:  "Analyze transaction and sourcelog files",
+		Flags:  cliFlags,
+		Action: analyzeV2,
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -79,85 +62,97 @@ func main() {
 	}
 }
 
-func analyze(cCtx *cli.Context) error {
-	fnCSVSourcelog := cCtx.String("out")
-	ignoreTxsFiles := cCtx.StringSlice("tx-blacklist")
-	whitelistTxsFiles := cCtx.StringSlice("tx-whitelist")
-	sourceComps := common.NewSourceComps(cCtx.StringSlice("cmp"))
-
-	inputFiles := cCtx.Args().Slice()
-	if cCtx.NArg() == 0 {
-		log.Fatal("no input files specified as arguments")
+func analyzeV2(cCtx *cli.Context) error {
+	outFile := cCtx.String("out")
+	// ignoreTxsFiles := cCtx.StringSlice("tx-blacklist")
+	// whitelistTxsFiles := cCtx.StringSlice("tx-whitelist")
+	parquetInputFiles := cCtx.StringSlice("input-parquet")
+	inputSourceLogFiles := cCtx.StringSlice("input-sourcelog")
+	cmpSources := cCtx.StringSlice("cmp")
+	sourceComps := common.DefaultSourceComparisons
+	if len(cmpSources) > 0 {
+		sourceComps = common.NewSourceComps(cmpSources)
 	}
 
-	log.Infow("Analyze sourcelog", "version", version)
-	log.Infow("Comparing:", "sources", sourceComps)
+	if len(parquetInputFiles) == 0 {
+		log.Fatal("no input-parquet files specified")
+	}
+
+	log.Infow("Analyzer V2", "version", version)
+	// log.Infow("Comparing:", "sources", sourceComps)
 
 	// Ensure output files are don't yet exist
-	common.MustNotExist(log, fnCSVSourcelog)
-	log.Infof("Output file: %s", fnCSVSourcelog)
+	common.MustNotExist(log, outFile)
+	log.Infof("Output file: %s", outFile)
 
 	// Check input files
-	for _, fn := range inputFiles {
-		common.MustBeFile(log, fn)
+	for _, fn := range parquetInputFiles {
+		common.MustBeParquetFile(log, fn)
 	}
+	// for _, fn := range append(ignoreTxsFiles, whitelistTxsFiles...) {
+	// 	common.MustBeCSVFile(log, fn)
+	// }
 
-	// Load reference input files (i.e. transactions before the current date to remove false positives)
-	ignoreTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, ignoreTxsFiles)
-	check(err, "LoadTxHashesFromMetadataCSVFiles")
-	if len(ignoreTxsFiles) > 0 {
-		log.Infow("Processed all ignore-tx input files",
-			"ignoreTxTotal", printer.Sprintf("%d", len(ignoreTxs)),
-			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
-		)
+	// Load parquet input files
+	timeStart := time.Now()
+	log.Infow("Loading parquet input files...", "memUsed", common.GetMemUsageHuman())
+	fr, err := local.NewLocalFileReader(parquetInputFiles[0])
+	if err != nil {
+		log.Fatalw("Can't open file", "error", err)
 	}
-
-	whitelistedTxs, err := common.LoadTxHashesFromMetadataCSVFiles(log, whitelistTxsFiles)
-	check(err, "LoadTxHashesFromMetadataCSVFiles")
-	if len(whitelistTxsFiles) > 0 {
-		log.Infow("Processed all whitelist input files",
-			"whitelistedTxTotal", printer.Sprintf("%d", len(whitelistedTxs)),
-			"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
-		)
+	pr, err := reader.NewParquetReader(fr, new(common.TxSummaryEntry), 4)
+	if err != nil {
+		log.Fatalw("Can't create parquet reader", "error", err)
 	}
+	num := int(pr.GetNumRows())
+	entries := make(map[string]*common.TxSummaryEntry)
+	var i int
+	for i = 0; i < num; i++ {
+		stus := make([]common.TxSummaryEntry, 1)
+		if err = pr.Read(&stus); err != nil {
+			log.Errorw("Read error", "error", err)
+		}
+		if i%20_000 == 0 {
+			log.Infow(common.Printer.Sprintf("- Loaded %10d / %d rows", i, num), "memUsed", common.GetMemUsageHuman())
+		}
+		entries[stus[0].Hash] = &stus[0]
+		if i+1 == max {
+			break
+		}
+	}
+	pr.ReadStop()
+	fr.Close()
+	log.Infow(common.Printer.Sprintf("- Loaded %10d / %d rows", i+1, num), "memUsed", common.GetMemUsageHuman(), "timeTaken", time.Since(timeStart).String())
 
 	// Load input files
-	sourcelog, cntProcessedRecords := common.LoadSourcelogFiles(log, inputFiles)
-	log.Infow("Processed all input files",
-		"txTotal", printer.Sprintf("%d", len(sourcelog)),
-		"records", printer.Sprintf("%d", cntProcessedRecords),
-		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
-	)
+	var sourcelog map[string]map[string]int64 // [hash][source] = timestampMs
+	if len(inputSourceLogFiles) > 0 {
+		log.Info("Loading sourcelog files...")
+		sourcelog, _ = common.LoadSourcelogFiles(log, inputSourceLogFiles)
+		log.Infow("Processed input sourcelog files",
+			"txTotal", common.Printer.Sprintf("%d", len(sourcelog)),
+			"memUsed", common.GetMemUsageHuman(),
+		)
+	}
 
 	log.Info("Analyzing...")
-	analyzer := NewAnalyzer(AnalyzerOpts{
-		Transactions: sourcelog,
-		TxBlacklist:  ignoreTxs,
-		TxWhitelist:  whitelistedTxs,
+	analyzer := common.NewAnalyzer2(common.Analyzer2Opts{ //nolint:exhaustruct
+		Transactions: entries,
+		Sourelog:     sourcelog,
 		SourceComps:  sourceComps,
 	})
-	s := analyzer.Sprint()
 
-	if fnCSVSourcelog != "" {
-		writeSummary(fnCSVSourcelog, s)
-	}
+	s := analyzer.Sprint()
 
 	fmt.Println("")
 	fmt.Println(s)
-	return nil
-}
 
-func writeSummary(fn, s string) {
-	log.Infof("Writing summary CSV file %s ...", fn)
-	f, err := os.OpenFile(fn, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		log.Errorw("openFile", "error", err)
-		return
+	if outFile != "" {
+		err = analyzer.WriteToFile(outFile)
+		if err != nil {
+			log.Errorw("Can't write to file", "error", err)
+		}
 	}
-	defer f.Close()
-	_, err = f.WriteString(s)
-	if err != nil {
-		log.Errorw("writeFile", "error", err)
-		return
-	}
+
+	return nil
 }

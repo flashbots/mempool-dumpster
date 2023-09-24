@@ -33,7 +33,7 @@ func mergeTrash(cCtx *cli.Context) error {
 
 	// Check input files
 	for _, fn := range inputFiles {
-		common.MustBeFile(log, fn)
+		common.MustBeCSVFile(log, fn)
 	}
 
 	// Load input files
@@ -42,7 +42,7 @@ func mergeTrash(cCtx *cli.Context) error {
 	check(err, "LoadTrashFiles")
 	log.Infow("Processed all trash input files",
 		"trashTxTotal", printer.Sprintf("%d", len(trashTxs)),
-		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		"memUsed", common.GetMemUsageHuman(),
 	)
 
 	// Write output files

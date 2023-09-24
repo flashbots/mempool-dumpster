@@ -21,12 +21,12 @@ var (
 
 	// Flags
 	commonFlags = []cli.Flag{
-		&cli.StringFlag{ //nolint:exhaustruct
+		&cli.StringFlag{
 			Name:  "out",
 			Value: "out/",
 			Usage: "output directory",
 		},
-		&cli.StringFlag{ //nolint:exhaustruct
+		&cli.StringFlag{
 			Name:  "fn-prefix",
 			Value: "",
 			Usage: "output file prefix (i.e. date)",
@@ -34,24 +34,28 @@ var (
 	}
 
 	mergeTxFlags = []cli.Flag{
-		&cli.StringSliceFlag{ //nolint:exhaustruct
+		&cli.StringSliceFlag{
 			Name:  "tx-blacklist",
 			Value: &cli.StringSlice{},
 			Usage: "blacklisted transaction input files (i.e. to ignore txs of previous day)",
 		},
-		&cli.StringSliceFlag{ //nolint:exhaustruct
+		&cli.StringSliceFlag{
 			Name:  "sourcelog",
 			Value: &cli.StringSlice{},
 			Usage: "sourcelog files (to add sources to transactions)",
 		},
-		&cli.BoolFlag{ //nolint:exhaustruct
+		&cli.StringSliceFlag{ //nolint:exhaustruct
+			Name:  "check-node",
+			Usage: "eth nodes for checking tx inclusion status",
+		},
+		&cli.BoolFlag{
 			Name:  "write-tx-csv",
 			Value: false,
 			Usage: "write a CSV with all received transactions (timestamp_ms,hash,raw_tx)",
 		},
-		&cli.StringSliceFlag{ //nolint:exhaustruct
-			Name:  "check-node",
-			Usage: "eth nodes for checking tx inclusion status",
+		&cli.BoolFlag{
+			Name:  "write-summary",
+			Usage: "run analyzer and write summary",
 		},
 	}
 )
@@ -66,7 +70,7 @@ func main() {
 	log = common.GetLogger(debug, false)
 	defer func() { _ = log.Sync() }()
 
-	app := &cli.App{ //nolint:exhaustruct
+	app := &cli.App{
 		Name:  "merge",
 		Usage: "Load input CSV files, deduplicate, sort and produce single output file",
 		Commands: []*cli.Command{

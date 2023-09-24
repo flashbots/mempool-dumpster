@@ -33,7 +33,7 @@ func mergeSourcelog(cCtx *cli.Context) error {
 
 	// Check input files
 	for _, fn := range inputFiles {
-		common.MustBeFile(log, fn)
+		common.MustBeCSVFile(log, fn)
 	}
 
 	// Load input files
@@ -41,7 +41,7 @@ func mergeSourcelog(cCtx *cli.Context) error {
 	log.Infow("Processed all input files",
 		"txTotal", printer.Sprintf("%d", len(sourcelog)),
 		"records", printer.Sprintf("%d", cntProcessedRecords),
-		"memUsedMiB", printer.Sprintf("%d", common.GetMemUsageMb()),
+		"memUsed", common.GetMemUsageHuman(),
 	)
 
 	// Write output files

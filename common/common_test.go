@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/dustin/go-humanize"
 	"github.com/stretchr/testify/require"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/parquet"
@@ -125,23 +124,4 @@ func TestParquet(t *testing.T) {
 	summary2, _, err := ParseTx(int64(1693785600337), test1Rlp)
 	require.NoError(t, err)
 	require.Equal(t, summary.Hash, summary2.Hash)
-}
-
-func TestBytesFormat(t *testing.T) {
-	n := uint64(795025173)
-
-	s := humanize.Bytes(n)
-	require.Equal(t, "795 MB", s)
-
-	s = humanize.IBytes(n)
-	require.Equal(t, "758 MiB", s)
-
-	s = HumanBytes(n)
-	require.Equal(t, "758 MB", s)
-
-	s = HumanBytes(n * 10)
-	require.Equal(t, "7.4 GB", s)
-
-	s = HumanBytes(n / 1000)
-	require.Equal(t, "776 KB", s)
 }

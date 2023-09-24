@@ -42,16 +42,15 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 
 ## FAQ
 
-- _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source)
-- _What does "XOF" stand for?_ ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions)
+- _When is the data uploaded?_ ... The data for the previous day is uploaded daily between UTC 4am and 4:30am.
+- _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source). These transactions might include recycled transactions (which were already seen long ago but not included, and resent by a transaction source).
+- _What does "XOF" stand for?_ ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions).
 - _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
-- _When is the data uploaded?_ ... The data preparation and upload for the previous day is started daily at UTC 2am.
+- _gRPC vs Websockets?_ ... bloXroute and Chainbound are connected with gRPC, all other sources are connected with Websockets (note that gRPC has a lower latency than WebSockets).
 
 ---
 
 # Working with Parquet
-
-See this post for more details: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
 
 [Apache Parquet](https://parquet.apache.org/) is a column-oriented data file format designed for efficient data storage and retrieval. It provides efficient data compression and encoding schemes with enhanced performance to handle complex data in bulk (more [here](https://www.databricks.com/glossary/what-is-parquet#:~:text=What%20is%20Parquet%3F,handle%20complex%20data%20in%20bulk.)).
 
@@ -69,21 +68,24 @@ $ clickhouse local -q "SELECT timestamp,hash,from,to,hex(rawTx) FROM 'transactio
 
 # show the schema
 $ clickhouse local -q "DESCRIBE TABLE 'transactions.parquet';"
-timestamp	Nullable(DateTime64(3))
-hash	Nullable(String)
-chainId	Nullable(String)
-from	Nullable(String)
-to	Nullable(String)
-value	Nullable(String)
-nonce	Nullable(String)
-gas	Nullable(String)
-gasPrice	Nullable(String)
-gasTipCap	Nullable(String)
-gasFeeCap	Nullable(String)
-dataSize	Nullable(Int64)
-data4Bytes	Nullable(String)
-rawTx	Nullable(String)
+timestamp       Nullable(DateTime64(3))
+hash    Nullable(String)
+chainId Nullable(String)
+from    Nullable(String)
+to      Nullable(String)
+value   Nullable(String)
+nonce   Nullable(String)
+gas     Nullable(String)
+gasPrice        Nullable(String)
+gasTipCap       Nullable(String)
+gasFeeCap       Nullable(String)
+dataSize        Nullable(Int64)
+data4Bytes      Nullable(String)
 sources Array(Nullable(String))
+includedAtBlockHeight   Nullable(Int64)
+includedBlockTimestamp  Nullable(DateTime64(3))
+inclusionDelayMs        Nullable(Int64)
+rawTx   Nullable(String)
 
 # get exclusive transactions from bloxroute
 clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(sources) == 1 AND sources[1] == 'bloxroute';"
@@ -92,21 +94,43 @@ clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(so
 clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT sources[1], included, count(included) FROM 'out/out/transactions.parquet' WHERE length(sources) == 1 GROUP BY sources[1], included;"
 ```
 
+See this post for more details: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
+
 ---
 
-# Interesting analyses
+## Interesting analyses
 
-- Amount of transactions which eventually lands on chain (by source)
+- Amount of transactions which eventually lands on chain + inclusionDelay (by source)
 - Transaction quality (i.e. for high-volume XOF sources)
+- Trash transactions
+
+Feel free to continue the conversation in the [Flashbots Forum](https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401)!
+
+## Running the analyzer
+
+You can easily run the included analyzer to create summaries like [2023-09-22_summary.txt](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-22_summary.txt):
+
+1. First, download the parquet and sourcelog files from https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09
+2. Then run the analyzer:
+
+```bash
+go run cmd/analyze/* \
+    --out summary.txt \
+    --input-parquet /mnt/data/mempool-dumpster/2023-09-22/2023-09-22.parquet \
+    --input-sourcelog /mnt/data/mempool-dumpster/2023-09-22/2023-09-22_sourcelog.csv.zip
+```
 
 ---
 
 # System architecture
 
 1. [Collector](cmd/collect/main.go): Connects to EL nodes and writes new mempool transactions and sourcelog to hourly CSV files. Multiple collector instances can run without colliding.
-2. [Merger](cmd/merge/main.go): Takes collector CSV files as input, de-duplicates, sorts by timestamp and writes CSV + Parquet output files.
+2. [Merger](cmd/merge/main.go): Takes collector CSV files as input, de-duplicates, checks transaction inclusion status, sorts by timestamp and writes output files (Parquet, CSV and Summary).
 3. [Analyzer](cmd/analyze/main.go): Analyzes sourcelog CSV files and produces summary report.
 4. [Website](cmd/website/main.go): Website dev-mode as well as build + upload.
+
+
+![system diagram (https://excalidraw.com/#json=Jj2VXHWIN9TZqNOOVJiAk,UgZ_ui_aLZlnYUy6nBH5mw)](docs/system-diag1.png)
 
 ---
 
@@ -194,6 +218,13 @@ go run cmd/merge/main.go -h
   - https://blog.mycrypto.com/new-transaction-types-on-ethereum
   - https://eips.ethereum.org/EIPS/eip-2718
 
+## Stats libraries
+
+- currently using: https://github.com/HdrHistogram/hdrhistogram-go/
+- possibly more versatile: https://github.com/montanaflynn/stats
+- see also:
+    - https://github.com/guptarohit/asciigraph
+
 ---
 
 # Contributing
@@ -217,15 +248,17 @@ make fmt
 
 ---
 
-# Further notes
+# See also
 
-- See also: [discussion about compression](https://github.com/flashbots/mempool-dumpster/issues/2) and [storage](https://github.com/flashbots/mempool-dumpster/issues/1)
+- [Discussion about compression](https://github.com/flashbots/mempool-dumpster/issues/2) and [storage](https://github.com/flashbots/mempool-dumpster/issues/1)
+- Forum post: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
 
 ---
 
 # License
 
-MIT
+- Code: [MIT](./LICENSE)
+- Data: [CC-0 public domain](https://creativecommons.org/publicdomain/zero/1.0/)
 
 ---
 

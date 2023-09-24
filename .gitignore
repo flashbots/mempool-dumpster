@@ -26,3 +26,6 @@
 /docs
 /*.internal*
 /transactions.parquet
+/x1
+/out.txt
+/backfill.txt
