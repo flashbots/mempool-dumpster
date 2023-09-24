@@ -42,10 +42,11 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 
 ## FAQ
 
+- _When is the data uploaded?_ ... The data for the previous day is uploaded daily between UTC 4am and 4:30am.
 - _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source). These transactions might include recycled transactions (which were already seen long ago but not included, and resent by a transaction source).
 - _What does "XOF" stand for?_ ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions).
 - _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
-- _When is the data uploaded?_ ... The data preparation and upload for the previous day is started daily at UTC 2am.
+- _gRPC vs Websockets?_ ... bloXroute and Chainbound are connected with gRPC, all other sources are connected with Websockets (note that gRPC has a lower latency than WebSockets).
 
 ---
 
