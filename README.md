@@ -130,7 +130,7 @@ go run cmd/analyze/* \
 4. [Website](cmd/website/main.go): Website dev-mode as well as build + upload.
 
 
-![system diagram](docs/system-diag1.png)
+![system diagram (https://excalidraw.com/#json=Jj2VXHWIN9TZqNOOVJiAk,UgZ_ui_aLZlnYUy6nBH5mw)](docs/system-diag1.png)
 
 ---
 
@@ -257,8 +257,8 @@ make fmt
 
 # License
 
-- Code: MIT
-- Data: CC-0
+- Code: [MIT](./LICENSE)
+- Data: [CC-0 public domain](https://creativecommons.org/publicdomain/zero/1.0/)
 
 ---
 

@@ -29,7 +29,11 @@
         {{ $change = "" }}
         {{ end }}
         <tr class="f-{{$class}} c{{$change}}">
-            <td class=fn><a href={{ .Filename }}>{{ .Filename }}</a></td>
+            <td class=fn>
+                {{ if eq $change "1" }}<a name="{{ $dayTmp }}"></a>{{ end }}
+                <a name="{{ .Filename }}"></a>
+                <a href={{ .Filename }}>{{ .Filename }}</a>
+            </td>
             <td class=fs>{{ .Size | humanBytes }}</td>
         </tr>
         {{ end }}
