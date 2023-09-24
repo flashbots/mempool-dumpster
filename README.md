@@ -103,6 +103,19 @@ clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT sources[1
 - Transaction quality (i.e. for high-volume XOF sources)
 - Trash transactions
 
+## Running the analyzer
+
+You can easily run the included analyzer to create summaries like [2023-09-22_summary.txt](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-22_summary.txt):
+
+1. First, download the parquet and sourcelog files from https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09
+2. Then run the analyzer:
+
+```bash
+go run cmd/analyze/* \
+    --out summary.txt \
+    --input-parquet /mnt/data/mempool-dumpster/2023-09-22/2023-09-22.parquet \
+    --input-sourcelog /mnt/data/mempool-dumpster/2023-09-22/2023-09-22_sourcelog.csv.zip
+```
 
 ---
 

@@ -16,6 +16,9 @@ const (
 	// GRPCWindowSize is recommended window size by bloxroute-labs:
 	// https://docs.bloxroute.com/streams/working-with-streams/creating-a-subscription/grpc
 	GRPCWindowSize = 128 * 1024
+
+	// TxAlreadyIncludedThreshold sets the threshold for discarding transactions (if included that many ms before received)
+	TxAlreadyIncludedThreshold = 12_000
 )
 
 func TxSourcName(uri string) string {

@@ -28,7 +28,7 @@ func mergeTransactions(cCtx *cli.Context) error {
 
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")
-	knownTxsFiles := cCtx.StringSlice("tx-blacklist")
+	txBlacklistFiles := cCtx.StringSlice("tx-blacklist")
 	sourcelogFiles := cCtx.StringSlice("sourcelog")
 	writeTxCSV := cCtx.Bool("write-tx-csv")
 	checkNodeURIs := cCtx.StringSlice("check-node")
@@ -81,14 +81,14 @@ func mergeTransactions(cCtx *cli.Context) error {
 	//
 	// Load sourcelog files
 	//
-	log.Infow("Loading sourcelog files...", "memUsed", common.GetMemUsageHuman())
+	log.Infow("Loading sourcelog files...", "files", sourcelogFiles)
 	sourcelog, _ := common.LoadSourcelogFiles(log, sourcelogFiles)
 	log.Infow("Loaded sourcelog files", "memUsed", common.GetMemUsageHuman())
 
 	//
 	// Load input files
 	//
-	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, knownTxsFiles)
+	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, txBlacklistFiles)
 	check(err, "LoadTransactionCSVFiles")
 	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsed", common.GetMemUsageHuman())
 
@@ -196,9 +196,11 @@ func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta 
 	log.Info("Writing output files...")
 
 	cntTxTotal := len(txs)
+	cntTxAlreadyIncluded := 0
 	for _, tx := range txs {
 		// Skip transactions that were included before they were received
-		if tx.InclusionDelayMs <= -12_000 {
+		if tx.WasIncludedBeforeReceived() {
+			cntTxAlreadyIncluded += 1
 			log.Infow("Skipping already included tx", "tx", tx.Hash, "src", tx.Sources, "block", tx.IncludedAtBlockHeight, "blockTs", tx.IncludedBlockTimestamp, "receivedAt", tx.Timestamp, "inclusionDelayMs", tx.InclusionDelayMs)
 			continue
 		}
@@ -229,7 +231,12 @@ func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta 
 			break
 		}
 	}
-	log.Infow(printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal), "memUsed", common.GetMemUsageHuman())
+
+	log.Infow(
+		printer.Sprintf("- wrote transactions %d / %d", cntTxWritten, cntTxTotal),
+		"cntTxAlreadyIncluded", common.PrettyInt(cntTxAlreadyIncluded),
+		"memUsed", common.GetMemUsageHuman(),
+	)
 
 	log.Info("Flushing and closing files...")
 	if writeTxCSV {

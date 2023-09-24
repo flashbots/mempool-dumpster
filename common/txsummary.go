@@ -3,6 +3,7 @@ package common
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -100,6 +101,11 @@ func (t *TxSummaryEntry) HasSource(src string) bool {
 
 func (t *TxSummaryEntry) RawTxHex() string {
 	return fmt.Sprintf("0x%x", t.RawTx)
+}
+
+func (t *TxSummaryEntry) WasIncludedBeforeReceived() bool {
+	threshold := math.Abs(TxAlreadyIncludedThreshold)
+	return t.IncludedAtBlockHeight > 0 && t.InclusionDelayMs <= -int64(threshold)
 }
 
 func (t *TxSummaryEntry) ToCSVRow() []string {

@@ -17,9 +17,9 @@ import (
 
 // LoadTransactionCSVFiles loads transaction CSV files into a map[txHash]*TxSummaryEntry
 // All transactions occurring in []knownTxsFiles are skipped
-func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []string) (txs map[string]*TxSummaryEntry, err error) {
+func LoadTransactionCSVFiles(log *zap.SugaredLogger, txInputFiles, txBlacklistFiles []string) (txs map[string]*TxSummaryEntry, err error) {
 	// load previously known transaction hashes
-	prevKnownTxs, err := LoadTxHashesFromMetadataCSVFiles(log, knownTxsFiles)
+	prevKnownTxs, err := LoadTxHashesFromMetadataCSVFiles(log, txBlacklistFiles)
 	if err != nil {
 		log.Errorw("LoadTxHashesFromMetadataCSVFiles", "error", err)
 		return nil, err
@@ -28,7 +28,7 @@ func LoadTransactionCSVFiles(log *zap.SugaredLogger, files, knownTxsFiles []stri
 
 	cntProcessedFiles := 0
 	txs = make(map[string]*TxSummaryEntry)
-	for _, filename := range files {
+	for _, filename := range txInputFiles {
 		log.Infof("Loading %s ...", filename)
 		cntProcessedFiles += 1
 
