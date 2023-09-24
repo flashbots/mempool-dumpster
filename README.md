@@ -52,8 +52,6 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 
 # Working with Parquet
 
-See this post for more details: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
-
 [Apache Parquet](https://parquet.apache.org/) is a column-oriented data file format designed for efficient data storage and retrieval. It provides efficient data compression and encoding schemes with enhanced performance to handle complex data in bulk (more [here](https://www.databricks.com/glossary/what-is-parquet#:~:text=What%20is%20Parquet%3F,handle%20complex%20data%20in%20bulk.)).
 
 We recommend to use [ClickHouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) (as well as [DuckDB](https://duckdb.org/)) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
@@ -96,13 +94,17 @@ clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(so
 clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT sources[1], included, count(included) FROM 'out/out/transactions.parquet' WHERE length(sources) == 1 GROUP BY sources[1], included;"
 ```
 
+See this post for more details: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
+
 ---
 
-# Interesting analyses
+## Interesting analyses
 
 - Amount of transactions which eventually lands on chain + inclusionDelay (by source)
 - Transaction quality (i.e. for high-volume XOF sources)
 - Trash transactions
+
+Feel free to continue the conversation in the [Flashbots Forum](https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401)!
 
 ## Running the analyzer
 
@@ -123,9 +125,12 @@ go run cmd/analyze/* \
 # System architecture
 
 1. [Collector](cmd/collect/main.go): Connects to EL nodes and writes new mempool transactions and sourcelog to hourly CSV files. Multiple collector instances can run without colliding.
-2. [Merger](cmd/merge/main.go): Takes collector CSV files as input, de-duplicates, sorts by timestamp and writes CSV + Parquet output files.
+2. [Merger](cmd/merge/main.go): Takes collector CSV files as input, de-duplicates, checks transaction inclusion status, sorts by timestamp and writes output files (Parquet, CSV and Summary).
 3. [Analyzer](cmd/analyze/main.go): Analyzes sourcelog CSV files and produces summary report.
 4. [Website](cmd/website/main.go): Website dev-mode as well as build + upload.
+
+
+![system diagram](docs/system-diag1.png)
 
 ---
 
@@ -243,15 +248,17 @@ make fmt
 
 ---
 
-# Further notes
+# See also
 
-- See also: [discussion about compression](https://github.com/flashbots/mempool-dumpster/issues/2) and [storage](https://github.com/flashbots/mempool-dumpster/issues/1)
+- [Discussion about compression](https://github.com/flashbots/mempool-dumpster/issues/2) and [storage](https://github.com/flashbots/mempool-dumpster/issues/1)
+- Forum post: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
 
 ---
 
 # License
 
-MIT
+- Code: MIT
+- Data: CC-0
 
 ---
 
