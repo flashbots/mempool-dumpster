@@ -1,10 +1,8 @@
 package collector
 
-// Plug into bloxroute as mempool data source (via websocket stream)
+// Plug into eden as mempool data source (via websocket stream)
 //
-// bloXroute needs an API key from "professional" plan or above
-// - https://docs.bloxroute.com/streams/newtxs-and-pendingtxs
-//
+// eden: https://docs.edennetwork.io/eden-mempool-streaming-service/overview
 
 import (
 	"context"
@@ -14,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/bloXroute-Labs/gateway/v2/protobuf"
+	pb "github.com/eden-network/mempool-service/protobuf"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/gorilla/websocket"
@@ -23,14 +21,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type BlxNodeOpts struct {
+type EdenNodeOpts struct {
 	Log        *zap.SugaredLogger
 	AuthHeader string
-	URL        string // optional override, default: blxDefaultURL
-	SourceTag  string // optional override, default: "blx" (common.BloxrouteTag)
+	URL        string // optional override, default: edenDefaultURL
+	SourceTag  string // optional override, default: "eden" (common.SourceTagEden)
 }
 
-type BlxNodeConnection struct {
+type EdenNodeConnection struct {
 	log        *zap.SugaredLogger
 	authHeader string
 	url        string
@@ -39,18 +37,18 @@ type BlxNodeConnection struct {
 	backoffSec int
 }
 
-func NewBlxNodeConnection(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnection {
+func NewEdenNodeConnection(opts EdenNodeOpts, txC chan TxIn) *EdenNodeConnection {
 	url := opts.URL
 	if url == "" {
-		url = blxDefaultURL
+		url = edenDefaultURL
 	}
 
 	srcTag := opts.SourceTag
 	if srcTag == "" {
-		srcTag = common.SourceTagBloxroute
+		srcTag = common.SourceTagEden
 	}
 
-	return &BlxNodeConnection{
+	return &EdenNodeConnection{
 		log:        opts.Log.With("src", srcTag),
 		authHeader: opts.AuthHeader,
 		url:        url,
@@ -60,11 +58,11 @@ func NewBlxNodeConnection(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnection {
 	}
 }
 
-func (nc *BlxNodeConnection) Start() {
+func (nc *EdenNodeConnection) Start() {
 	nc.connect()
 }
 
-func (nc *BlxNodeConnection) reconnect() {
+func (nc *EdenNodeConnection) reconnect() {
 	backoffDuration := time.Duration(nc.backoffSec) * time.Second
 	nc.log.Infof("reconnecting to %s in %s sec ...", nc.srcTag, backoffDuration.String())
 	time.Sleep(backoffDuration)
@@ -78,22 +76,22 @@ func (nc *BlxNodeConnection) reconnect() {
 	nc.connect()
 }
 
-func (nc *BlxNodeConnection) connect() {
+func (nc *EdenNodeConnection) connect() {
 	nc.log.Infow("connecting...", "uri", nc.url)
 	dialer := websocket.DefaultDialer
 	wsSubscriber, resp, err := dialer.Dial(nc.url, http.Header{"Authorization": []string{nc.authHeader}})
 	if err != nil {
-		nc.log.Errorw("failed to connect to bloxroute", "error", err)
+		nc.log.Errorw("failed to connect to eden", "error", err)
 		go nc.reconnect()
 		return
 	}
 	defer wsSubscriber.Close()
 	defer resp.Body.Close()
 
-	subRequest := `{"id": 1, "method": "subscribe", "params": ["newTxs", {"include": ["raw_tx"]}]}`
+	subRequest := `{"jsonrpc": "2.0", "id": 1, "method": "subscribe", "params": ["rawTxs"]}`
 	err = wsSubscriber.WriteMessage(websocket.TextMessage, []byte(subRequest))
 	if err != nil {
-		nc.log.Errorw("failed to subscribe to bloxroute", "error", err)
+		nc.log.Errorw("failed to subscribe to eden", "error", err)
 		go nc.reconnect()
 		return
 	}
@@ -107,7 +105,7 @@ func (nc *BlxNodeConnection) connect() {
 			// Handle websocket errors, by closing and reconnecting. Errors seen previously:
 			// - "websocket: close 1006 (abnormal closure): unexpected EOF"
 			if strings.Contains(err.Error(), "failed parsing the authorization header") {
-				nc.log.Errorw("invalid bloxroute auth header", "error", err)
+				nc.log.Errorw("invalid eden auth header", "error", err)
 			} else {
 				nc.log.Errorw("failed to read message, reconnecting", "error", err)
 			}
@@ -117,14 +115,14 @@ func (nc *BlxNodeConnection) connect() {
 		}
 
 		// fmt.Println("got message", string(nextNotification))
-		var txMsg common.BlxRawTxMsg
+		var txMsg common.EdenRawTxMsg
 		err = json.Unmarshal(nextNotification, &txMsg)
 		if err != nil {
 			nc.log.Errorw("failed to unmarshal message", "error", err)
 			continue
 		}
-		rlp := txMsg.Params.Result.RawTx
 
+		rlp := txMsg.Params.Result.RLP
 		if len(rlp) == 0 {
 			continue
 		}
@@ -147,7 +145,7 @@ func (nc *BlxNodeConnection) connect() {
 	}
 }
 
-type BlxNodeConnectionGRPC struct {
+type EdenNodeConnectionGRPC struct {
 	log        *zap.SugaredLogger
 	authHeader string
 	url        string
@@ -156,27 +154,27 @@ type BlxNodeConnectionGRPC struct {
 	backoffSec int
 }
 
-func NewBlxNodeConnectionGRPC(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnectionGRPC {
+func NewEdenNodeConnectionGRPC(opts EdenNodeOpts, txC chan TxIn) *EdenNodeConnectionGRPC {
 	url := opts.URL
 	if url == "" {
-		url = blxDefaultURL
+		url = edenDefaultURL
 	}
 
-	return &BlxNodeConnectionGRPC{
-		log:        opts.Log.With("src", common.SourceTagBloxroute),
+	return &EdenNodeConnectionGRPC{
+		log:        opts.Log.With("src", common.SourceTagEden),
 		authHeader: opts.AuthHeader,
 		url:        url,
-		srcTag:     common.SourceTagBloxroute,
+		srcTag:     common.SourceTagEden,
 		txC:        txC,
 		backoffSec: initialBackoffSec,
 	}
 }
 
-func (nc *BlxNodeConnectionGRPC) Start() {
+func (nc *EdenNodeConnectionGRPC) Start() {
 	nc.connect()
 }
 
-func (nc *BlxNodeConnectionGRPC) reconnect() {
+func (nc *EdenNodeConnectionGRPC) reconnect() {
 	backoffDuration := time.Duration(nc.backoffSec) * time.Second
 	nc.log.Infof("reconnecting to %s in %s sec ...", nc.srcTag, backoffDuration.String())
 	time.Sleep(backoffDuration)
@@ -190,32 +188,32 @@ func (nc *BlxNodeConnectionGRPC) reconnect() {
 	nc.connect()
 }
 
-func (nc *BlxNodeConnectionGRPC) connect() {
+func (nc *EdenNodeConnectionGRPC) connect() {
 	nc.log.Infow("connecting...", "uri", nc.url)
 
 	conn, err := grpc.Dial(nc.url, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithInitialWindowSize(common.GRPCWindowSize))
 	if err != nil {
-		nc.log.Errorw("failed to connect to bloxroute gRPC", "error", err)
+		nc.log.Errorw("failed to connect to eden gRPC", "error", err)
 		go nc.reconnect()
 		return
 	}
 
-	client := pb.NewGatewayClient(conn)
+	client := pb.NewStreamServiceClient(conn)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	stream, err := client.NewTxs(ctx, &pb.TxsRequest{ //nolint:exhaustruct
+	stream, err := client.StreamRawTransactions(ctx, &pb.StreamRawTransactionsRequest{ //nolint:exhaustruct
 		AuthHeader: nc.authHeader,
 	})
 	if err != nil {
-		nc.log.Errorw("failed to invoke NewTxs stream on bloxroute gRPC client", "error", err)
+		nc.log.Errorw("failed to invoke StreamRawTransactions stream on eden gRPC client", "error", err)
 		go nc.reconnect()
 		return
 	}
 
 	defer func() {
 		if err := stream.CloseSend(); err != nil {
-			nc.log.Errorw("failed to close bloxroute gRPC stream", "error", err)
+			nc.log.Errorw("failed to close eden gRPC stream", "error", err)
 		}
 	}()
 
@@ -230,17 +228,15 @@ func (nc *BlxNodeConnectionGRPC) connect() {
 			return
 		}
 
-		for _, tx := range msg.GetTx() {
-			rlp := tx.GetRawTx()
+		rlp := msg.GetRlp()
 
-			var tx types.Transaction
-			err = tx.UnmarshalBinary(rlp)
-			if err != nil {
-				nc.log.Errorw("failed to unmarshal tx", "error", err, "rlp", rlp)
-				continue
-			}
-
-			nc.txC <- TxIn{time.Now().UTC(), &tx, nc.srcTag}
+		var tx types.Transaction
+		err = tx.UnmarshalBinary(rlp)
+		if err != nil {
+			nc.log.Errorw("failed to unmarshal tx", "error", err, "rlp", rlp)
+			continue
 		}
+
+		nc.txC <- TxIn{time.Now().UTC(), &tx, nc.srcTag}
 	}
 }

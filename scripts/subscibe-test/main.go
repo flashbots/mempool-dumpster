@@ -55,14 +55,13 @@ func MainBlx() {
 func MainEden() {
 	txC := make(chan collector.TxIn)
 	log := common.GetLogger(true, false)
-	blxOpts := collector.BlxNodeOpts{
+	blxOpts := collector.EdenNodeOpts{
 		Log:        log,
 		AuthHeader: os.Getenv("EDEN_AUTH_HEADER"),
 		URL:        "wss://speed-eu-west.edennetwork.io",
-		IsEden:     true,
 		SourceTag:  "eden",
 	}
-	nc := collector.NewBlxNodeConnection(blxOpts, txC)
+	nc := collector.NewEdenNodeConnection(blxOpts, txC)
 	go nc.Start()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
