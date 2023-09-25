@@ -76,6 +76,7 @@ func (nc *EdenNodeConnection) reconnect() {
 	nc.connect()
 }
 
+//nolint:dupl
 func (nc *EdenNodeConnection) connect() {
 	nc.log.Infow("connecting...", "uri", nc.url)
 	dialer := websocket.DefaultDialer

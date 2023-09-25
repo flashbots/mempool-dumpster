@@ -23,7 +23,7 @@ Overview:
 2. Alchemy (Websockets, using [`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions), warning - burns a lot of credits)
 3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs) (Websockets and gRPC)
 4. [Chainbound Fiber](https://fiber.chainbound.io/docs/usage/getting-started/) (gRPC)
-5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc) (Websockets)
+5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc) (Websockets and gRPC)
 
 Note: Some sources send transactions that are already included on-chain, which are discarded (not added to archive or summary)
 

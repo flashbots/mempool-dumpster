@@ -78,6 +78,7 @@ func (nc *BlxNodeConnection) reconnect() {
 	nc.connect()
 }
 
+//nolint:dupl
 func (nc *BlxNodeConnection) connect() {
 	nc.log.Infow("connecting...", "uri", nc.url)
 	dialer := websocket.DefaultDialer
