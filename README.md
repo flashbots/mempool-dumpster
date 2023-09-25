@@ -57,6 +57,27 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 We recommend to use [ClickHouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) (as well as [DuckDB](https://duckdb.org/)) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
 
 ```bash
+# show the schema
+$ clickhouse local -q "DESCRIBE TABLE 'transactions.parquet';"
+timestamp               Nullable(DateTime64(3))
+hash                    Nullable(String)
+chainId                 Nullable(String)
+from                    Nullable(String)
+to                      Nullable(String)
+value                   Nullable(String)
+nonce                   Nullable(String)
+gas                     Nullable(String)
+gasPrice                Nullable(String)
+gasTipCap               Nullable(String)
+gasFeeCap               Nullable(String)
+dataSize                Nullable(Int64)
+data4Bytes              Nullable(String)
+sources                 Array(Nullable(String))
+includedAtBlockHeight   Nullable(Int64)
+includedBlockTimestamp  Nullable(DateTime64(3))
+inclusionDelayMs        Nullable(Int64)
+rawTx                   Nullable(String)
+
 # count rows
 $ clickhouse local -q "SELECT count(*) FROM 'transactions.parquet' LIMIT 1;"
 
@@ -66,32 +87,23 @@ $ clickhouse local -q "SELECT hash,hex(rawTx) FROM 'transactions.parquet' LIMIT 
 # get details of a particular hash
 $ clickhouse local -q "SELECT timestamp,hash,from,to,hex(rawTx) FROM 'transactions.parquet' WHERE hash='0x152065ad73bcf63f68572f478e2dc6e826f1f434cb488b993e5956e6b7425eed';"
 
-# show the schema
-$ clickhouse local -q "DESCRIBE TABLE 'transactions.parquet';"
-timestamp       Nullable(DateTime64(3))
-hash    Nullable(String)
-chainId Nullable(String)
-from    Nullable(String)
-to      Nullable(String)
-value   Nullable(String)
-nonce   Nullable(String)
-gas     Nullable(String)
-gasPrice        Nullable(String)
-gasTipCap       Nullable(String)
-gasFeeCap       Nullable(String)
-dataSize        Nullable(Int64)
-data4Bytes      Nullable(String)
-sources Array(Nullable(String))
-includedAtBlockHeight   Nullable(Int64)
-includedBlockTimestamp  Nullable(DateTime64(3))
-inclusionDelayMs        Nullable(Int64)
-rawTx   Nullable(String)
-
 # get exclusive transactions from bloxroute
-clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(sources) == 1 AND sources[1] == 'bloxroute';"
+$ clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(sources) == 1 AND sources[1] == 'bloxroute';"
 
 # get count of landed vs not-landed exclusive transactions, by source
-clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT sources[1], included, count(included) FROM 'out/out/transactions.parquet' WHERE length(sources) == 1 GROUP BY sources[1], included;"
+$ clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT sources[1], included, count(included) FROM 'out/out/transactions.parquet' WHERE length(sources) == 1 GROUP BY sources[1], included;"
+
+# get uniswap v2 transactions
+$ clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE to='0x7a250d5630b4cf539739df2c5dacb4c659f2488d';"
+
+# get uniswap v2 transactions and separate by included/not-included
+$ clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT included, COUNT(included) FROM 'transactions.parquet' WHERE to='0x7a250d5630b4cf539739df2c5dacb4c659f2488d' GROUP BY included;"
+
+# get inclusion delay for uniswap v2 transactions (time between receiving and being included on-chain)
+$ clickhouse local -q "WITH inclusionDelayMs/1000 as incdelay SELECT quantiles(0.5, 0.9, 0.99)(incdelay), avg(incdelay) as avg FROM 'transactions.parquet' WHERE to='0x7a250d5630b4cf539739df2c5dacb4c659f2488d' AND includedBlockTimestamp!=0;"
+
+# count uniswap v2 contract methods
+$ clickhouse local -q "SELECT data4Bytes, COUNT(data4Bytes) FROM 'transactions.parquet' WHERE to='0x7a250d5630b4cf539739df2c5dacb4c659f2488d' GROUP BY data4Bytes;"
 ```
 
 See this post for more details: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
