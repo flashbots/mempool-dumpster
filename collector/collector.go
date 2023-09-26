@@ -2,7 +2,6 @@
 package collector
 
 import (
-	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
 
@@ -41,20 +40,14 @@ func Start(opts *CollectorOpts) {
 		}
 
 		// start Websocket or gRPC subscription depending on URL
-		if common.IsWebsocketProtocol(blxOpts.URL) {
-			blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
-			go blxConn.Start()
-		} else {
-			blxConn := NewBlxNodeConnectionGRPC(blxOpts, processor.txC)
-			go blxConn.Start()
-		}
+		blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
+		go blxConn.Start()
 	}
 
 	if opts.EdenAuthToken != "" {
 		blxOpts := BlxNodeOpts{ //nolint:exhaustruct
 			Log:        opts.Log,
 			AuthHeader: opts.EdenAuthToken,
-			IsEden:     true,
 		}
 		blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
 		go blxConn.Start()

@@ -4,14 +4,6 @@ import (
 	"strings"
 )
 
-type BlxRawTxMsg struct { //nolint:musttag
-	Params struct {
-		Result struct {
-			RawTx string
-		}
-	}
-}
-
 type EdenRawTxMsg struct { //nolint:musttag
 	Params struct {
 		Result struct {

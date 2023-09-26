@@ -18,6 +18,10 @@ const (
 	maxBackoffSec     = 120
 )
 
+const (
+	blxCloudAPIWsURL = "wss://api.blxrbdn.com/ws"
+)
+
 var (
 	// Bloxroute URL - local Gateway GRPC port or websocket URI (https://docs.bloxroute.com/introduction/cloud-api-ips)
 	blxDefaultURL = common.GetEnv("BLX_URI", "127.0.0.1:1001")

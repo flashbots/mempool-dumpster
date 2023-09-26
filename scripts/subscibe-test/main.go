@@ -45,7 +45,7 @@ func MainBlx() {
 		Log:        log,
 		AuthHeader: os.Getenv("BLX_AUTH_HEADER"),
 	}
-	nc := collector.NewBlxNodeConnectionGRPC(blxOpts, txC)
+	nc := collector.NewBlxNodeConnection(blxOpts, txC)
 	go nc.Start()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
@@ -59,7 +59,6 @@ func MainEden() {
 		Log:        log,
 		AuthHeader: os.Getenv("EDEN_AUTH_HEADER"),
 		URL:        "wss://speed-eu-west.edennetwork.io",
-		IsEden:     true,
 		SourceTag:  "eden",
 	}
 	nc := collector.NewBlxNodeConnection(blxOpts, txC)

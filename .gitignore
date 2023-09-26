@@ -29,3 +29,7 @@
 /x1
 /out.txt
 /backfill.txt
+
+# IDE settings
+.idea
+.vscode
