@@ -102,6 +102,10 @@ func (nc *BlxNodeConnection) Start() {
 		nc.txC <- TxIn{time.Now().UTC(), &tx, nc.srcTag}
 	})
 	if err != nil {
+		err := nc.c.UnsubscribeFromNewTxs()
+		if err != nil {
+			nc.log.Fatalw("Failed to unsubscribe the Bloxroute data feed")
+		}
 		nc.log.Fatalw("Failed to listen to new txs", "err", err)
 	}
 }
