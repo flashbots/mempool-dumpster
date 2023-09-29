@@ -15,15 +15,10 @@ import (
 type Analyzer2Opts struct {
 	Transactions map[string]*TxSummaryEntry
 	Sourelog     map[string]map[string]int64 // [hash][source] = timestampMs
-	// TxBlacklist  map[string]bool             // optional, blacklist of txs (these will be ignored for analysis)
-	// TxWhitelist  map[string]bool             // optional, whitelist of txs (only these will be used for analysis)
-	SourceComps []SourceComp
+	SourceComps  []SourceComp
 }
 
 type Analyzer2 struct {
-	// opts Analyzer2Opts
-	// useWhitelist bool
-
 	Transactions map[string]*TxSummaryEntry
 	Sourelog     map[string]map[string]int64
 	SourceComps  []SourceComp
@@ -54,8 +49,6 @@ type Analyzer2 struct {
 
 func NewAnalyzer2(opts Analyzer2Opts) *Analyzer2 {
 	a := &Analyzer2{ //nolint:exhaustruct
-		// opts: opts,
-		// useWhitelist:           len(opts.TxWhitelist) > 0,
 		Transactions: make(map[string]*TxSummaryEntry),
 		Sourelog:     opts.Sourelog,
 		SourceComps:  opts.SourceComps,
@@ -84,14 +77,6 @@ func (a *Analyzer2) init() {
 
 	// iterate over tx to
 	for _, tx := range a.Transactions {
-		// if a.opts.TxBlacklist[txHash] {
-		// 	continue
-		// }
-
-		// if a.useWhitelist && !a.opts.TxWhitelist[txHash] {
-		// 	continue
-		// }
-
 		if tx.IncludedAtBlockHeight == 0 {
 			a.nNotIncluded += 1
 		} else {
@@ -154,14 +139,6 @@ func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histo
 	txHashes := make(map[string]map[string]int64) // [txHash][source] = timestampMs
 	for txHash, tx := range a.Transactions {
 		txHashLower := strings.ToLower(txHash)
-		// if a.opts.TxBlacklist[txHashLower] {
-		// 	continue
-		// }
-
-		// if a.useWhitelist && !a.opts.TxWhitelist[txHashLower] {
-		// 	continue
-		// }
-
 		if len(tx.Sources) == 1 {
 			continue
 		}
@@ -201,14 +178,14 @@ func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histo
 		}
 	}
 
-	// 3. Find buckets
+	// 3. For each mutual transaction, add latency difference to histogram
 	for _, sources := range txHashes {
 		srcTS := sources[src]
 		localTS := sources[ref]
 		diff := localTS - srcTS
 
 		if diff == 0 {
-			// equal
+			// equal, do nothing
 		} else if diff > 0 {
 			srcH.RecordValue(diff) //nolint:errcheck
 		} else {
