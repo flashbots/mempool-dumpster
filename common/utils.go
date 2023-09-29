@@ -99,7 +99,11 @@ func roundFloat(val float64, precision uint) float64 {
 }
 
 func IntDiffPercentFmt(a, b int, decimals uint) string {
-	format := fmt.Sprintf("%%.%df%%%%", decimals)
+	return IntDiffPercentFmtC(a, b, decimals, "%%")
+}
+
+func IntDiffPercentFmtC(a, b int, decimals uint, fmtSuffix string) string {
+	format := fmt.Sprintf("%%.%df%s", decimals, fmtSuffix)
 	f := float64(a) / float64(b)
 	f2 := roundFloat(f*100, decimals)
 	return Printer.Sprintf(format, f2)

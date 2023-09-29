@@ -131,11 +131,12 @@ func (a *Analyzer2) init() {
 	sort.Strings(a.sources)
 }
 
+// latencyComp returns arrays of latency differences for the node that was faster
 func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histogram, totalSeenByBoth int) {
 	srcH = hdrhistogram.New(1, 5000000, 3)
 	refH = hdrhistogram.New(1, 5000000, 3)
 
-	// 1. Find all txs that were seen by both source and reference nodes and were included on-chain
+	// 1. Find all txs that were seen by both source and reference and were included on-chain
 	txHashes := make(map[string]map[string]int64) // [txHash][source] = timestampMs
 	for txHash, tx := range a.Transactions {
 		txHashLower := strings.ToLower(txHash)
@@ -148,7 +149,7 @@ func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histo
 			continue
 		}
 
-		// ensure tx was seen by both source and reference nodes
+		// ensure tx was seen by both source and reference
 		if !tx.HasSource(src) || !tx.HasSource(ref) {
 			continue
 		}
@@ -169,10 +170,10 @@ func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histo
 			continue
 		}
 
+		// Set the lowest timestamp for each source
 		if txHashes[txHashLower][src] == 0 || sources[src] < txHashes[txHashLower][src] {
 			txHashes[txHashLower][src] = sources[src]
 		}
-
 		if txHashes[txHashLower][ref] == 0 || sources[ref] < txHashes[txHashLower][ref] {
 			txHashes[txHashLower][ref] = sources[ref]
 		}
