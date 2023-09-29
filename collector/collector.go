@@ -2,6 +2,9 @@
 package collector
 
 import (
+	"os"
+	"strings"
+
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
@@ -34,19 +37,18 @@ func Start(opts *CollectorOpts) {
 	}
 
 	if opts.BloxrouteAuthToken != "" {
-		blxOpts := BlxNodeOpts{ //nolint:exhaustruct
-			Log:        opts.Log,
-			AuthHeader: opts.BloxrouteAuthToken,
-			URL:        blxDefaultURL, // URL is taken from ENV vars
-		}
+		connectBloxroute(opts.Log, opts.BloxrouteAuthToken, blxDefaultURL, processor.txC)
+	}
 
-		// start Websocket or gRPC subscription depending on URL
-		if common.IsWebsocketProtocol(blxOpts.URL) {
-			blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
-			go blxConn.Start()
-		} else {
-			blxConn := NewBlxNodeConnectionGRPC(blxOpts, processor.txC)
-			go blxConn.Start()
+	// allow multiple bloxroute subscriptions (i.e. websockets + grpc. temporary, poc)
+	blxAuthStrings := os.Getenv("BLX_AUTH") // header@host,header@host,...
+	if blxAuthStrings != "" {
+		for _, connString := range strings.Split(blxAuthStrings, ",") {
+			parts := strings.Split(connString, "@")
+			if len(parts) != 2 {
+				opts.Log.Fatalw("Invalid bloxroute connection string", "connString", connString)
+			}
+			connectBloxroute(opts.Log, parts[0], parts[1], processor.txC)
 		}
 	}
 
@@ -67,5 +69,22 @@ func Start(opts *CollectorOpts) {
 		}
 		chainboundConn := NewChainboundNodeConnection(opts, processor.txC)
 		go chainboundConn.Start()
+	}
+}
+
+func connectBloxroute(log *zap.SugaredLogger, authHeader, url string, txC chan TxIn) {
+	blxOpts := BlxNodeOpts{ //nolint:exhaustruct
+		Log:        log,
+		AuthHeader: authHeader,
+		URL:        url, // URL is taken from ENV vars
+	}
+
+	// start Websocket or gRPC subscription depending on URL
+	if common.IsWebsocketProtocol(blxOpts.URL) {
+		blxConn := NewBlxNodeConnection(blxOpts, txC)
+		go blxConn.Start()
+	} else {
+		blxConn := NewBlxNodeConnectionGRPC(blxOpts, txC)
+		go blxConn.Start()
 	}
 }
