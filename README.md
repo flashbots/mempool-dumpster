@@ -112,9 +112,8 @@ See this post for more details: https://collective.flashbots.net/t/mempool-dumps
 
 ## Interesting analyses
 
-- Amount of transactions which eventually lands on chain + inclusionDelay (by source)
-- Transaction quality (i.e. for high-volume XOF sources)
-- Trash transactions
+- Something interesting in `inclusionDelay`?
+- Trash transactions (invalid noce, not enough sender funds)
 
 Feel free to continue the conversation in the [Flashbots Forum](https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401)!
 
