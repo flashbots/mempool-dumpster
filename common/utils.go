@@ -178,3 +178,10 @@ func SetupMarkdownTableWriter(table *tablewriter.Table) {
 	table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
 	table.SetCenterSeparator("|")
 }
+
+func TitleStrings(s []string) []string {
+	for i, v := range s {
+		s[i] = Title(v)
+	}
+	return s
+}

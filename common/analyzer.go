@@ -232,7 +232,7 @@ func (a *Analyzer2) Sprint() string {
 	}
 
 	out += fmt.Sprintln("")
-	out += fmt.Sprintf("Sources: %s \n", strings.Join(a.sources, ", "))
+	out += fmt.Sprintf("Sources: %s \n", strings.Join(TitleStrings(a.sources), ", "))
 	out += fmt.Sprintln("")
 
 	out += fmt.Sprintln("-----------------")
