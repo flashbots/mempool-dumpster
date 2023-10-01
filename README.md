@@ -110,13 +110,6 @@ See this post for more details: https://collective.flashbots.net/t/mempool-dumps
 
 ---
 
-## Interesting analyses
-
-- Something interesting in `inclusionDelay`?
-- Trash transactions (invalid noce, not enough sender funds)
-
-Feel free to continue the conversation in the [Flashbots Forum](https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401)!
-
 ## Running the analyzer
 
 You can easily run the included analyzer to create summaries like [2023-09-22_summary.txt](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-22_summary.txt):
@@ -130,6 +123,22 @@ go run cmd/analyze/* \
     --input-parquet /mnt/data/mempool-dumpster/2023-09-22/2023-09-22.parquet \
     --input-sourcelog /mnt/data/mempool-dumpster/2023-09-22/2023-09-22_sourcelog.csv.zip
 ```
+
+To speed things up, you can use the `MAX` environment variable to set a maximum number of transactions to process:
+
+```bash
+MAX=10000 go run cmd/analyze/* \
+    --out summary.txt \
+    --input-parquet /mnt/data/mempool-dumpster/2023-09-22/2023-09-22.parquet \
+    --input-sourcelog /mnt/data/mempool-dumpster/2023-09-22/2023-09-22_sourcelog.csv.zip
+```
+
+## Interesting analyses
+
+- Something interesting with `inclusionDelay`?
+- Trash transactions (invalid nonce, not enough sender funds)
+
+Feel free to continue the conversation in the [Flashbots Forum](https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401)!
 
 ---
 

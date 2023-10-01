@@ -13,8 +13,8 @@ fi
 source "$(dirname "$0")/../.env.prod"
 
 # Maximum number of allowed errors (above a notification is sent)
-ERROR_LIMIT=2
-SINCE="1d ago"
+ERROR_LIMIT=3
+SINCE="2h ago"
 
 function error() {
     # write to /tmp/mempool-collector-error-current.log but only if not already exists
@@ -22,13 +22,17 @@ function error() {
         return
     fi
 
-    echo "$1" > /tmp/mempool-collector-error-current.log
-    echo "NEW ERRORS" $1
+    cp /tmp/mempool-collector-errors.log /tmp/mempool-collector-error-current.log
+
+    lines=$(wc -l /tmp/mempool-collector-errors.log | awk '{print $1}')
+    err=$( head -n 5 /tmp/mempool-collector-errors.log )
+    echo "NEW ERRORS"
+    echo "$err"
 
     curl -s \
     --form-string "token=$PUSHOVER_APP_TOKEN" \
     --form-string "user=$PUSHOVER_APP_KEY" \
-    --form-string "message=$1 errors in mempool-collector service found" \
+    --form-string "message=$lines errors in mempool-collector service found\n\n$err" \
     https://api.pushover.net/1/messages.json
 }
 
@@ -41,9 +45,9 @@ journalctl -u mempool-collector -o cat --since "$SINCE" | grep ERROR | tee /tmp/
 lines=$(wc -l /tmp/mempool-collector-errors.log | awk '{print $1}')
 # echo "Found $lines errors in mempool-collector service"
 
-# if more errors than threshold
+# alert if more errors than threshold
 if [ "$lines" -gt $ERROR_LIMIT ]; then
-  error $lines
+  error
 elif [ "$lines" -eq 0 ]; then
   reset
 fi
