@@ -8,6 +8,7 @@ require (
 	github.com/bloXroute-Labs/gateway/v2 v2.127.42
 	github.com/chainbound/fiber-go v1.6.0
 	github.com/dustin/go-humanize v1.0.1
+	github.com/eden-network/mempool-service v1.0.1
 	github.com/ethereum/go-ethereum v1.12.2
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0

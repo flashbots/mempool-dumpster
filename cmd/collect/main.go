@@ -83,15 +83,15 @@ func main() {
 	}
 
 	if *outDirPtr == "" {
-		log.Fatal("No output directory not set (use -out <path>)")
+		log.Fatal("No output directory set (use -out <path>)")
 	}
 
 	if *uidPtr == "" {
 		*uidPtr = shortuuid.New()[:6]
 	}
 
-	if *nodesPtr == "" && *blxAuthToken == "" {
-		log.Fatal("No nodes or bloxroute token set (use -nodes <url1>,<url2> and/or -blx-token <token>)")
+	if *nodesPtr == "" && *blxAuthToken == "" && *edenAuthToken == "" {
+		log.Fatal("No nodes, bloxroute, or eden token set (use -nodes <url1>,<url2> / -blx-token <token> / -eden-token <token>)")
 	}
 
 	nodes := []string{}

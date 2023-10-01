@@ -51,13 +51,18 @@ func Start(opts *CollectorOpts) {
 	}
 
 	if opts.EdenAuthToken != "" {
-		blxOpts := BlxNodeOpts{ //nolint:exhaustruct
+		edenOpts := EdenNodeOpts{ //nolint:exhaustruct
 			Log:        opts.Log,
 			AuthHeader: opts.EdenAuthToken,
-			IsEden:     true,
+			URL:        edenDefaultURL, // URL is taken from ENV vars
 		}
-		blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
-		go blxConn.Start()
+		if common.IsWebsocketProtocol(edenOpts.URL) {
+			edenConn := NewEdenNodeConnection(edenOpts, processor.txC)
+			go edenConn.Start()
+		} else {
+			edenConn := NewEdenNodeConnectionGRPC(edenOpts, processor.txC)
+			go edenConn.Start()
+		}
 	}
 
 	if opts.ChainboundAPIKey != "" {
