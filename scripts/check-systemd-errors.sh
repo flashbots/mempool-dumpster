@@ -41,7 +41,7 @@ function reset() {
 }
 
 date
-journalctl -u mempool-collector -o cat --since "$SINCE" | grep ERROR | tee /tmp/mempool-collector-errors.log
+journalctl -u mempool-collector -o cat --since "$SINCE" | grep ERROR | tee /tmp/mempool-collector-errors.log  || true
 lines=$(wc -l /tmp/mempool-collector-errors.log | awk '{print $1}')
 # echo "Found $lines errors in mempool-collector service"
 

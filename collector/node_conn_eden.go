@@ -22,10 +22,22 @@ import (
 )
 
 type EdenNodeOpts struct {
+	TxC        chan TxIn
 	Log        *zap.SugaredLogger
 	AuthHeader string
 	URL        string // optional override, default: edenDefaultURL
 	SourceTag  string // optional override, default: "eden" (common.SourceTagEden)
+}
+
+// startEdenConnection starts a Websocket or gRPC subscription (depending on URL) in the background
+func startEdenConnection(opts EdenNodeOpts) {
+	if common.IsWebsocketProtocol(opts.URL) {
+		edenConn := NewEdenNodeConnection(opts)
+		go edenConn.Start()
+	} else {
+		edenConn := NewEdenNodeConnectionGRPC(opts)
+		go edenConn.Start()
+	}
 }
 
 type EdenNodeConnection struct {
@@ -37,7 +49,7 @@ type EdenNodeConnection struct {
 	backoffSec int
 }
 
-func NewEdenNodeConnection(opts EdenNodeOpts, txC chan TxIn) *EdenNodeConnection {
+func NewEdenNodeConnection(opts EdenNodeOpts) *EdenNodeConnection {
 	url := opts.URL
 	if url == "" {
 		url = edenDefaultURL
@@ -53,7 +65,7 @@ func NewEdenNodeConnection(opts EdenNodeOpts, txC chan TxIn) *EdenNodeConnection
 		authHeader: opts.AuthHeader,
 		url:        url,
 		srcTag:     srcTag,
-		txC:        txC,
+		txC:        opts.TxC,
 		backoffSec: initialBackoffSec,
 	}
 }
@@ -155,7 +167,7 @@ type EdenNodeConnectionGRPC struct {
 	backoffSec int
 }
 
-func NewEdenNodeConnectionGRPC(opts EdenNodeOpts, txC chan TxIn) *EdenNodeConnectionGRPC {
+func NewEdenNodeConnectionGRPC(opts EdenNodeOpts) *EdenNodeConnectionGRPC {
 	url := opts.URL
 	if url == "" {
 		url = edenDefaultURL
@@ -166,7 +178,7 @@ func NewEdenNodeConnectionGRPC(opts EdenNodeOpts, txC chan TxIn) *EdenNodeConnec
 		authHeader: opts.AuthHeader,
 		url:        url,
 		srcTag:     common.SourceTagEden,
-		txC:        txC,
+		txC:        opts.TxC,
 		backoffSec: initialBackoffSec,
 	}
 }

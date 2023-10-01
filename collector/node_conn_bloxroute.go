@@ -24,10 +24,22 @@ import (
 )
 
 type BlxNodeOpts struct {
+	TxC        chan TxIn
 	Log        *zap.SugaredLogger
 	AuthHeader string
 	URL        string // optional override, default: blxDefaultURL
 	SourceTag  string // optional override, default: "blx" (common.BloxrouteTag)
+}
+
+// startBloxrouteConnection starts a Websocket or gRPC subscription (depending on URL) in the background
+func startBloxrouteConnection(opts BlxNodeOpts) {
+	if common.IsWebsocketProtocol(opts.URL) {
+		blxConn := NewBlxNodeConnection(opts)
+		go blxConn.Start()
+	} else {
+		blxConn := NewBlxNodeConnectionGRPC(opts)
+		go blxConn.Start()
+	}
 }
 
 type BlxNodeConnection struct {
@@ -39,7 +51,7 @@ type BlxNodeConnection struct {
 	backoffSec int
 }
 
-func NewBlxNodeConnection(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnection {
+func NewBlxNodeConnection(opts BlxNodeOpts) *BlxNodeConnection {
 	url := opts.URL
 	if url == "" {
 		url = blxDefaultURL
@@ -55,7 +67,7 @@ func NewBlxNodeConnection(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnection {
 		authHeader: opts.AuthHeader,
 		url:        url,
 		srcTag:     srcTag,
-		txC:        txC,
+		txC:        opts.TxC,
 		backoffSec: initialBackoffSec,
 	}
 }
@@ -157,7 +169,7 @@ type BlxNodeConnectionGRPC struct {
 	backoffSec int
 }
 
-func NewBlxNodeConnectionGRPC(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnectionGRPC {
+func NewBlxNodeConnectionGRPC(opts BlxNodeOpts) *BlxNodeConnectionGRPC {
 	url := opts.URL
 	if url == "" {
 		url = blxDefaultURL
@@ -168,7 +180,7 @@ func NewBlxNodeConnectionGRPC(opts BlxNodeOpts, txC chan TxIn) *BlxNodeConnectio
 		authHeader: opts.AuthHeader,
 		url:        url,
 		srcTag:     common.SourceTagBloxroute,
-		txC:        txC,
+		txC:        opts.TxC,
 		backoffSec: initialBackoffSec,
 	}
 }
