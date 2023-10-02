@@ -180,8 +180,9 @@ func SetupMarkdownTableWriter(table *tablewriter.Table) {
 }
 
 func TitleStrings(s []string) []string {
+	ret := make([]string, len(s))
 	for i, v := range s {
-		s[i] = Title(v)
+		ret[i] = Title(v)
 	}
 	return s
 }
