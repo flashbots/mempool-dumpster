@@ -184,5 +184,5 @@ func TitleStrings(s []string) []string {
 	for i, v := range s {
 		ret[i] = Title(v)
 	}
-	return s
+	return ret
 }
