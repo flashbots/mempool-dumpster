@@ -33,7 +33,7 @@ var (
 		&cli.StringFlag{
 			Name:     "uid",
 			EnvVars:  []string{"UID"},
-			Usage:    "collector uid (part of output CSV filename)",
+			Usage:    "collector uid, part of output CSV filenames (default: random)",
 			Category: "Collector Configuration",
 		},
 		&cli.StringFlag{
