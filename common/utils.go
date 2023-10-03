@@ -186,3 +186,12 @@ func TitleStrings(s []string) []string {
 	}
 	return ret
 }
+
+// GetAuthTokenAndURL takes in auth strings like "token" or "token@url" and returns token and url separately
+func GetAuthTokenAndURL(auth string) (string, string) {
+	parts := strings.Split(auth, "@")
+	if len(parts) < 2 {
+		return auth, ""
+	}
+	return parts[0], parts[1]
+}

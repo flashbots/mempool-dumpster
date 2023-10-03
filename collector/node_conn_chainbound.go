@@ -13,6 +13,7 @@ import (
 )
 
 type ChainboundNodeOpts struct {
+	TxC       chan TxIn
 	Log       *zap.SugaredLogger
 	APIKey    string
 	URL       string // optional override, default: ChainboundDefaultURL
@@ -29,7 +30,7 @@ type ChainboundNodeConnection struct {
 	backoffSec int
 }
 
-func NewChainboundNodeConnection(opts ChainboundNodeOpts, txC chan TxIn) *ChainboundNodeConnection {
+func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnection {
 	url := opts.URL
 	if url == "" {
 		url = chainboundDefaultURL
@@ -46,7 +47,7 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts, txC chan TxIn) *Chainb
 		url:        url,
 		srcTag:     srcTag,
 		fiberC:     make(chan *fiber.Transaction),
-		txC:        txC,
+		txC:        opts.TxC,
 		backoffSec: initialBackoffSec,
 	}
 }

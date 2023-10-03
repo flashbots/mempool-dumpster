@@ -22,6 +22,14 @@ var (
 
 	// CLI flags
 	cliFlags = []cli.Flag{
+		&cli.StringSliceFlag{
+			Name:  "input-parquet",
+			Usage: "input parquet files",
+		},
+		&cli.StringSliceFlag{
+			Name:  "input-sourcelog",
+			Usage: "input sourcelog files",
+		},
 		&cli.StringFlag{
 			Name:  "out",
 			Usage: "output filename",
@@ -37,11 +45,6 @@ var (
 		&cli.StringSliceFlag{
 			Name:  "cmp",
 			Usage: "compare these sources",
-		},
-		&cli.StringSliceFlag{
-			Name: "input-parquet",
-		}, &cli.StringSliceFlag{
-			Name: "input-sourcelog",
 		},
 	}
 )

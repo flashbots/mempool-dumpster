@@ -41,11 +41,14 @@ func MainGeneric() {
 func MainBlx() {
 	txC := make(chan collector.TxIn)
 	log := common.GetLogger(true, false)
-	blxOpts := collector.BlxNodeOpts{ //nolint:exhaustruct
+	token, url := common.GetAuthTokenAndURL(os.Getenv("BLX_AUTH"))
+	blxOpts := collector.BlxNodeOpts{
+		TxC:        txC,
 		Log:        log,
-		AuthHeader: os.Getenv("BLX_AUTH_HEADER"),
+		AuthHeader: token,
+		URL:        url,
 	}
-	nc := collector.NewBlxNodeConnectionGRPC(blxOpts, txC)
+	nc := collector.NewBlxNodeConnectionGRPC(blxOpts)
 	go nc.Start()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
@@ -55,13 +58,14 @@ func MainBlx() {
 func MainEden() {
 	txC := make(chan collector.TxIn)
 	log := common.GetLogger(true, false)
+	token, url := common.GetAuthTokenAndURL(os.Getenv("EDEN_AUTH"))
 	blxOpts := collector.EdenNodeOpts{
+		TxC:        txC,
 		Log:        log,
-		AuthHeader: os.Getenv("EDEN_AUTH_HEADER"),
-		URL:        "wss://speed-eu-west.edennetwork.io",
-		SourceTag:  "eden",
+		AuthHeader: token,
+		URL:        url,
 	}
-	nc := collector.NewEdenNodeConnection(blxOpts, txC)
+	nc := collector.NewEdenNodeConnection(blxOpts)
 	go nc.Start()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
@@ -72,10 +76,11 @@ func MainChainbound() {
 	txC := make(chan collector.TxIn)
 	log := common.GetLogger(true, false)
 	opts := collector.ChainboundNodeOpts{ //nolint:exhaustruct
+		TxC:    txC,
 		Log:    log,
-		APIKey: os.Getenv("CHAINBOUND_API_KEY"),
+		APIKey: os.Getenv("CHAINBOUND_AUTH"),
 	}
-	nc := collector.NewChainboundNodeConnection(opts, txC)
+	nc := collector.NewChainboundNodeConnection(opts)
 	go nc.Start()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)

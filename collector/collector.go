@@ -13,64 +13,58 @@ type CollectorOpts struct {
 	OutDir       string
 	CheckNodeURI string
 
-	BloxrouteAuthToken string
-	EdenAuthToken      string
-	ChainboundAPIKey   string
+	BloxrouteAuth  []string
+	EdenAuth       []string
+	ChainboundAuth []string
 }
 
 // Start kicks off all the service components in the background
 func Start(opts *CollectorOpts) {
 	processor := NewTxProcessor(TxProcessorOpts{
 		Log:          opts.Log,
-		OutDir:       opts.OutDir,
 		UID:          opts.UID,
+		OutDir:       opts.OutDir,
 		CheckNodeURI: opts.CheckNodeURI,
 	})
 	go processor.Start()
 
+	// Regular nodes
 	for _, node := range opts.Nodes {
 		conn := NewNodeConnection(opts.Log, node, processor.txC)
 		conn.StartInBackground()
 	}
 
-	if opts.BloxrouteAuthToken != "" {
-		blxOpts := BlxNodeOpts{ //nolint:exhaustruct
+	// Bloxroute
+	for _, auth := range opts.BloxrouteAuth {
+		token, url := common.GetAuthTokenAndURL(auth)
+		startBloxrouteConnection(BlxNodeOpts{
+			TxC:        processor.txC,
 			Log:        opts.Log,
-			AuthHeader: opts.BloxrouteAuthToken,
-			URL:        blxDefaultURL, // URL is taken from ENV vars
-		}
-
-		// start Websocket or gRPC subscription depending on URL
-		if common.IsWebsocketProtocol(blxOpts.URL) {
-			blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
-			go blxConn.Start()
-		} else {
-			blxConn := NewBlxNodeConnectionGRPC(blxOpts, processor.txC)
-			go blxConn.Start()
-		}
+			AuthHeader: token,
+			URL:        url,
+		})
 	}
 
-	if opts.EdenAuthToken != "" {
-		edenOpts := EdenNodeOpts{ //nolint:exhaustruct
+	// Eden
+	for _, auth := range opts.EdenAuth {
+		token, url := common.GetAuthTokenAndURL(auth)
+		startEdenConnection(EdenNodeOpts{
+			TxC:        processor.txC,
 			Log:        opts.Log,
-			AuthHeader: opts.EdenAuthToken,
-			URL:        edenDefaultURL, // URL is taken from ENV vars
-		}
-		if common.IsWebsocketProtocol(edenOpts.URL) {
-			edenConn := NewEdenNodeConnection(edenOpts, processor.txC)
-			go edenConn.Start()
-		} else {
-			edenConn := NewEdenNodeConnectionGRPC(edenOpts, processor.txC)
-			go edenConn.Start()
-		}
+			AuthHeader: token,
+			URL:        url,
+		})
 	}
 
-	if opts.ChainboundAPIKey != "" {
-		opts := ChainboundNodeOpts{ //nolint:exhaustruct
+	// Chainbound
+	for _, auth := range opts.ChainboundAuth {
+		token, url := common.GetAuthTokenAndURL(auth)
+		chainboundConn := NewChainboundNodeConnection(ChainboundNodeOpts{
+			TxC:    processor.txC,
 			Log:    opts.Log,
-			APIKey: opts.ChainboundAPIKey,
-		}
-		chainboundConn := NewChainboundNodeConnection(opts, processor.txC)
+			APIKey: token,
+			URL:    url,
+		})
 		go chainboundConn.Start()
 	}
 }
