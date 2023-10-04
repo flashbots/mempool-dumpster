@@ -3,12 +3,12 @@ package common
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -146,22 +146,14 @@ func (a *Analyzer2) init() {
 	sort.Strings(a.sources)
 }
 
-func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histogram, totalSeenByBoth int) {
-	srcH = hdrhistogram.New(1, 5000000, 3)
-	refH = hdrhistogram.New(1, 5000000, 3)
+// [txHash][source] = timestampMs
+type txHashes map[string]map[string]int64
 
+func (a *Analyzer2) latencies(src, ref string) txHashes {
 	// 1. Find all txs that were seen by both source and reference nodes and were included on-chain
-	txHashes := make(map[string]map[string]int64) // [txHash][source] = timestampMs
+	hashes := make(txHashes)
 	for txHash, tx := range a.Transactions {
 		txHashLower := strings.ToLower(txHash)
-		// if a.opts.TxBlacklist[txHashLower] {
-		// 	continue
-		// }
-
-		// if a.useWhitelist && !a.opts.TxWhitelist[txHashLower] {
-		// 	continue
-		// }
-
 		if len(tx.Sources) == 1 {
 			continue
 		}
@@ -176,13 +168,13 @@ func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histo
 			continue
 		}
 
-		txHashes[txHashLower] = make(map[string]int64)
+		hashes[txHashLower] = make(map[string]int64)
 	}
 
 	// 2. Iterate over sourcelog and find the first timestamp for each source
 	for txHash, sources := range a.Sourelog {
 		txHashLower := strings.ToLower(txHash)
-		if _, ok := txHashes[txHashLower]; !ok {
+		if _, ok := hashes[txHashLower]; !ok {
 			continue
 		}
 
@@ -192,31 +184,16 @@ func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histo
 			continue
 		}
 
-		if txHashes[txHashLower][src] == 0 || sources[src] < txHashes[txHashLower][src] {
-			txHashes[txHashLower][src] = sources[src]
+		if hashes[txHashLower][src] == 0 || sources[src] < hashes[txHashLower][src] {
+			hashes[txHashLower][src] = sources[src]
 		}
 
-		if txHashes[txHashLower][ref] == 0 || sources[ref] < txHashes[txHashLower][ref] {
-			txHashes[txHashLower][ref] = sources[ref]
-		}
-	}
-
-	// 3. Find buckets
-	for _, sources := range txHashes {
-		srcTS := sources[src]
-		localTS := sources[ref]
-		diff := localTS - srcTS
-
-		if diff == 0 {
-			// equal
-		} else if diff > 0 {
-			srcH.RecordValue(diff) //nolint:errcheck
-		} else {
-			refH.RecordValue(-diff) //nolint:errcheck
+		if hashes[txHashLower][ref] == 0 || sources[ref] < hashes[txHashLower][ref] {
+			hashes[txHashLower][ref] = sources[ref]
 		}
 	}
 
-	return srcH, refH, len(txHashes)
+	return hashes
 }
 
 func (a *Analyzer2) Print() {
@@ -322,33 +299,91 @@ func (a *Analyzer2) Sprint() string {
 	for _, comp := range a.SourceComps {
 		buff = bytes.Buffer{}
 		table = tablewriter.NewWriter(&buff)
+		table.SetColWidth(100)
 		SetupMarkdownTableWriter(table)
 		table.SetAlignment(tablewriter.ALIGN_RIGHT)
-		table.SetHeader([]string{"", comp.Source + " first", comp.Reference + " first"})
+		table.SetHeader([]string{"Metric", "Value"})
 
-		srcH, refH, totalSeenByBoth := a.latencyComp(comp.Source, comp.Reference)
-		if totalSeenByBoth == 0 {
-			continue
-		}
+		lat := a.latencies(comp.Source, comp.Reference)
+		totalSeenByBoth := len(lat)
 
 		out += fmt.Sprintln("")
 		out += fmt.Sprintf("### %s - %s \n\n%s shared included transactions. \n", Caser.String(comp.Source), Caser.String(comp.Reference), PrettyInt(totalSeenByBoth))
 		out += fmt.Sprintln("")
 
+		// Calculate percentiles for src and ref
+		srcFirstCount := 0
+		refFirstCount := 0
+		equalCount := 0
+		deltas := make([]int, 0)
+		for _, sources := range lat {
+			d := int(sources[comp.Source] - sources[comp.Reference])
+			deltas = append(deltas, d)
+			switch {
+			case d > 0:
+				refFirstCount += 1
+			case d < 0:
+				srcFirstCount += 1
+			case d == 0:
+				equalCount += 1
+			}
+		}
+
+		// sort asc
+		sort.Slice(deltas, func(i, j int) bool { return deltas[i] < deltas[j] })
+
 		table.Append([]string{
-			"count",
-			Printer.Sprintf("%d", srcH.TotalCount()),
-			Printer.Sprintf("%d", refH.TotalCount()),
+			Printer.Sprintf("%s First", comp.Source),
+			Printer.Sprintf("%d", srcFirstCount),
 		})
+
 		table.Append([]string{
-			"percent",
-			Printer.Sprintf("%5s", Int64DiffPercentFmtC(srcH.TotalCount(), int64(totalSeenByBoth), 1, " %%")),
-			Printer.Sprintf("%5s", Int64DiffPercentFmtC(refH.TotalCount(), int64(totalSeenByBoth), 1, " %%")),
+			Printer.Sprintf("%% %s First", comp.Source),
+			Printer.Sprintf("%.2f%%", percentageOfTotal(srcFirstCount, totalSeenByBoth)),
 		})
-		table.Append([]string{"median", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(50.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(50.0))})
-		table.Append([]string{"p90", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(90.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(90.0))})
-		table.Append([]string{"p95", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(95.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(95.0))})
-		table.Append([]string{"p99", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(99.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(99.0))})
+
+		table.Append([]string{
+			Printer.Sprintf("%s First", comp.Reference),
+			Printer.Sprintf("%d", refFirstCount),
+		})
+
+		table.Append([]string{
+			Printer.Sprintf("%% %s First", comp.Reference),
+			Printer.Sprintf("%.2f%%", percentageOfTotal(refFirstCount, totalSeenByBoth)),
+		})
+
+		table.Append([]string{
+			"Equal",
+			Printer.Sprintf("%d", equalCount),
+		})
+
+		table.Append([]string{
+			"% Equal",
+			Printer.Sprintf("%.2f%%", percentageOfTotal(equalCount, totalSeenByBoth)),
+		})
+
+		// ref got more transactions first: swap ref and first for more convenient render
+		src, ref := comp.Source, comp.Reference
+		if refFirstCount > srcFirstCount {
+			deltas = swapDeltas(deltas)
+			src, ref = comp.Reference, comp.Source
+		}
+
+		quantile := []int{10, 25, 50, 75, 90}
+		for _, q := range quantile {
+			diff := deltas[int(float64(q)/100*float64(len(deltas)))]
+			first := src
+			p := q
+			if diff > 0 {
+				first = ref
+				p = 100 - q
+			}
+
+			table.Append([]string{
+				Printer.Sprintf("%s won %d%% of tx by at least", first, p),
+				Printer.Sprintf("%d ms", int(math.Abs(float64(diff)))),
+			})
+		}
 
 		table.Render()
 		out += buff.String()
@@ -356,6 +391,18 @@ func (a *Analyzer2) Sprint() string {
 
 	return out
 }
+
+func swapDeltas(deltas []int) []int {
+	ln := len(deltas)
+	swapped := make([]int, 0, ln)
+	for i, d := range deltas {
+		swapped[ln-1-i] = -d
+	}
+
+	return swapped
+}
+
+func percentageOfTotal(amount, total int) float64 { return (float64(amount) / float64(total)) * 100 }
 
 func (a *Analyzer2) WriteToFile(filename string) error {
 	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
