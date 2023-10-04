@@ -2,9 +2,6 @@
 package collector
 
 import (
-	"os"
-	"strings"
-
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
@@ -16,75 +13,58 @@ type CollectorOpts struct {
 	OutDir       string
 	CheckNodeURI string
 
-	BloxrouteAuthToken string
-	EdenAuthToken      string
-	ChainboundAPIKey   string
+	BloxrouteAuth  []string
+	EdenAuth       []string
+	ChainboundAuth []string
 }
 
 // Start kicks off all the service components in the background
 func Start(opts *CollectorOpts) {
 	processor := NewTxProcessor(TxProcessorOpts{
 		Log:          opts.Log,
-		OutDir:       opts.OutDir,
 		UID:          opts.UID,
+		OutDir:       opts.OutDir,
 		CheckNodeURI: opts.CheckNodeURI,
 	})
 	go processor.Start()
 
+	// Regular nodes
 	for _, node := range opts.Nodes {
 		conn := NewNodeConnection(opts.Log, node, processor.txC)
 		conn.StartInBackground()
 	}
 
-	if opts.BloxrouteAuthToken != "" {
-		connectBloxroute(opts.Log, opts.BloxrouteAuthToken, blxDefaultURL, processor.txC)
-	}
-
-	// allow multiple bloxroute subscriptions (i.e. websockets + grpc. temporary, poc)
-	blxAuthStrings := os.Getenv("BLX_AUTH") // header@host,header@host,...
-	if blxAuthStrings != "" {
-		for _, connString := range strings.Split(blxAuthStrings, ",") {
-			parts := strings.Split(connString, "@")
-			if len(parts) != 2 {
-				opts.Log.Fatalw("Invalid bloxroute connection string", "connString", connString)
-			}
-			connectBloxroute(opts.Log, parts[0], parts[1], processor.txC)
-		}
-	}
-
-	if opts.EdenAuthToken != "" {
-		blxOpts := BlxNodeOpts{ //nolint:exhaustruct
+	// Bloxroute
+	for _, auth := range opts.BloxrouteAuth {
+		token, url := common.GetAuthTokenAndURL(auth)
+		startBloxrouteConnection(BlxNodeOpts{
+			TxC:        processor.txC,
 			Log:        opts.Log,
-			AuthHeader: opts.EdenAuthToken,
-			IsEden:     true,
-		}
-		blxConn := NewBlxNodeConnection(blxOpts, processor.txC)
-		go blxConn.Start()
+			AuthHeader: token,
+			URL:        url,
+		})
 	}
 
-	if opts.ChainboundAPIKey != "" {
-		opts := ChainboundNodeOpts{ //nolint:exhaustruct
+	// Eden
+	for _, auth := range opts.EdenAuth {
+		token, url := common.GetAuthTokenAndURL(auth)
+		startEdenConnection(EdenNodeOpts{
+			TxC:        processor.txC,
+			Log:        opts.Log,
+			AuthHeader: token,
+			URL:        url,
+		})
+	}
+
+	// Chainbound
+	for _, auth := range opts.ChainboundAuth {
+		token, url := common.GetAuthTokenAndURL(auth)
+		chainboundConn := NewChainboundNodeConnection(ChainboundNodeOpts{
+			TxC:    processor.txC,
 			Log:    opts.Log,
-			APIKey: opts.ChainboundAPIKey,
-		}
-		chainboundConn := NewChainboundNodeConnection(opts, processor.txC)
+			APIKey: token,
+			URL:    url,
+		})
 		go chainboundConn.Start()
-	}
-}
-
-func connectBloxroute(log *zap.SugaredLogger, authHeader, url string, txC chan TxIn) {
-	blxOpts := BlxNodeOpts{ //nolint:exhaustruct
-		Log:        log,
-		AuthHeader: authHeader,
-		URL:        url, // URL is taken from ENV vars
-	}
-
-	// start Websocket or gRPC subscription depending on URL
-	if common.IsWebsocketProtocol(blxOpts.URL) {
-		blxConn := NewBlxNodeConnection(blxOpts, txC)
-		go blxConn.Start()
-	} else {
-		blxConn := NewBlxNodeConnectionGRPC(blxOpts, txC)
-		go blxConn.Start()
 	}
 }

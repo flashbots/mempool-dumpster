@@ -23,7 +23,7 @@ Overview:
 2. Alchemy (Websockets, using [`alchemy_pendingTransactions`](https://docs.alchemy.com/reference/alchemy-pendingtransactions), warning - burns a lot of credits)
 3. [bloXroute](https://docs.bloxroute.com/streams/newtxs-and-pendingtxs) (Websockets and gRPC)
 4. [Chainbound Fiber](https://fiber.chainbound.io/docs/usage/getting-started/) (gRPC)
-5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc) (Websockets)
+5. [Eden](https://docs.edennetwork.io/eden-rpc/speed-rpc) (Websockets and gRPC)
 
 Note: Some sources send transactions that are already included on-chain, which are discarded (not added to archive or summary)
 
@@ -110,14 +110,6 @@ See this post for more details: https://collective.flashbots.net/t/mempool-dumps
 
 ---
 
-## Interesting analyses
-
-- Amount of transactions which eventually lands on chain + inclusionDelay (by source)
-- Transaction quality (i.e. for high-volume XOF sources)
-- Trash transactions
-
-Feel free to continue the conversation in the [Flashbots Forum](https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401)!
-
 ## Running the analyzer
 
 You can easily run the included analyzer to create summaries like [2023-09-22_summary.txt](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-22_summary.txt):
@@ -131,6 +123,22 @@ go run cmd/analyze/* \
     --input-parquet /mnt/data/mempool-dumpster/2023-09-22/2023-09-22.parquet \
     --input-sourcelog /mnt/data/mempool-dumpster/2023-09-22/2023-09-22_sourcelog.csv.zip
 ```
+
+To speed things up, you can use the `MAX` environment variable to set a maximum number of transactions to process:
+
+```bash
+MAX=10000 go run cmd/analyze/* \
+    --out summary.txt \
+    --input-parquet /mnt/data/mempool-dumpster/2023-09-22/2023-09-22.parquet \
+    --input-sourcelog /mnt/data/mempool-dumpster/2023-09-22/2023-09-22_sourcelog.csv.zip
+```
+
+## Interesting analyses
+
+- Something interesting with `inclusionDelay`?
+- Trash transactions (invalid nonce, not enough sender funds)
+
+Feel free to continue the conversation in the [Flashbots Forum](https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401)!
 
 ---
 

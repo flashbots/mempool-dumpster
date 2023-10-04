@@ -1,105 +1,116 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/flashbots/mempool-dumpster/collector"
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/lithammer/shortuuid"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/urfave/cli/v2"
 )
 
 var (
 	version = "dev" // is set during build process
 
-	// Default values
-	defaultDebug        = os.Getenv("DEBUG") == "1"
-	defaultLogProd      = os.Getenv("LOG_PROD") == "1"
-	defaultLogService   = os.Getenv("LOG_SERVICE")
-	defaultCheckNodeURI = os.Getenv("CHECK_NODE_URI")
+	cliFlags = []cli.Flag{
+		// Collector configuration
+		&cli.BoolFlag{
+			Name:     "debug",
+			EnvVars:  []string{"DEBUG"},
+			Usage:    "enable debug logging",
+			Category: "Collector Configuration",
+		},
+		&cli.StringFlag{
+			Name:     "out",
+			EnvVars:  []string{"OUT"},
+			Required: true,
+			Usage:    "output base directory",
+			Category: "Collector Configuration",
+		},
+		&cli.StringFlag{
+			Name:     "uid",
+			EnvVars:  []string{"UID"},
+			Usage:    "collector uid, part of output CSV filenames (default: random)",
+			Category: "Collector Configuration",
+		},
+		&cli.StringFlag{
+			Name:     "check-node",
+			EnvVars:  []string{"CHECK_NODE"},
+			Usage:    "EL node URL to check incoming transactions",
+			Category: "Collector Configuration",
+		},
 
-	// API keys
-	defaultblxAuthToken     = os.Getenv("BLX_AUTH_HEADER")
-	defaultEdenAuthToken    = os.Getenv("EDEN_AUTH_HEADER")
-	defaultChainboundAPIKey = os.Getenv("CHAINBOUND_API_KEY")
-
-	// Flags
-	printVersion  = flag.Bool("version", false, "only print version")
-	debugPtr      = flag.Bool("debug", defaultDebug, "print debug output")
-	logProdPtr    = flag.Bool("log-prod", defaultLogProd, "log in production mode (json)")
-	logServicePtr = flag.String("log-service", defaultLogService, "'service' tag to logs")
-	nodesPtr      = flag.String("nodes", "ws://localhost:8546", "comma separated list of EL nodes")
-	checkNodeURI  = flag.String("check-node", defaultCheckNodeURI, "node to use for checking incoming transactions")
-	outDirPtr     = flag.String("out", "", "path to collect raw transactions into")
-	uidPtr        = flag.String("uid", "", "collector uid (part of output CSV filename)")
-
-	blxAuthToken     = flag.String("blx-token", defaultblxAuthToken, "bloXroute auth token (optional)")
-	edenAuthToken    = flag.String("eden-token", defaultEdenAuthToken, "Eden auth token (optional)")
-	chainboundAPIKey = flag.String("chainbound-api-key", defaultChainboundAPIKey, "Chainbound API key (optional)")
+		// Sources
+		&cli.StringSliceFlag{
+			Name:     "node",
+			Aliases:  []string{"nodes"},
+			EnvVars:  []string{"NODE", "NODES"},
+			Usage:    "EL node URL(s)",
+			Category: "Sources Configuration",
+		},
+		&cli.StringSliceFlag{
+			Name:     "blx",
+			EnvVars:  []string{"BLX_AUTH"},
+			Usage:    "bloXroute auth-header (or auth-header@url)",
+			Category: "Sources Configuration",
+		},
+		&cli.StringSliceFlag{
+			Name:     "eden",
+			EnvVars:  []string{"EDEN_AUTH"},
+			Usage:    "Eden auth-header (or auth-header@url)",
+			Category: "Sources Configuration",
+		},
+		&cli.StringSliceFlag{
+			Name:     "chainbound",
+			EnvVars:  []string{"CHAINBOUND_AUTH"},
+			Usage:    "Chainbound API key (or api-key@url)",
+			Category: "Sources Configuration",
+		},
+	}
 )
 
 func main() {
-	flag.Parse()
-
-	// perhaps only print the version
-	if *printVersion {
-		fmt.Printf("mempool-collector %s\n", version)
-		return
+	app := &cli.App{
+		Name:    "mempool-dumpster/collector",
+		Usage:   "Collect mempool transactions from various sources",
+		Version: version,
+		Flags:   cliFlags,
+		Action:  runCollector,
 	}
+
+	if err := app.Run(os.Args); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func runCollector(cCtx *cli.Context) error {
+	var (
+		debug          = cCtx.Bool("debug")
+		outDir         = cCtx.String("out")
+		uid            = cCtx.String("uid")
+		checkNodeURI   = cCtx.String("check-node")
+		nodeURIs       = cCtx.StringSlice("node")
+		blxAuth        = cCtx.StringSlice("blx")
+		edenAuth       = cCtx.StringSlice("eden")
+		chainboundAuth = cCtx.StringSlice("chainbound")
+	)
 
 	// Logger setup
-	var logger *zap.Logger
-	zapLevel := zap.NewAtomicLevel()
-	if *debugPtr {
-		zapLevel.SetLevel(zap.DebugLevel)
-	}
-	if *logProdPtr {
-		encoderCfg := zap.NewProductionEncoderConfig()
-		encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
-		logger = zap.New(zapcore.NewCore(
-			zapcore.NewJSONEncoder(encoderCfg),
-			zapcore.Lock(os.Stdout),
-			zapLevel,
-		))
-	} else {
-		logger = zap.New(zapcore.NewCore(
-			zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()),
-			zapcore.Lock(os.Stdout),
-			zapLevel,
-		))
+	log := common.GetLogger(debug, false)
+	defer func() { _ = log.Sync() }()
+
+	if uid == "" {
+		uid = shortuuid.New()[:6]
 	}
 
-	defer func() { _ = logger.Sync() }()
-	log := logger.Sugar()
-
-	if *logServicePtr != "" {
-		log = log.With("service", *logServicePtr)
+	if len(nodeURIs) == 0 && len(blxAuth) == 0 && len(edenAuth) == 0 && len(chainboundAuth) == 0 {
+		log.Fatal("No nodes, bloxroute, or eden token set (use -nodes <url1>,<url2> / -blx-token <token> / -eden-token <token>)")
 	}
 
-	if *outDirPtr == "" {
-		log.Fatal("No output directory not set (use -out <path>)")
-	}
-
-	if *uidPtr == "" {
-		*uidPtr = shortuuid.New()[:6]
-	}
-
-	if *nodesPtr == "" && *blxAuthToken == "" {
-		log.Fatal("No nodes or bloxroute token set (use -nodes <url1>,<url2> and/or -blx-token <token>)")
-	}
-
-	nodes := []string{}
-	if *nodesPtr != "" {
-		nodes = strings.Split(*nodesPtr, ",")
-	}
-
-	log.Infow("Starting mempool-collector", "version", version, "outDir", *outDirPtr, "uid", *uidPtr)
+	log.Infow("Starting mempool-collector", "version", version, "outDir", outDir, "uid", uid)
 
 	aliases := common.SourceAliasesFromEnv()
 	if len(aliases) > 0 {
@@ -108,14 +119,14 @@ func main() {
 
 	// Start service components
 	opts := collector.CollectorOpts{
-		Log:                log,
-		UID:                *uidPtr,
-		Nodes:              nodes,
-		OutDir:             *outDirPtr,
-		BloxrouteAuthToken: *blxAuthToken,
-		EdenAuthToken:      *edenAuthToken,
-		ChainboundAPIKey:   *chainboundAPIKey,
-		CheckNodeURI:       *checkNodeURI,
+		Log:            log,
+		UID:            uid,
+		OutDir:         outDir,
+		CheckNodeURI:   checkNodeURI,
+		Nodes:          nodeURIs,
+		BloxrouteAuth:  blxAuth,
+		EdenAuth:       edenAuth,
+		ChainboundAuth: chainboundAuth,
 	}
 
 	collector.Start(&opts)
@@ -125,4 +136,5 @@ func main() {
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
 	log.Info("bye")
+	return nil
 }

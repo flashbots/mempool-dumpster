@@ -15,15 +15,10 @@ import (
 type Analyzer2Opts struct {
 	Transactions map[string]*TxSummaryEntry
 	Sourelog     map[string]map[string]int64 // [hash][source] = timestampMs
-	// TxBlacklist  map[string]bool             // optional, blacklist of txs (these will be ignored for analysis)
-	// TxWhitelist  map[string]bool             // optional, whitelist of txs (only these will be used for analysis)
-	SourceComps []SourceComp
+	SourceComps  []SourceComp
 }
 
 type Analyzer2 struct {
-	// opts Analyzer2Opts
-	// useWhitelist bool
-
 	Transactions map[string]*TxSummaryEntry
 	Sourelog     map[string]map[string]int64
 	SourceComps  []SourceComp
@@ -54,8 +49,6 @@ type Analyzer2 struct {
 
 func NewAnalyzer2(opts Analyzer2Opts) *Analyzer2 {
 	a := &Analyzer2{ //nolint:exhaustruct
-		// opts: opts,
-		// useWhitelist:           len(opts.TxWhitelist) > 0,
 		Transactions: make(map[string]*TxSummaryEntry),
 		Sourelog:     opts.Sourelog,
 		SourceComps:  opts.SourceComps,
@@ -84,14 +77,6 @@ func (a *Analyzer2) init() {
 
 	// iterate over tx to
 	for _, tx := range a.Transactions {
-		// if a.opts.TxBlacklist[txHash] {
-		// 	continue
-		// }
-
-		// if a.useWhitelist && !a.opts.TxWhitelist[txHash] {
-		// 	continue
-		// }
-
 		if tx.IncludedAtBlockHeight == 0 {
 			a.nNotIncluded += 1
 		} else {
@@ -154,6 +139,14 @@ func (a *Analyzer2) latencies(src, ref string) txHashes {
 	hashes := make(txHashes)
 	for txHash, tx := range a.Transactions {
 		txHashLower := strings.ToLower(txHash)
+		// if a.opts.TxBlacklist[txHashLower] {
+		// 	continue
+		// }
+
+		// if a.useWhitelist && !a.opts.TxWhitelist[txHashLower] {
+		// 	continue
+		// }
+
 		if len(tx.Sources) == 1 {
 			continue
 		}
@@ -231,7 +224,7 @@ func (a *Analyzer2) Sprint() string {
 	}
 
 	out += fmt.Sprintln("")
-	out += fmt.Sprintf("Sources: %s \n", strings.Join(a.sources, ", "))
+	out += fmt.Sprintf("Sources: %s \n", strings.Join(TitleStrings(a.sources), ", "))
 	out += fmt.Sprintln("")
 
 	out += fmt.Sprintln("-----------------")

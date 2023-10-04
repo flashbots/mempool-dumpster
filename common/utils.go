@@ -99,7 +99,11 @@ func roundFloat(val float64, precision uint) float64 {
 }
 
 func IntDiffPercentFmt(a, b int, decimals uint) string {
-	format := fmt.Sprintf("%%.%df%%%%", decimals)
+	return IntDiffPercentFmtC(a, b, decimals, "%%")
+}
+
+func IntDiffPercentFmtC(a, b int, decimals uint, fmtSuffix string) string {
+	format := fmt.Sprintf("%%.%df%s", decimals, fmtSuffix)
 	f := float64(a) / float64(b)
 	f2 := roundFloat(f*100, decimals)
 	return Printer.Sprintf(format, f2)
@@ -173,4 +177,21 @@ func FmtDuration(d time.Duration) string {
 func SetupMarkdownTableWriter(table *tablewriter.Table) {
 	table.SetBorders(tablewriter.Border{Left: true, Top: false, Right: true, Bottom: false})
 	table.SetCenterSeparator("|")
+}
+
+func TitleStrings(s []string) []string {
+	ret := make([]string, len(s))
+	for i, v := range s {
+		ret[i] = Title(v)
+	}
+	return ret
+}
+
+// GetAuthTokenAndURL takes in auth strings like "token" or "token@url" and returns token and url separately
+func GetAuthTokenAndURL(auth string) (string, string) {
+	parts := strings.Split(auth, "@")
+	if len(parts) < 2 {
+		return auth, ""
+	}
+	return parts[0], parts[1]
 }
