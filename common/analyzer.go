@@ -139,14 +139,6 @@ func (a *Analyzer2) latencies(src, ref string) txHashes {
 	hashes := make(txHashes)
 	for txHash, tx := range a.Transactions {
 		txHashLower := strings.ToLower(txHash)
-		// if a.opts.TxBlacklist[txHashLower] {
-		// 	continue
-		// }
-
-		// if a.useWhitelist && !a.opts.TxWhitelist[txHashLower] {
-		// 	continue
-		// }
-
 		if len(tx.Sources) == 1 {
 			continue
 		}
@@ -373,7 +365,7 @@ func (a *Analyzer2) Sprint() string {
 			}
 
 			table.Append([]string{
-				Printer.Sprintf("%s won %d%% of tx by at least", first, p),
+				Printer.Sprintf("%s won %d%% of txs by at least", first, p),
 				Printer.Sprintf("%d ms", int(math.Abs(float64(diff)))),
 			})
 		}
