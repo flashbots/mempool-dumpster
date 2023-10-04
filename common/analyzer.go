@@ -72,7 +72,7 @@ func NewAnalyzer2(opts Analyzer2Opts) *Analyzer2 {
 }
 
 // Init does some efficient initial data analysis and preparation for later use
-func (a *Analyzer2) init() { //nolint:gocognit
+func (a *Analyzer2) init() {
 	a.nUniqueTransactions = int64(len(a.Transactions))
 
 	// iterate over tx to
