@@ -3,7 +3,6 @@ module github.com/flashbots/mempool-dumpster
 go 1.21
 
 require (
-	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/bloXroute-Labs/gateway/v2 v2.127.42
 	github.com/chainbound/fiber-go v1.6.0
