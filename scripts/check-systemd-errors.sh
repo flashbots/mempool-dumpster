@@ -29,15 +29,28 @@ function error() {
     echo "NEW ERRORS"
     echo "$err"
 
+    # send pushover message
     curl -s \
     --form-string "token=$PUSHOVER_APP_TOKEN" \
     --form-string "user=$PUSHOVER_APP_KEY" \
-    --form-string "message=$lines errors in mempool-collector service found\n\n$err" \
+    --form-string "message=mempool-collector $lines errors: $err" \
     https://api.pushover.net/1/messages.json
 }
 
 function reset() {
+    if [ ! -f /tmp/mempool-collector-error-current.log ]; then
+        return
+    fi
+
+    # remove previous file
     rm -f /tmp/mempool-collector-error-current.log
+
+    # send pushover message about resolution
+    curl -s \
+    --form-string "token=$PUSHOVER_APP_TOKEN" \
+    --form-string "user=$PUSHOVER_APP_KEY" \
+    --form-string "message=mempool-collector errors resolved" \
+    https://api.pushover.net/1/messages.json
 }
 
 date
