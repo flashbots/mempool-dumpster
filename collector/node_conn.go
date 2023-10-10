@@ -64,7 +64,7 @@ func (nc *NodeConnection) connect() {
 	}
 
 	if err != nil {
-		nc.log.Errorw("failed to connect", "error", err)
+		nc.log.Errorw("failed to connect, reconnecting in a bit...", "error", err)
 		go nc.reconnect()
 		return
 	}
@@ -79,9 +79,6 @@ func (nc *NodeConnection) connect() {
 		}
 	}
 }
-
-// func (nc *NodeConnection) connect(txC chan *types.Transaction) (*rpc.ClientSubscription, error) {
-// }
 
 func (nc *NodeConnection) connectGeneric(txC chan *types.Transaction) (*rpc.ClientSubscription, error) {
 	nc.log.Infow("connecting...", "uri", nc.uri)
@@ -99,6 +96,7 @@ func (nc *NodeConnection) connectGeneric(txC chan *types.Transaction) (*rpc.Clie
 	return sub, nil
 }
 
+// connectAlchemy connects to Alchemy's pendingTransactions subscription (warning -- burns _a lot_ of CU credits)
 func (nc *NodeConnection) connectAlchemy(txC chan *types.Transaction) (*rpc.ClientSubscription, error) {
 	nc.log.Infow("connecting...", "uri", nc.uri)
 	client, err := ethclient.Dial(nc.uri)

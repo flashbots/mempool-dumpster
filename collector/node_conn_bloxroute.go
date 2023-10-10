@@ -96,7 +96,7 @@ func (nc *BlxNodeConnection) connect() {
 	dialer := websocket.DefaultDialer
 	wsSubscriber, resp, err := dialer.Dial(nc.url, http.Header{"Authorization": []string{nc.authHeader}})
 	if err != nil {
-		nc.log.Errorw("failed to connect to bloxroute", "error", err)
+		nc.log.Errorw("failed to connect to bloxroute, reconnecting in a bit...", "error", err)
 		go nc.reconnect()
 		return
 	}
@@ -208,7 +208,7 @@ func (nc *BlxNodeConnectionGRPC) connect() {
 
 	conn, err := grpc.Dial(nc.url, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithInitialWindowSize(common.GRPCWindowSize))
 	if err != nil {
-		nc.log.Errorw("failed to connect to bloxroute gRPC", "error", err)
+		nc.log.Errorw("failed to connect to bloxroute gRPC, reconnecting in a bit...", "error", err)
 		go nc.reconnect()
 		return
 	}
