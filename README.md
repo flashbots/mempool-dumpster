@@ -38,26 +38,11 @@ Daily files uploaded by mempool-dumpster (i.e. for [September 2023](https://memp
 1. CSV file with details about when each transaction was received by any source (~100MB/day zipped, i.e. [`2023-09-08_sourcelog.csv.zip`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08_sourcelog.csv.zip))
 1. Summary in text format (~2kB, i.e. [`2023-09-08_summary.txt`](https://mempool-dumpster.flashbots.net/ethereum/mainnet/2023-09/2023-09-08_summary.txt))
 
----
+### Schema of output files
 
-## FAQ
-
-- _When is the data uploaded?_ ... The data for the previous day is uploaded daily between UTC 4am and 4:30am.
-- _What are exclusive transactions?_ ... a transaction that was seen from no other source (transaction only provided by a single source). These transactions might include recycled transactions (which were already seen long ago but not included, and resent by a transaction source).
-- _What does "XOF" stand for?_ ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions).
-- _What is a-pool?_ ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
-- _gRPC vs Websockets?_ ... bloXroute and Chainbound are connected with gRPC, all other sources are connected with Websockets (note that gRPC has a lower latency than WebSockets).
-
----
-
-# Working with Parquet
-
-[Apache Parquet](https://parquet.apache.org/) is a column-oriented data file format designed for efficient data storage and retrieval. It provides efficient data compression and encoding schemes with enhanced performance to handle complex data in bulk (more [here](https://www.databricks.com/glossary/what-is-parquet#:~:text=What%20is%20Parquet%3F,handle%20complex%20data%20in%20bulk.)).
-
-We recommend to use [ClickHouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) (as well as [DuckDB](https://duckdb.org/)) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
+**Parquet**
 
 ```bash
-# show the schema
 $ clickhouse local -q "DESCRIBE TABLE 'transactions.parquet';"
 timestamp               Nullable(DateTime64(3))
 hash                    Nullable(String)
@@ -77,7 +62,41 @@ includedAtBlockHeight   Nullable(Int64)
 includedBlockTimestamp  Nullable(DateTime64(3))
 inclusionDelayMs        Nullable(Int64)
 rawTx                   Nullable(String)
+```
 
+**CSV**
+
+Same as parquet, but without `rawTx`:
+
+```
+timestamp_ms,hash,chain_id,from,to,value,nonce,gas,gas_price,gas_tip_cap,gas_fee_cap,data_size,data_4bytes,sources,included_at_block_height,included_block_timestamp_ms,inclusion_delay_ms
+```
+
+---
+
+## FAQ
+
+- **_When is the data uploaded?_** ... The data for the previous day is uploaded daily between UTC 4am and 4:30am.
+- **_What about transactions that are already included on-chain?_** ... Some sources send transactions even after they have been included on-chain. When a transaction is received, mempool-dumpster checks if it has been included already, and if so discards it from the transaction files (note: it is still added to the sourcelog).
+- **_What is `inclusionDelayMs`, and why can it be negative?_**
+    - When a block is included on-chain, it includes a `block.timestamp` field.
+    - `inclusionDelayMs = (block.timestamp * 1000) - MempoolDumpster.receivedAtMs`
+    - Block builders set `block.timestamp`, typically to the beginning of the slot.
+    - A slot is 12 seconds. If mempool dumpster receives a transaction in the middle of the slot (i.e. `t=6`), it could get included in the current slot. In this case, the builder would set the timestamp to `t=0`, i.e. 6 seconds before MD has seen the transaction. This scenario would result in a negative `inclusionDelay` value (i.e. `inclusionDelayMs=-6000`).
+- **_What are exclusive transactions?_** ... a transaction that was seen from no other source (transaction only provided by a single source). These transactions might include recycled transactions (which were already seen long ago but not included, and resent by a transaction source).
+- **_What does "XOF" stand for?_** ... XOF stands for "exclusive orderflow" (i.e. exclusive transactions).
+- **_What is a-pool?_** ... A-Pool is a regular geth node with some optimized peering settings, subscribed to over the network.
+- **_gRPC vs Websockets?_** ... bloXroute and Chainbound are connected with gRPC, all other sources are connected with Websockets (note that gRPC has a lower latency than WebSockets).
+
+---
+
+# Working with Parquet
+
+[Apache Parquet](https://parquet.apache.org/) is a column-oriented data file format designed for efficient data storage and retrieval. It provides efficient data compression and encoding schemes with enhanced performance to handle complex data in bulk (more [here](https://www.databricks.com/glossary/what-is-parquet#:~:text=What%20is%20Parquet%3F,handle%20complex%20data%20in%20bulk.)).
+
+We recommend to use [ClickHouse local](https://clickhouse.com/docs/en/operations/utilities/clickhouse-local) (as well as [DuckDB](https://duckdb.org/)) to work with Parquet files, it makes it easy to run [queries](https://clickhouse.com/docs/en/sql-reference/statements) like:
+
+```bash
 # count rows
 $ clickhouse local -q "SELECT count(*) FROM 'transactions.parquet' LIMIT 1;"
 
