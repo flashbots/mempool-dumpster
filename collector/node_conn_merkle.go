@@ -1,7 +1,7 @@
 package collector
 
-// Plug into Chainbound fiber as mempool data source (via websocket stream):
-// https://fiber.chainbound.io/docs/usage/getting-started/
+// Plug into merkle as mempool data source (via websocket stream):
+// https://docs.merkle.io/transaction-network/what-is-transaction-network
 
 import (
 	"time"
