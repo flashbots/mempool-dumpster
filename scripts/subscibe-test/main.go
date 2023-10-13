@@ -101,7 +101,7 @@ func MainChainbound() {
 	nc := collector.NewChainboundNodeConnection(opts)
 	go nc.Start()
 	for tx := range txC {
-		log.Infow("received tx", "tx", tx.Tx.Hash(), "`src", tx.Source)
+		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
 	}
 }
 
