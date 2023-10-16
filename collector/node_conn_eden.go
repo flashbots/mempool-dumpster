@@ -88,8 +88,7 @@ func (nc *EdenNodeConnection) reconnect() {
 	nc.connect()
 }
 
-//nolint:dupl
-func (nc *EdenNodeConnection) connect() {
+func (nc *EdenNodeConnection) connect() { //nolint:dupl
 	nc.log.Infow("connecting...", "uri", nc.url)
 	dialer := websocket.DefaultDialer
 	wsSubscriber, resp, err := dialer.Dial(nc.url, http.Header{"Authorization": []string{nc.authHeader}})

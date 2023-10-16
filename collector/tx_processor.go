@@ -57,7 +57,7 @@ type OutFiles struct {
 func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
 		log: opts.Log, // .With("uid", uid),
-		txC: make(chan TxIn, 100),
+		txC: make(chan TxIn, 1000),
 		uid: opts.UID,
 
 		outDir:   opts.OutDir,

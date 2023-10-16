@@ -6,7 +6,6 @@ package collector
 import (
 	"time"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/merkle3/merkle-sdk-go/merkle"
 	"go.uber.org/zap"
@@ -20,10 +19,11 @@ type MerkleNodeOpts struct {
 }
 
 type MerkleNodeConection struct {
-	log    *zap.SugaredLogger
-	sdk    *merkle.MerkleSDK
-	srcTag string
-	txC    chan TxIn
+	log        *zap.SugaredLogger
+	sdk        *merkle.MerkleSDK
+	srcTag     string
+	txC        chan TxIn
+	backoffSec int
 }
 
 func NewMerkleNodeConnection(opts MerkleNodeOpts) *MerkleNodeConection {
@@ -37,37 +37,48 @@ func NewMerkleNodeConnection(opts MerkleNodeOpts) *MerkleNodeConection {
 	sdk.SetApiKey(opts.APIKey)
 
 	return &MerkleNodeConection{
-		log:    opts.Log.With("src", srcTag),
-		sdk:    sdk,
-		srcTag: srcTag,
-		txC:    opts.TxC,
+		log:        opts.Log.With("src", srcTag),
+		sdk:        sdk,
+		srcTag:     srcTag,
+		txC:        opts.TxC,
+		backoffSec: initialBackoffSec,
 	}
 }
 
-func (cbc *MerkleNodeConection) Start() {
-	cbc.log.Debug("merkle stream starting...")
-	go cbc.connect()
-	cbc.log.Error("merkle stream closed")
+func (nc *MerkleNodeConection) Start() {
+	nc.connect()
 }
 
-func (cbc *MerkleNodeConection) connect() {
-	cbc.log.Infow("connecting...")
+func (nc *MerkleNodeConection) reconnect() {
+	backoffDuration := time.Duration(nc.backoffSec) * time.Second
+	nc.log.Infof("reconnecting to %s in %s sec ...", nc.srcTag, backoffDuration.String())
+	time.Sleep(backoffDuration)
 
-	txs, err := cbc.sdk.Transactions().Stream(merkle.EthereumMainnet) // pass a chain id
+	// increase backoff timeout for next try
+	nc.backoffSec *= 2
+	if nc.backoffSec > maxBackoffSec {
+		nc.backoffSec = maxBackoffSec
+	}
+
+	nc.connect()
+}
+
+func (nc *MerkleNodeConection) connect() {
+	nc.log.Info("connecting...")
+	txs, err := nc.sdk.Transactions().Stream(merkle.EthereumMainnet)
 
 	for {
 		select {
 		case e := <-err:
-			cbc.log.Errorw("merkle subscription error", "error", e)
-		case _tx := <-txs:
-			// process the transaction
-			go func(tx *types.Transaction) {
-				cbc.txC <- TxIn{
-					T:      time.Now().UTC(),
-					Tx:     tx,
-					Source: cbc.srcTag,
-				}
-			}(_tx)
+			nc.log.Errorw("merkle subscription error", "error", e)
+			nc.reconnect()
+
+		case tx := <-txs:
+			nc.txC <- TxIn{
+				T:      time.Now().UTC(),
+				Tx:     tx,
+				Source: nc.srcTag,
+			}
 		}
 	}
 }
