@@ -137,6 +137,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 
 	// Sanity check transaction
 	if err = p.validateTx(outFiles.FTrash, txIn); err != nil {
+		p.srcMetrics.Inc(KeyStatsTxTrash, txIn.Source)
 		return
 	}
 
@@ -151,6 +152,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 			}
 		} else if receipt != nil {
 			p.srcMetrics.Inc(KeyStatsTxOnChain, txIn.Source)
+			p.srcMetrics.Inc(KeyStatsTxTrash, txIn.Source)
 			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
 			p.writeTrash(outFiles.FTrash, txIn, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			return
@@ -361,7 +363,7 @@ func (p *TxProcessor) startHousekeeper() {
 		p.srcMetrics.Logger(p.log, KeyStatsFirst, false).Info("source_stats/first")
 		p.srcMetrics.Logger(p.log, KeyStatsAll, false).Info("source_stats/all")
 		p.srcMetrics.Logger(p.log, KeyStatsUnique, true).Info("source_stats/unique")
-		p.srcMetrics.Logger(p.log, KeyStatsTxOnChain, false).Info("source_stats/tx_onchain")
+		p.srcMetrics.Logger(p.log, KeyStatsTxTrash, false).Info("source_stats/trash")
 
 		// reset counters
 		p.srcMetrics.Reset()

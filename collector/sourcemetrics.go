@@ -12,6 +12,7 @@ const (
 	KeyStatsFirst     = "first"
 	KeyStatsUnique    = "unique"
 	KeyStatsTxOnChain = "tx-onchain"
+	KeyStatsTxTrash   = "tx-trash"
 )
 
 type SourceMetrics struct {
