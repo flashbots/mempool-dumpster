@@ -6,6 +6,7 @@ const (
 	SourceTagLocal      = "local"
 	SourceTagBloxroute  = "bloxroute"
 	SourceTagChainbound = "chainbound"
+	SourceTagMerkle     = "merkle"
 	SourceTagEden       = "eden"
 	SourceTagAlchemy    = "alchemy"
 	SourceTagInfura     = "infura"

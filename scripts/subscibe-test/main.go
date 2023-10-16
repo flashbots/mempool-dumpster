@@ -23,7 +23,8 @@ func pcheck(err error) {
 }
 
 func main() {
-	MainEden()
+	MainMerkle()
+	// MainEden()
 	// MainBlx()
 	// MainChainbound()
 }
@@ -49,6 +50,23 @@ func MainBlx() {
 		URL:        url,
 	}
 	nc := collector.NewBlxNodeConnectionGRPC(blxOpts)
+	go nc.Start()
+	for tx := range txC {
+		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
+	}
+}
+
+func MainMerkle() {
+	txC := make(chan collector.TxIn)
+	log := common.GetLogger(true, false)
+	apiKey := os.Getenv("MKL_AUTH")
+
+	mklOpts := collector.MerkleNodeOpts{
+		TxC:    txC,
+		Log:    log,
+		APIKey: apiKey,
+	}
+	nc := collector.NewMerkleNodeConnection(mklOpts)
 	go nc.Start()
 	for tx := range txC {
 		log.Infow("received tx", "tx", tx.Tx.Hash(), "src", tx.Source)
