@@ -11,6 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/atomic"
@@ -96,13 +99,14 @@ func (p *TxProcessor) Start() {
 }
 
 func (p *TxProcessor) processTx(txIn TxIn) {
-	txHashLower := strings.ToLower(txIn.Tx.Hash().Hex())
+	tx := txIn.Tx
+	txHashLower := strings.ToLower(tx.Hash().Hex())
 	log := p.log.With("tx_hash", txHashLower).With("source", txIn.Source)
 	log.Debug("processTx")
 
 	// count all transactions per source
 	p.srcMetrics.Inc(KeyStatsAll, txIn.Source)
-	p.srcMetrics.IncKey(KeyStatsUnique, txIn.Source, txIn.Tx.Hash().Hex())
+	p.srcMetrics.IncKey(KeyStatsUnique, txIn.Source, tx.Hash().Hex())
 
 	// get output file handles
 	outFiles, isCreated, err := p.getOutputCSVFiles(txIn.T.Unix())
@@ -131,9 +135,14 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		return
 	}
 
+	// Sanity check transaction
+	if err = p.validateTx(outFiles.FTrash, txIn); err != nil {
+		return
+	}
+
 	// check if tx was already included
 	if p.ethClient != nil {
-		receipt, err := p.ethClient.TransactionReceipt(context.Background(), txIn.Tx.Hash())
+		receipt, err := p.ethClient.TransactionReceipt(context.Background(), tx.Hash())
 		if err != nil {
 			if err.Error() == "not found" {
 				// all good, mempool tx
@@ -143,10 +152,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 		} else if receipt != nil {
 			p.srcMetrics.Inc(KeyStatsTxOnChain, txIn.Source)
 			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
-			_, err = fmt.Fprintf(outFiles.FTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHashLower, txIn.Source, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
-			if err != nil {
-				log.Errorw("fmt.Fprintf", "error", err)
-			}
+			p.writeTrash(outFiles.FTrash, txIn, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			return
 		}
 	}
@@ -158,7 +164,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.srcMetrics.Inc(KeyStatsFirst, txIn.Source)
 
 	// create tx rlp
-	rlpHex, err := common.TxToRLPString(txIn.Tx)
+	rlpHex, err := common.TxToRLPString(tx)
 	if err != nil {
 		log.Errorw("failed to encode rlp", "error", err)
 		return
@@ -175,6 +181,56 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.knownTxsLock.Lock()
 	p.knownTxs[txHashLower] = txIn.T
 	p.knownTxsLock.Unlock()
+}
+
+func (p *TxProcessor) writeTrash(fTrash *os.File, txIn TxIn, message, notes string) {
+	txHashLower := strings.ToLower(txIn.Tx.Hash().Hex())
+	_, err := fmt.Fprintf(fTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHashLower, txIn.Source, message, notes)
+	if err != nil {
+		p.log.With("tx_hash", txHashLower).With("source", txIn.Source).Errorw("fmt.Fprintf", "error", err)
+	}
+}
+
+func (p *TxProcessor) validateTx(fTrash *os.File, txIn TxIn) error { // inspired by https://github.com/flashbots/suave-geth/blob/dd3875eccde5b11feb621f10d9aae6417c98bdb0/core/txpool/txpool.go#L600
+	tx := txIn.Tx
+	txHashLower := strings.ToLower(tx.Hash().Hex())
+	log := p.log.With("tx_hash", txHashLower).With("source", txIn.Source)
+
+	// Make sure the transaction is signed properly.
+	if _, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx); err != nil {
+		log.Debugw("error: transaction signature incorrect")
+		p.writeTrash(fTrash, txIn, common.TrashTxSignatureError, "")
+		return err
+	}
+
+	if tx.Value().Sign() < 0 {
+		log.Debugw("error: transaction with negative value")
+		p.writeTrash(fTrash, txIn, "negative value", "")
+		return txpool.ErrNegativeValue
+	}
+
+	// Sanity check for extremely large numbers
+	if tx.GasFeeCap().BitLen() > 256 {
+		log.Debugw("error: transaction gasFeeCap extremely large")
+		p.writeTrash(fTrash, txIn, "extremely large gasFeeCap", "")
+		return core.ErrFeeCapVeryHigh
+	}
+
+	if tx.GasTipCap().BitLen() > 256 {
+		log.Debugw("error: gasTipCap extremely large")
+		p.writeTrash(fTrash, txIn, "extremely large gasTipCap", "")
+		return core.ErrTipVeryHigh
+	}
+
+	// Ensure gasFeeCap is greater than or equal to gasTipCap.
+	if tx.GasFeeCapIntCmp(tx.GasTipCap()) < 0 {
+		log.Debugw("error: transaction gasFeeCap lower than gasTipCap")
+		p.writeTrash(fTrash, txIn, "gasFeeCap lower than gasTipCap", "")
+		return core.ErrTipAboveFeeCap
+	}
+
+	// all good
+	return nil
 }
 
 // getOutputCSVFiles returns two file handles - one for the transactions and one for source stats, if needed - and a boolean indicating whether the file was created
