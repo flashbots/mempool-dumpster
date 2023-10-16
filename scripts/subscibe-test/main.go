@@ -13,8 +13,10 @@ import (
 	"github.com/flashbots/mempool-dumpster/common"
 )
 
-// var url = "ws://localhost:8546"
-var url = os.Getenv("URL")
+var (
+	url = os.Getenv("URL")
+	log = common.GetLogger(true, false)
+)
 
 func pcheck(err error) {
 	if err != nil {
@@ -31,7 +33,6 @@ func main() {
 
 func MainGeneric() {
 	txC := make(chan collector.TxIn)
-	log := common.GetLogger(true, false)
 	nc := collector.NewNodeConnection(log, url, txC)
 	nc.StartInBackground()
 	for tx := range txC {
@@ -41,7 +42,6 @@ func MainGeneric() {
 
 func MainBlx() {
 	txC := make(chan collector.TxIn)
-	log := common.GetLogger(true, false)
 	token, url := common.GetAuthTokenAndURL(os.Getenv("BLX_AUTH"))
 	blxOpts := collector.BlxNodeOpts{
 		TxC:        txC,
@@ -58,8 +58,7 @@ func MainBlx() {
 
 func MainMerkle() {
 	txC := make(chan collector.TxIn)
-	log := common.GetLogger(true, false)
-	apiKey := os.Getenv("MKL_AUTH")
+	apiKey := os.Getenv("MERKLE_AUTH")
 
 	mklOpts := collector.MerkleNodeOpts{
 		TxC:    txC,
@@ -75,7 +74,6 @@ func MainMerkle() {
 
 func MainEden() {
 	txC := make(chan collector.TxIn)
-	log := common.GetLogger(true, false)
 	token, url := common.GetAuthTokenAndURL(os.Getenv("EDEN_AUTH"))
 	blxOpts := collector.EdenNodeOpts{
 		TxC:        txC,
@@ -92,7 +90,6 @@ func MainEden() {
 
 func MainChainbound() {
 	txC := make(chan collector.TxIn)
-	log := common.GetLogger(true, false)
 	opts := collector.ChainboundNodeOpts{ //nolint:exhaustruct
 		TxC:    txC,
 		Log:    log,
