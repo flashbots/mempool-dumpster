@@ -71,6 +71,7 @@ cd $1
 echo "Compressing transaction files..."
 zip "${date}_transactions.csv.zip" "${date}_transactions.csv"
 zip "${date}.csv.zip" "${date}.csv"
+gzip -k "${date}.csv"
 zip "${date}_sourcelog.csv.zip" "${date}_sourcelog.csv"
 
 # upload to Cloudflare R2 and AWS S3
@@ -78,9 +79,12 @@ echo "Uploading ${date}.parquet ..."
 aws s3 cp --no-progress "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 aws --profile aws s3 cp --no-progress "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
-echo "Uploading ${date}.csv.zip CSV ..."
+echo "Uploading ${date}.csv.zip ..."
 aws s3 cp --no-progress "${date}.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 aws --profile aws s3 cp --no-progress "${date}.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
+
+echo "Uploading ${date}.csv.gz ..."
+aws s3 cp --no-progress "${date}.csv.gz" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 
 # echo "Uploading ${date}_transactions.csv.zip ..."
 # aws s3 cp --no-progress "${date}_transactions.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
