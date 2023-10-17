@@ -238,11 +238,16 @@ func getFilesFromS3(month string) ([]website.FileEntry, error) {
 				return files, err
 			}
 
-			if parts[3] == "index.html" {
+			filename := parts[3]
+
+			if filename == "index.html" {
+				continue
+			} else if strings.HasSuffix(filename, ".csv.gz") {
 				continue
 			}
+
 			files = append(files, website.FileEntry{
-				Filename: parts[3],
+				Filename: filename,
 				Size:     size,
 				Modified: parts[1] + " " + parts[0],
 			})
