@@ -74,6 +74,10 @@ zip "${date}.csv.zip" "${date}.csv"
 gzip -k "${date}.csv"
 zip "${date}_sourcelog.csv.zip" "${date}_sourcelog.csv"
 
+# combine and zip trash files
+cat trash/*.csv > "${date}_trash.csv"
+zip "${date}_trash.csv.zip" "${date}_trash.csv"
+
 # upload to Cloudflare R2 and AWS S3
 echo "Uploading ${date}.parquet ..."
 aws s3 cp --no-progress "${date}.parquet" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
@@ -94,22 +98,6 @@ echo "Uploading ${date}_sourcelog.csv.zip ..."
 aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 aws --profile aws s3 cp --no-progress "${date}_sourcelog.csv.zip" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
 
-#
-# # Create analysis
-# #
-# echo "Creating summary..."
-# cd $1
-# /server/mempool-dumpster/build/analyze \
-#   --out "${date}_summary.txt" \
-#   --input-parquet "${date}.parquet" \
-#   --input-sourcelog "${date}_sourcelog.csv.zip"
-
-# /server/mempool-dumpster/build/analyze test \
-#   --tx-blacklist "../${yesterday}/${yesterday}.csv.zip" \
-#   --tx-whitelist "${date}.csv.zip" \
-#   --out "${date}_summary.txt" \
-#   "${date}_sourcelog.csv"
-
 echo "Uploading ${date}_summary.txt ..."
 aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/" --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
 aws --profile aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-mempool-dumpster/ethereum/mainnet/${ym}/"
@@ -118,7 +106,7 @@ aws --profile aws s3 cp --no-progress "${date}_summary.txt" "s3://flashbots-memp
 # CLEANUP
 #
 if [ -z ${YES:-} ]; then
-  read -p "Upload successful. Remove the raw transactions directory? " -n 1 -r
+  read -p "Upload successful. Remove the raw files and directories? " -n 1 -r
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]
   then
@@ -126,7 +114,7 @@ if [ -z ${YES:-} ]; then
   fi
 fi
 
-rm -rf transactions sourcelog
-rm -rf "${date}_transactions.csv" "${date}.csv" "${date}_sourcelog.csv"
+rm -rf "${date}_transactions.csv" "${date}.csv" "${date}_sourcelog.csv" "${date}_trash.csv"
+rm -rf transactions sourcelog trash
 echo "All done!"
 echo ""

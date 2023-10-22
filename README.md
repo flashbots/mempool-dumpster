@@ -100,25 +100,31 @@ We recommend to use [ClickHouse local](https://clickhouse.com/docs/en/operations
 # count rows
 $ clickhouse local -q "SELECT count(*) FROM 'transactions.parquet' LIMIT 1;"
 
-# get the first hash+rawTx
+# show hash+rawTx from first entry
 $ clickhouse local -q "SELECT hash,hex(rawTx) FROM 'transactions.parquet' LIMIT 1;"
 
-# get details of a particular hash
+# details of a particular hash
 $ clickhouse local -q "SELECT timestamp,hash,from,to,hex(rawTx) FROM 'transactions.parquet' WHERE hash='0x152065ad73bcf63f68572f478e2dc6e826f1f434cb488b993e5956e6b7425eed';"
 
-# get exclusive transactions from bloxroute
+# all transactions seen from mempoolguru
+$ clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE has(sources, 'mempoolguru');"
+
+# all transactions that were seen by both mempoolguru and chainbound
+$ clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE hasAll(sources, ['mempoolguru', 'local']);"
+
+# exclusive transactions from bloxroute
 $ clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE length(sources) == 1 AND sources[1] == 'bloxroute';"
 
-# get count of landed vs not-landed exclusive transactions, by source
+# count of landed vs not-landed exclusive transactions, by source
 $ clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT sources[1], included, count(included) FROM 'out/out/transactions.parquet' WHERE length(sources) == 1 GROUP BY sources[1], included;"
 
-# get uniswap v2 transactions
+# uniswap v2 transactions
 $ clickhouse local -q "SELECT COUNT(*) FROM 'transactions.parquet' WHERE to='0x7a250d5630b4cf539739df2c5dacb4c659f2488d';"
 
-# get uniswap v2 transactions and separate by included/not-included
+# uniswap v2 transactions and separate by included/not-included
 $ clickhouse local -q "WITH includedBlockTimestamp!=0 as included SELECT included, COUNT(included) FROM 'transactions.parquet' WHERE to='0x7a250d5630b4cf539739df2c5dacb4c659f2488d' GROUP BY included;"
 
-# get inclusion delay for uniswap v2 transactions (time between receiving and being included on-chain)
+# inclusion delay for uniswap v2 transactions (time between receiving and being included on-chain)
 $ clickhouse local -q "WITH inclusionDelayMs/1000 as incdelay SELECT quantiles(0.5, 0.9, 0.99)(incdelay), avg(incdelay) as avg FROM 'transactions.parquet' WHERE to='0x7a250d5630b4cf539739df2c5dacb4c659f2488d' AND includedBlockTimestamp!=0;"
 
 # count uniswap v2 contract methods

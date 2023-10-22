@@ -35,6 +35,9 @@ journalctl -u mempool-collector -o cat --since "10m ago" | grep "source_stats_al
 
 # source stats - tx first
 journalctl -u mempool-collector -o cat --since "1h ago" | grep "source_stats_first" | awk '{ $1=""; $2=""; $3=""; print $0}' | jq
+
+# count types of traash
+cat trash/*.csv | sed 's/,/ /g' | awk '{ print $4 }' | sort | uniq -c
 ```
 
 CSV tricks
