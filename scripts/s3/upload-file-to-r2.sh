@@ -9,8 +9,8 @@ fi
 # auto-fill target if not given
 if [ -z "$target" ]; then
     # remove "/mnt/data/mempool-dumpster/" prefix from src and make it the S3 prefix
-    target="ethereum/mainnet/${src#"/mnt/data/mempool-dumpster/"}"
+    target="/ethereum/mainnet/${src#"/mnt/data/mempool-dumpster/"}"
 fi
 
 echo "uploading $src to S3 $target ..."
-aws s3 cp $src s3://flashbots-mempool-dumpster/$target --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+aws s3 cp $src s3://flashbots-mempool-dumpster$target --endpoint-url "https://${CLOUDFLARE_R2_ACCOUNT_ID}.r2.cloudflarestorage.com"

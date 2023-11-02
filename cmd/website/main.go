@@ -86,7 +86,7 @@ func buildWebsite() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(months)
+	fmt.Println("Months:", months)
 
 	// build root page
 	log.Infof("Building root page ...")
@@ -185,7 +185,7 @@ func buildWebsite() {
 
 		for _, file := range toUpload {
 			app := "./scripts/s3/upload-file-to-r2.sh"
-			cmd := exec.Command(app, file.from, strings.TrimPrefix(file.to, "/")) //nolint:gosec
+			cmd := exec.Command(app, file.from, file.to) //nolint:gosec
 			stdout, err := cmd.Output()
 			if err != nil {
 				log.Fatal(err)
