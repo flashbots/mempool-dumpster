@@ -16,15 +16,20 @@ type CollectorOpts struct {
 	BloxrouteAuth  []string
 	EdenAuth       []string
 	ChainboundAuth []string
+
+	Receivers               []string
+	ReceiversAllowedSources []string
 }
 
 // Start kicks off all the service components in the background
 func Start(opts *CollectorOpts) {
 	processor := NewTxProcessor(TxProcessorOpts{
-		Log:          opts.Log,
-		UID:          opts.UID,
-		OutDir:       opts.OutDir,
-		CheckNodeURI: opts.CheckNodeURI,
+		Log:                     opts.Log,
+		UID:                     opts.UID,
+		OutDir:                  opts.OutDir,
+		CheckNodeURI:            opts.CheckNodeURI,
+		HTTPReceivers:           opts.Receivers,
+		ReceiversAllowedSources: opts.ReceiversAllowedSources,
 	})
 	go processor.Start()
 
