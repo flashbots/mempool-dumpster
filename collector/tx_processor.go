@@ -111,6 +111,9 @@ func (p *TxProcessor) Start() {
 	// start listening for transactions coming in through the channel
 	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
+		// send tx to receivers before processing it
+		// this will reduce the latency for the receivers but may lead to receivers getting the same tx multiple times
+		// or getting txs that are incorrect
 		go p.sendTxToReceivers(txIn)
 		p.processTx(txIn)
 	}
