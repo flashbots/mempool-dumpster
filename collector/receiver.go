@@ -39,9 +39,5 @@ func (r *HTTPReceiver) SendTx(ctx context.Context, tx *TxIn) error {
 	}
 	defer res.Body.Close()
 	_, err = io.Copy(io.Discard, res.Body)
-	if err != nil {
-		return err
-	}
-
 	return err
 }
