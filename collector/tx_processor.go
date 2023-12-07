@@ -20,11 +20,17 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	receiverTimeout = 5 * time.Second
+)
+
 type TxProcessorOpts struct {
-	Log          *zap.SugaredLogger
-	OutDir       string
-	UID          string
-	CheckNodeURI string
+	Log                     *zap.SugaredLogger
+	OutDir                  string
+	UID                     string
+	CheckNodeURI            string
+	HTTPReceivers           []string
+	ReceiversAllowedSources []string
 }
 
 type TxProcessor struct {
@@ -45,6 +51,9 @@ type TxProcessor struct {
 	checkNodeURI string
 	ethClient    *ethclient.Client
 
+	receivers               []TxReceiver
+	receiversAllowedSources []string
+
 	lastHealthCheckCall time.Time
 }
 
@@ -55,6 +64,11 @@ type OutFiles struct {
 }
 
 func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
+	receivers := make([]TxReceiver, 0, len(opts.HTTPReceivers))
+	for _, r := range opts.HTTPReceivers {
+		receivers = append(receivers, NewHTTPReceiver(r))
+	}
+
 	return &TxProcessor{ //nolint:exhaustruct
 		log: opts.Log, // .With("uid", uid),
 		txC: make(chan TxIn, 100),
@@ -67,6 +81,9 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 		srcMetrics: NewMetricsCounter(),
 
 		checkNodeURI: opts.CheckNodeURI,
+
+		receivers:               receivers,
+		receiversAllowedSources: opts.ReceiversAllowedSources,
 	}
 }
 
@@ -94,8 +111,41 @@ func (p *TxProcessor) Start() {
 	// start listening for transactions coming in through the channel
 	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
+		// send tx to receivers before processing it
+		// this will reduce the latency for the receivers but may lead to receivers getting the same tx multiple times
+		// or getting txs that are incorrect
+		go p.sendTxToReceivers(txIn)
 		p.processTx(txIn)
 	}
+}
+
+func (p *TxProcessor) sendTxToReceivers(txIn TxIn) {
+	sourceOk := false
+	for _, allowedSource := range p.receiversAllowedSources {
+		if txIn.Source == allowedSource {
+			sourceOk = true
+			break
+		}
+	}
+	if !sourceOk {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), receiverTimeout)
+	defer cancel()
+
+	var wg sync.WaitGroup
+	for _, r := range p.receivers {
+		wg.Add(1)
+		go func(r TxReceiver) {
+			defer wg.Done()
+			err := r.SendTx(ctx, &txIn)
+			if err != nil {
+				p.log.Errorw("failed to send tx", "error", err)
+			}
+		}(r)
+	}
+	wg.Wait()
 }
 
 func (p *TxProcessor) processTx(txIn TxIn) {

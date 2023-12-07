@@ -69,6 +69,20 @@ var (
 			Usage:    "Chainbound API key (or api-key@url)",
 			Category: "Sources Configuration",
 		},
+
+		// Tx receivers
+		&cli.StringSliceFlag{
+			Name:     "tx-receivers",
+			EnvVars:  []string{"TX_RECEIVERS"},
+			Usage:    "URL(s) to send transactions to as octet-stream over http",
+			Category: "Tx Receivers Configuration",
+		},
+		&cli.StringSliceFlag{
+			Name:     "tx-receivers-allowed-sources",
+			EnvVars:  []string{"TX_RECEIVERS_ALLOWED_SOURCES"},
+			Usage:    "sources of txs to send to receivers",
+			Category: "Tx Receivers Configuration",
+		},
 	}
 )
 
@@ -88,14 +102,16 @@ func main() {
 
 func runCollector(cCtx *cli.Context) error {
 	var (
-		debug          = cCtx.Bool("debug")
-		outDir         = cCtx.String("out")
-		uid            = cCtx.String("uid")
-		checkNodeURI   = cCtx.String("check-node")
-		nodeURIs       = cCtx.StringSlice("node")
-		blxAuth        = cCtx.StringSlice("blx")
-		edenAuth       = cCtx.StringSlice("eden")
-		chainboundAuth = cCtx.StringSlice("chainbound")
+		debug                   = cCtx.Bool("debug")
+		outDir                  = cCtx.String("out")
+		uid                     = cCtx.String("uid")
+		checkNodeURI            = cCtx.String("check-node")
+		nodeURIs                = cCtx.StringSlice("node")
+		blxAuth                 = cCtx.StringSlice("blx")
+		edenAuth                = cCtx.StringSlice("eden")
+		chainboundAuth          = cCtx.StringSlice("chainbound")
+		receivers               = cCtx.StringSlice("tx-receivers")
+		receiversAllowedSources = cCtx.StringSlice("tx-receivers-allowed-sources")
 	)
 
 	// Logger setup
@@ -119,14 +135,16 @@ func runCollector(cCtx *cli.Context) error {
 
 	// Start service components
 	opts := collector.CollectorOpts{
-		Log:            log,
-		UID:            uid,
-		OutDir:         outDir,
-		CheckNodeURI:   checkNodeURI,
-		Nodes:          nodeURIs,
-		BloxrouteAuth:  blxAuth,
-		EdenAuth:       edenAuth,
-		ChainboundAuth: chainboundAuth,
+		Log:                     log,
+		UID:                     uid,
+		OutDir:                  outDir,
+		CheckNodeURI:            checkNodeURI,
+		Nodes:                   nodeURIs,
+		BloxrouteAuth:           blxAuth,
+		EdenAuth:                edenAuth,
+		ChainboundAuth:          chainboundAuth,
+		Receivers:               receivers,
+		ReceiversAllowedSources: receiversAllowedSources,
 	}
 
 	collector.Start(&opts)
