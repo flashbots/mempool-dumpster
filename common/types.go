@@ -4,7 +4,7 @@ import (
 	"strings"
 )
 
-type BlxRawTxMsg struct { //nolint:musttag
+type BlxRawTxMsg struct {
 	Params struct {
 		Result struct {
 			RawTx string
@@ -12,7 +12,7 @@ type BlxRawTxMsg struct { //nolint:musttag
 	}
 }
 
-type EdenRawTxMsg struct { //nolint:musttag
+type EdenRawTxMsg struct {
 	Params struct {
 		Result struct {
 			RLP string

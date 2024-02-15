@@ -100,7 +100,7 @@ func TestParquet(t *testing.T) {
 	pr.ReadStop()
 	fr.Close()
 
-	require.Equal(t, 1, len(entries))
+	require.Len(t, entries, 1)
 	tx := entries[0]
 
 	require.Equal(t, summary.Timestamp, tx.Timestamp)
