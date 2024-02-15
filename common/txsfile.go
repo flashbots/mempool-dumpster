@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -184,8 +183,8 @@ func ParseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transac
 		From:      strings.ToLower(from.Hex()),
 		To:        strings.ToLower(to),
 		Value:     tx.Value().String(),
-		Nonce:     fmt.Sprint(tx.Nonce()),
-		Gas:       fmt.Sprint(tx.Gas()),
+		Nonce:     strconv.FormatUint(tx.Nonce(), 10),
+		Gas:       strconv.FormatUint(tx.Gas(), 10),
 		GasPrice:  tx.GasPrice().String(),
 		GasTipCap: tx.GasTipCap().String(),
 		GasFeeCap: tx.GasFeeCap().String(),

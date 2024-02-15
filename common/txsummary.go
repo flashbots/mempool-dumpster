@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -110,23 +111,23 @@ func (t *TxSummaryEntry) WasIncludedBeforeReceived() bool {
 
 func (t *TxSummaryEntry) ToCSVRow() []string {
 	return []string{
-		fmt.Sprint(t.Timestamp),
+		strconv.FormatInt(t.Timestamp, 10),
 		t.Hash,
 		t.ChainID,
 		t.From,
 		t.To,
 		t.Value,
-		fmt.Sprint(t.Nonce),
-		fmt.Sprint(t.Gas),
+		t.Nonce,
+		t.Gas,
 		t.GasPrice,
 		t.GasTipCap,
 		t.GasFeeCap,
-		fmt.Sprint(t.DataSize),
+		strconv.FormatInt(t.DataSize, 10),
 		t.Data4Bytes,
 		strings.Join(t.Sources, " "),
-		fmt.Sprint(t.IncludedAtBlockHeight),
-		fmt.Sprint(t.IncludedBlockTimestamp),
-		fmt.Sprint(t.InclusionDelayMs),
+		strconv.FormatInt(t.IncludedAtBlockHeight, 10),
+		strconv.FormatInt(t.IncludedBlockTimestamp, 10),
+		strconv.FormatInt(t.InclusionDelayMs, 10),
 	}
 }
 

@@ -28,6 +28,7 @@ linters:
     - varcheck
     - depguard
     - exhaustruct
+    - perfsprint
 
     #
     # Disabled because of generics:

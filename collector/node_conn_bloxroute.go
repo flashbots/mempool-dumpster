@@ -131,7 +131,7 @@ func (nc *BlxNodeConnection) connect() {
 
 		// fmt.Println("got message", string(nextNotification))
 		var txMsg common.BlxRawTxMsg
-		err = json.Unmarshal(nextNotification, &txMsg)
+		err = json.Unmarshal(nextNotification, &txMsg) //nolint:musttag
 		if err != nil {
 			nc.log.Errorw("failed to unmarshal message", "error", err)
 			continue
