@@ -30,33 +30,7 @@ var TxSummaryEntryCSVHeader = []string{
 	"included_at_block_height",
 	"included_block_timestamp_ms",
 	"inclusion_delay_ms",
-}
-
-type TxSummaryEntryNoRaw struct {
-	// The fields are written to CSV, and the order shouldn't change (for backwards compatibility)
-	Timestamp int64  `parquet:"name=timestamp, type=INT64, convertedtype=TIMESTAMP_MILLIS"`
-	Hash      string `parquet:"name=hash, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-
-	ChainID string `parquet:"name=chainId, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
-	From    string `parquet:"name=from, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-	To      string `parquet:"name=to, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
-	Value   string `parquet:"name=value, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-	Nonce   string `parquet:"name=nonce, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-
-	Gas       string `parquet:"name=gas, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-	GasPrice  string `parquet:"name=gasPrice, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-	GasTipCap string `parquet:"name=gasTipCap, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-	GasFeeCap string `parquet:"name=gasFeeCap, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-
-	DataSize   int64  `parquet:"name=dataSize, type=INT64"`
-	Data4Bytes string `parquet:"name=data4Bytes, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
-
-	Sources []string `parquet:"name=sources, type=MAP, convertedtype=LIST, valuetype=BYTE_ARRAY, valueconvertedtype=UTF8"`
-
-	// Inclusion stats
-	IncludedAtBlockHeight  int64 `parquet:"name=includedAtBlockHeight, type=INT64"`
-	IncludedBlockTimestamp int64 `parquet:"name=includedBlockTimestamp, type=INT64, convertedtype=TIMESTAMP_MILLIS"`
-	InclusionDelayMs       int64 `parquet:"name=inclusionDelayMs, type=INT64"`
+	"tx_type",
 }
 
 // TxSummaryEntry is a struct that represents a single transaction in the summary CSV and Parquet file
@@ -67,10 +41,12 @@ type TxSummaryEntry struct {
 	Hash      string `parquet:"name=hash, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
 
 	ChainID string `parquet:"name=chainId, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN"`
-	From    string `parquet:"name=from, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-	To      string `parquet:"name=to, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
-	Value   string `parquet:"name=value, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
-	Nonce   string `parquet:"name=nonce, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
+	TxType  int64  `parquet:"name=txType, type=INT64, encoding=PLAIN_DICTIONARY"`
+
+	From  string `parquet:"name=from, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
+	To    string `parquet:"name=to, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN_DICTIONARY"`
+	Value string `parquet:"name=value, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
+	Nonce string `parquet:"name=nonce, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
 
 	Gas       string `parquet:"name=gas, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
 	GasPrice  string `parquet:"name=gasPrice, type=BYTE_ARRAY, convertedtype=UTF8, encoding=PLAIN, omitstats=true"`
@@ -128,6 +104,7 @@ func (t *TxSummaryEntry) ToCSVRow() []string {
 		strconv.FormatInt(t.IncludedAtBlockHeight, 10),
 		strconv.FormatInt(t.IncludedBlockTimestamp, 10),
 		strconv.FormatInt(t.InclusionDelayMs, 10),
+		strconv.FormatInt(t.TxType, 10),
 	}
 }
 
