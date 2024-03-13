@@ -179,7 +179,9 @@ func ParseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transac
 		Timestamp: timestampMs,
 		Hash:      tx.Hash().Hex(),
 
-		ChainID:   tx.ChainId().String(),
+		ChainID: tx.ChainId().String(),
+		TxType:  int64(tx.Type()),
+
 		From:      strings.ToLower(from.Hex()),
 		To:        strings.ToLower(to),
 		Value:     tx.Value().String(),
