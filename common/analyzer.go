@@ -30,6 +30,10 @@ type Analyzer2 struct {
 	nIncluded           int64
 	nNotIncluded        int64
 
+	txTypes              []int64
+	nTransactionsPerType map[int64]int64
+	txBytesPerType       map[int64]int64
+
 	// landed vs non-landed transactions
 	nTxOnChainBySource    map[string]int64
 	nTxNotOnChainBySource map[string]int64
@@ -57,8 +61,11 @@ func NewAnalyzer2(opts Analyzer2Opts) *Analyzer2 {
 		nTxOnChainBySource:     make(map[string]int64),
 		nTxNotOnChainBySource:  make(map[string]int64),
 		nTxExclusiveIncluded:   make(map[string]map[bool]int64), // [source][isIncluded]count
+		nTransactionsPerType:   make(map[int64]int64),
+		txBytesPerType:         make(map[int64]int64),
 	}
 
+	// Now add all transactions to analyzer cache that were not included before received
 	for _, tx := range opts.Transactions {
 		if tx.WasIncludedBeforeReceived() {
 			continue
@@ -67,6 +74,7 @@ func NewAnalyzer2(opts Analyzer2Opts) *Analyzer2 {
 		a.Transactions[strings.ToLower(tx.Hash)] = tx
 	}
 
+	// Run the analyzer
 	a.init()
 	return a
 }
@@ -83,6 +91,11 @@ func (a *Analyzer2) init() {
 			a.nIncluded += 1
 		}
 
+		// Count transactions per type
+		a.nTransactionsPerType[tx.TxType] += 1
+		a.txBytesPerType[tx.TxType] += int64(len(tx.RawTx)) / 2 // not sure this is correct, the end result seems low for blob transactions...
+
+		// Go over sources
 		for _, src := range tx.Sources {
 			// Count overall tx / source
 			a.nTransactionsPerSource[src] += 1
@@ -129,6 +142,12 @@ func (a *Analyzer2) init() {
 		a.sources = append(a.sources, src)
 	}
 	sort.Strings(a.sources)
+
+	// get sorted list of txTypes
+	for txType := range a.nTransactionsPerType {
+		a.txTypes = append(a.txTypes, txType)
+	}
+	sort.Slice(a.txTypes, func(i, j int) bool { return a.txTypes[i] < a.txTypes[j] })
 }
 
 // latencyComp returns arrays of latency differences for the node that was faster
@@ -240,9 +259,32 @@ func (a *Analyzer2) Sprint() string {
 	out += fmt.Sprintln("-----------------")
 	out += fmt.Sprintln("")
 
-	// Add per-source tx stats
-	var buff bytes.Buffer
+	// TxType count
+	buff := bytes.Buffer{}
 	table := tablewriter.NewWriter(&buff)
+	SetupMarkdownTableWriter(table)
+	table.SetHeader([]string{"Tx Type", "Count"})
+	// table.SetHeader([]string{"Tx Type", "Count", "Size Total", "Size Avg"})
+	for txType := range a.txTypes {
+		count := a.nTransactionsPerType[int64(txType)]
+		table.Append([]string{
+			fmt.Sprint(txType),
+			Printer.Sprintf("%10d (%5s)", count, Int64DiffPercentFmt(count, a.nUniqueTransactions, 1)),
+			// HumanBytes(uint64(a.txBytesPerType[int64(txType)])),
+			// HumanBytes(uint64(a.txBytesPerType[int64(txType)] / count)),
+		})
+	}
+	table.Render()
+	out += buff.String()
+
+	// Add per-source tx stats
+	out += fmt.Sprintln("")
+	out += fmt.Sprintln("------------")
+	out += fmt.Sprintln("Source Stats")
+	out += fmt.Sprintln("------------")
+	out += fmt.Sprintln("")
+	buff = bytes.Buffer{}
+	table = tablewriter.NewWriter(&buff)
 	SetupMarkdownTableWriter(table)
 	table.SetHeader([]string{"Source", "Transactions", "Included on-chain", "Not included"})
 	for _, src := range a.sources {

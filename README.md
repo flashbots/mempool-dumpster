@@ -47,6 +47,7 @@ $ clickhouse local -q "DESCRIBE TABLE 'transactions.parquet';"
 timestamp               Nullable(DateTime64(3))
 hash                    Nullable(String)
 chainId                 Nullable(String)
+txType                  Nullable(Int64)
 from                    Nullable(String)
 to                      Nullable(String)
 value                   Nullable(String)
@@ -69,7 +70,7 @@ rawTx                   Nullable(String)
 Same as parquet, but without `rawTx`:
 
 ```
-timestamp_ms,hash,chain_id,from,to,value,nonce,gas,gas_price,gas_tip_cap,gas_fee_cap,data_size,data_4bytes,sources,included_at_block_height,included_block_timestamp_ms,inclusion_delay_ms
+timestamp_ms,hash,chain_id,from,to,value,nonce,gas,gas_price,gas_tip_cap,gas_fee_cap,data_size,data_4bytes,sources,included_at_block_height,included_block_timestamp_ms,inclusion_delay_ms,tx_type
 ```
 
 ---
@@ -99,6 +100,9 @@ We recommend to use [ClickHouse local](https://clickhouse.com/docs/en/operations
 ```bash
 # count rows
 $ clickhouse local -q "SELECT count(*) FROM 'transactions.parquet' LIMIT 1;"
+
+# count by transaction type
+$ clickhouse local -q "SELECT txType, COUNT(txType) FROM 'transactions.parquet' GROUP BY txType;"
 
 # show hash+rawTx from first entry
 $ clickhouse local -q "SELECT hash,hex(rawTx) FROM 'transactions.parquet' LIMIT 1;"

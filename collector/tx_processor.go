@@ -114,6 +114,10 @@ func (p *TxProcessor) Start() {
 		// send tx to receivers before processing it
 		// this will reduce the latency for the receivers but may lead to receivers getting the same tx multiple times
 		// or getting txs that are incorrect
+		if txIn.Tx == nil {
+			p.log.Errorf("nil tx from source %s", txIn.Source)
+			continue
+		}
 		go p.sendTxToReceivers(txIn)
 		p.processTx(txIn)
 	}
