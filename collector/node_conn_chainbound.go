@@ -25,7 +25,7 @@ type ChainboundNodeConnection struct {
 	apiKey     string
 	url        string
 	srcTag     string
-	fiberC     chan *fiber.Transaction
+	fiberC     chan *fiber.TransactionWithSender
 	txC        chan TxIn
 	backoffSec int
 }
@@ -46,7 +46,7 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnect
 		apiKey:     opts.APIKey,
 		url:        url,
 		srcTag:     srcTag,
-		fiberC:     make(chan *fiber.Transaction),
+		fiberC:     make(chan *fiber.TransactionWithSender),
 		txC:        opts.TxC,
 		backoffSec: initialBackoffSec,
 	}
@@ -54,12 +54,11 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnect
 
 func (cbc *ChainboundNodeConnection) Start() {
 	cbc.log.Debug("chainbound stream starting...")
-	cbc.fiberC = make(chan *fiber.Transaction)
+	cbc.fiberC = make(chan *fiber.TransactionWithSender)
 	go cbc.connect()
 
 	for fiberTx := range cbc.fiberC {
-		nativeTx := fiberTx.ToNative()
-		cbc.txC <- TxIn{time.Now().UTC(), nativeTx, cbc.srcTag}
+		cbc.txC <- TxIn{time.Now().UTC(), fiberTx.Transaction, cbc.srcTag}
 	}
 
 	cbc.log.Error("chainbound stream closed")
