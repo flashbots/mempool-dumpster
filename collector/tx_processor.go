@@ -135,6 +135,11 @@ func (p *TxProcessor) sendTxToReceivers(txIn TxIn) {
 		return
 	}
 
+	// discard blob txs
+	if txIn.Tx.Type() == types.BlobTxType {
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), receiverTimeout)
 	defer cancel()
 
