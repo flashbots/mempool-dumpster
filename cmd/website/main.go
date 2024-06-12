@@ -208,7 +208,7 @@ func getFoldersFromS3(dir string) ([]string, error) {
 	// Print the output
 	lines := strings.Split(string(stdout), "\n")
 	for _, line := range lines {
-		if line != "" && strings.HasPrefix(line, "202") {
+		if line != "" && strings.HasPrefix(line, "20") {
 			folders = append(folders, strings.TrimSuffix(line, "/"))
 		}
 	}
