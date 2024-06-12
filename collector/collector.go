@@ -2,6 +2,7 @@
 package collector
 
 import (
+	"github.com/flashbots/mempool-dumpster/api"
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
@@ -19,10 +20,22 @@ type CollectorOpts struct {
 
 	Receivers               []string
 	ReceiversAllowedSources []string
+
+	APIListenAddr string
 }
 
 // Start kicks off all the service components in the background
 func Start(opts *CollectorOpts) {
+	// Start API first
+	var apiServer *api.Server
+	if opts.APIListenAddr != "" {
+		apiServer = api.New(&api.HTTPServerConfig{
+			Log:        opts.Log,
+			ListenAddr: opts.APIListenAddr,
+		})
+		go apiServer.RunInBackground()
+	}
+
 	processor := NewTxProcessor(TxProcessorOpts{
 		Log:                     opts.Log,
 		UID:                     opts.UID,
@@ -31,6 +44,12 @@ func Start(opts *CollectorOpts) {
 		HTTPReceivers:           opts.Receivers,
 		ReceiversAllowedSources: opts.ReceiversAllowedSources,
 	})
+
+	// If API server is running, add it as a TX receiver
+	if apiServer != nil {
+		processor.receivers = append(processor.receivers, apiServer)
+	}
+
 	go processor.Start()
 
 	// Regular nodes

@@ -29,7 +29,7 @@ func main() {
 }
 
 func MainGeneric() {
-	txC := make(chan collector.TxIn)
+	txC := make(chan common.TxIn)
 	log := common.GetLogger(true, false)
 	nc := collector.NewNodeConnection(log, url, txC)
 	nc.StartInBackground()
@@ -39,7 +39,7 @@ func MainGeneric() {
 }
 
 func MainBlx() {
-	txC := make(chan collector.TxIn)
+	txC := make(chan common.TxIn)
 	log := common.GetLogger(true, false)
 	token, url := common.GetAuthTokenAndURL(os.Getenv("BLX_AUTH"))
 	blxOpts := collector.BlxNodeOpts{
@@ -56,7 +56,7 @@ func MainBlx() {
 }
 
 func MainEden() {
-	txC := make(chan collector.TxIn)
+	txC := make(chan common.TxIn)
 	log := common.GetLogger(true, false)
 	token, url := common.GetAuthTokenAndURL(os.Getenv("EDEN_AUTH"))
 	blxOpts := collector.EdenNodeOpts{
@@ -73,7 +73,7 @@ func MainEden() {
 }
 
 func MainChainbound() {
-	txC := make(chan collector.TxIn)
+	txC := make(chan common.TxIn)
 	log := common.GetLogger(true, false)
 	opts := collector.ChainboundNodeOpts{ //nolint:exhaustruct
 		TxC:    txC,

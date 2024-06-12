@@ -93,7 +93,7 @@ func (a *Analyzer2) init() {
 
 		// Count transactions per type
 		a.nTransactionsPerType[tx.TxType] += 1
-		a.txBytesPerType[tx.TxType] += int64(len(tx.RawTx)) / 2 // not sure this is correct, the end result seems low for blob transactions...
+		a.txBytesPerType[tx.TxType] += int64(len(tx.RawTx)) / 2
 
 		// Go over sources
 		for _, src := range tx.Sources {

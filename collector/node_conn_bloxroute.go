@@ -24,7 +24,7 @@ import (
 )
 
 type BlxNodeOpts struct {
-	TxC        chan TxIn
+	TxC        chan common.TxIn
 	Log        *zap.SugaredLogger
 	AuthHeader string
 	URL        string // optional override, default: blxDefaultURL
@@ -47,7 +47,7 @@ type BlxNodeConnection struct {
 	authHeader string
 	url        string
 	srcTag     string
-	txC        chan TxIn
+	txC        chan common.TxIn
 	backoffSec int
 }
 
@@ -156,7 +156,11 @@ func (nc *BlxNodeConnection) connect() {
 			continue
 		}
 
-		nc.txC <- TxIn{time.Now().UTC(), &tx, nc.srcTag}
+		nc.txC <- common.TxIn{
+			T:      time.Now().UTC(),
+			Tx:     &tx,
+			Source: nc.srcTag,
+		}
 	}
 }
 
@@ -165,7 +169,7 @@ type BlxNodeConnectionGRPC struct {
 	authHeader string
 	url        string
 	srcTag     string
-	txC        chan TxIn
+	txC        chan common.TxIn
 	backoffSec int
 }
 
@@ -253,7 +257,11 @@ func (nc *BlxNodeConnectionGRPC) connect() {
 				continue
 			}
 
-			nc.txC <- TxIn{time.Now().UTC(), &tx, nc.srcTag}
+			nc.txC <- common.TxIn{
+				T:      time.Now().UTC(),
+				Tx:     &tx,
+				Source: nc.srcTag,
+			}
 		}
 	}
 }

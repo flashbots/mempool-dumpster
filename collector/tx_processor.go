@@ -40,7 +40,7 @@ type TxProcessor struct {
 	log    *zap.SugaredLogger
 	uid    string
 	outDir string
-	txC    chan TxIn // note: it's important that the value is sent in here instead of a pointer, otherwise there are memory race conditions
+	txC    chan common.TxIn // note: it's important that the value is sent in here instead of a pointer, otherwise there are memory race conditions
 
 	outFilesLock sync.RWMutex
 	outFiles     map[int64]*OutFiles
@@ -74,7 +74,7 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 
 	return &TxProcessor{ //nolint:exhaustruct
 		log: opts.Log, // .With("uid", uid),
-		txC: make(chan TxIn, 100),
+		txC: make(chan common.TxIn, 100),
 		uid: opts.UID,
 
 		outDir:   opts.OutDir,
@@ -126,7 +126,7 @@ func (p *TxProcessor) Start() {
 	}
 }
 
-func (p *TxProcessor) sendTxToReceivers(txIn TxIn) {
+func (p *TxProcessor) sendTxToReceivers(txIn common.TxIn) {
 	sourceOk := false
 	for _, allowedSource := range p.receiversAllowedSources {
 		if txIn.Source == allowedSource {
@@ -155,7 +155,7 @@ func (p *TxProcessor) sendTxToReceivers(txIn TxIn) {
 	wg.Wait()
 }
 
-func (p *TxProcessor) processTx(txIn TxIn) {
+func (p *TxProcessor) processTx(txIn common.TxIn) {
 	tx := txIn.Tx
 	txHashLower := strings.ToLower(tx.Hash().Hex())
 	log := p.log.With("tx_hash", txHashLower).With("source", txIn.Source)
@@ -242,7 +242,7 @@ func (p *TxProcessor) processTx(txIn TxIn) {
 	p.knownTxsLock.Unlock()
 }
 
-func (p *TxProcessor) writeTrash(fTrash *os.File, txIn TxIn, message, notes string) {
+func (p *TxProcessor) writeTrash(fTrash *os.File, txIn common.TxIn, message, notes string) {
 	txHashLower := strings.ToLower(txIn.Tx.Hash().Hex())
 	_, err := fmt.Fprintf(fTrash, "%d,%s,%s,%s,%s\n", txIn.T.UnixMilli(), txHashLower, txIn.Source, message, notes)
 	if err != nil {
@@ -250,7 +250,7 @@ func (p *TxProcessor) writeTrash(fTrash *os.File, txIn TxIn, message, notes stri
 	}
 }
 
-func (p *TxProcessor) validateTx(fTrash *os.File, txIn TxIn) error { // inspired by https://github.com/flashbots/suave-geth/blob/dd3875eccde5b11feb621f10d9aae6417c98bdb0/core/txpool/txpool.go#L600
+func (p *TxProcessor) validateTx(fTrash *os.File, txIn common.TxIn) error { // inspired by https://github.com/flashbots/suave-geth/blob/dd3875eccde5b11feb621f10d9aae6417c98bdb0/core/txpool/txpool.go#L600
 	tx := txIn.Tx
 	txHashLower := strings.ToLower(tx.Hash().Hex())
 	log := p.log.With("tx_hash", txHashLower).With("source", txIn.Source)

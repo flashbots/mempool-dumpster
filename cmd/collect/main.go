@@ -83,6 +83,14 @@ var (
 			Usage:    "sources of txs to send to receivers",
 			Category: "Tx Receivers Configuration",
 		},
+
+		// SSE tx subscription
+		&cli.StringFlag{
+			Name:     "api-listen-addr",
+			EnvVars:  []string{"API_ADDR"},
+			Usage:    "API listen address (host:port)",
+			Category: "Tx Receivers Configuration",
+		},
 	}
 )
 
@@ -112,6 +120,7 @@ func runCollector(cCtx *cli.Context) error {
 		chainboundAuth          = cCtx.StringSlice("chainbound")
 		receivers               = cCtx.StringSlice("tx-receivers")
 		receiversAllowedSources = cCtx.StringSlice("tx-receivers-allowed-sources")
+		apiListenAddr           = cCtx.String("api-listen-addr")
 	)
 
 	// Logger setup
@@ -145,6 +154,7 @@ func runCollector(cCtx *cli.Context) error {
 		ChainboundAuth:          chainboundAuth,
 		Receivers:               receivers,
 		ReceiversAllowedSources: receiversAllowedSources,
+		APIListenAddr:           apiListenAddr,
 	}
 
 	collector.Start(&opts)

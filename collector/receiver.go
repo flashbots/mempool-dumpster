@@ -1,14 +1,23 @@
 package collector
 
+//
+// Forwarding select transactions to various kinds of receivers.
+//
+// One type of receiver is HTTPReceiver here.
+// Another type is the API server, to stream out transactions as SSE stream.
+//
+
 import (
 	"bytes"
 	"context"
 	"io"
 	"net/http"
+
+	"github.com/flashbots/mempool-dumpster/common"
 )
 
 type TxReceiver interface {
-	SendTx(ctx context.Context, tx *TxIn) error
+	SendTx(ctx context.Context, tx *common.TxIn) error
 }
 
 type HTTPReceiver struct {
@@ -21,7 +30,7 @@ func NewHTTPReceiver(url string) *HTTPReceiver {
 	}
 }
 
-func (r *HTTPReceiver) SendTx(ctx context.Context, tx *TxIn) error {
+func (r *HTTPReceiver) SendTx(ctx context.Context, tx *common.TxIn) error {
 	rawTx, err := tx.Tx.MarshalBinary()
 	if err != nil {
 		return err

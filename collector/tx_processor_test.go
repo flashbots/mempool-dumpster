@@ -17,10 +17,10 @@ import (
 // }
 
 type MockTxReceiver struct {
-	ReceivedTx *TxIn
+	ReceivedTx *common.TxIn
 }
 
-func (r *MockTxReceiver) SendTx(ctx context.Context, tx *TxIn) error {
+func (r *MockTxReceiver) SendTx(ctx context.Context, tx *common.TxIn) error {
 	r.ReceivedTx = tx
 	return nil
 }
@@ -38,7 +38,7 @@ func TestTxProcessor_sendTxToReceivers(t *testing.T) {
 	})
 	processor.receivers = append(processor.receivers, &receiver)
 
-	tx := TxIn{
+	tx := common.TxIn{
 		T:      time.Now(),
 		Tx:     nil,
 		Source: "not-allowed",

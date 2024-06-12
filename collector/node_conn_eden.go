@@ -22,7 +22,7 @@ import (
 )
 
 type EdenNodeOpts struct {
-	TxC        chan TxIn
+	TxC        chan common.TxIn
 	Log        *zap.SugaredLogger
 	AuthHeader string
 	URL        string // optional override, default: edenDefaultURL
@@ -45,7 +45,7 @@ type EdenNodeConnection struct {
 	authHeader string
 	url        string
 	srcTag     string
-	txC        chan TxIn
+	txC        chan common.TxIn
 	backoffSec int
 }
 
@@ -154,7 +154,11 @@ func (nc *EdenNodeConnection) connect() {
 			continue
 		}
 
-		nc.txC <- TxIn{time.Now().UTC(), &tx, nc.srcTag}
+		nc.txC <- common.TxIn{
+			T:      time.Now().UTC(),
+			Tx:     &tx,
+			Source: nc.srcTag,
+		}
 	}
 }
 
@@ -163,7 +167,7 @@ type EdenNodeConnectionGRPC struct {
 	authHeader string
 	url        string
 	srcTag     string
-	txC        chan TxIn
+	txC        chan common.TxIn
 	backoffSec int
 }
 
@@ -250,6 +254,10 @@ func (nc *EdenNodeConnectionGRPC) connect() {
 			continue
 		}
 
-		nc.txC <- TxIn{time.Now().UTC(), &tx, nc.srcTag}
+		nc.txC <- common.TxIn{
+			T:      time.Now().UTC(),
+			Tx:     &tx,
+			Source: nc.srcTag,
+		}
 	}
 }

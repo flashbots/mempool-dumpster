@@ -13,7 +13,7 @@ import (
 )
 
 type ChainboundNodeOpts struct {
-	TxC       chan TxIn
+	TxC       chan common.TxIn
 	Log       *zap.SugaredLogger
 	APIKey    string
 	URL       string // optional override, default: ChainboundDefaultURL
@@ -26,7 +26,7 @@ type ChainboundNodeConnection struct {
 	url        string
 	srcTag     string
 	fiberC     chan *fiber.TransactionWithSender
-	txC        chan TxIn
+	txC        chan common.TxIn
 	backoffSec int
 }
 
@@ -58,7 +58,11 @@ func (cbc *ChainboundNodeConnection) Start() {
 	go cbc.connect()
 
 	for fiberTx := range cbc.fiberC {
-		cbc.txC <- TxIn{time.Now().UTC(), fiberTx.Transaction, cbc.srcTag}
+		cbc.txC <- common.TxIn{
+			T:      time.Now().UTC(),
+			Tx:     fiberTx.Transaction,
+			Source: cbc.srcTag,
+		}
 	}
 
 	cbc.log.Error("chainbound stream closed")

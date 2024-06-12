@@ -2,7 +2,16 @@ package common
 
 import (
 	"strings"
+	"time"
+
+	"github.com/ethereum/go-ethereum/core/types"
 )
+
+type TxIn struct {
+	T      time.Time
+	Tx     *types.Transaction
+	Source string
+}
 
 type BlxRawTxMsg struct {
 	Params struct {

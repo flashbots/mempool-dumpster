@@ -17,12 +17,12 @@ type NodeConnection struct {
 	log        *zap.SugaredLogger
 	uri        string
 	uriTag     string // identifier of tx source (i.e. "infura", "alchemy", "ws://localhost:8546")
-	txC        chan TxIn
+	txC        chan common.TxIn
 	isAlchemy  bool
 	backoffSec int
 }
 
-func NewNodeConnection(log *zap.SugaredLogger, nodeURI string, txC chan TxIn) *NodeConnection {
+func NewNodeConnection(log *zap.SugaredLogger, nodeURI string, txC chan common.TxIn) *NodeConnection {
 	srcAlias := common.TxSourcName(nodeURI)
 	return &NodeConnection{
 		log:        log.With("src", srcAlias),
@@ -75,7 +75,11 @@ func (nc *NodeConnection) connect() {
 			nc.log.Errorw("subscription error, reconnecting...", "error", err)
 			go nc.reconnect()
 		case tx := <-localC:
-			nc.txC <- TxIn{time.Now().UTC(), tx, nc.uriTag}
+			nc.txC <- common.TxIn{
+				T:      time.Now().UTC(),
+				Tx:     tx,
+				Source: nc.uriTag,
+			}
 		}
 	}
 }
