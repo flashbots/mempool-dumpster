@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -23,6 +24,8 @@ import (
 const (
 	receiverTimeout = 5 * time.Second
 )
+
+var ErrBlobMissingSidecar = errors.New("missing blob sidecar")
 
 type TxProcessorOpts struct {
 	Log                     *zap.SugaredLogger
@@ -285,6 +288,13 @@ func (p *TxProcessor) validateTx(fTrash *os.File, txIn TxIn) error { // inspired
 		return core.ErrTipAboveFeeCap
 	}
 
+	// Ensure blob txs are correctly formed
+	if err := p.validateBlobTx(tx); err != nil {
+		log.Debugw("error: invalid blob transaction", "reason", err)
+		p.writeTrash(fTrash, txIn, "invalid blob transaction", "")
+		return err
+	}
+
 	// all good
 	return nil
 }
@@ -439,4 +449,19 @@ func (p *TxProcessor) healthCheckCall() {
 		p.log.Errorw("[HealthCheckCall] ERROR", "error", err)
 	}
 	resp.Body.Close()
+}
+
+// validateBlobTx ensures that a blob tx is capable of being consumed
+// by our system.  Namely, the blob tx should be in the "full" PooledTransactions
+// network representation with the full sidecar available.
+func (p *TxProcessor) validateBlobTx(tx *types.Transaction) error {
+	if tx.Type() != types.BlobTxType {
+		return nil
+	}
+
+	if tx.BlobTxSidecar() == nil {
+		return ErrBlobMissingSidecar
+	}
+
+	return nil
 }
