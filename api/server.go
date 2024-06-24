@@ -50,7 +50,6 @@ func New(cfg *HTTPServerConfig) (srv *Server) {
 	mux := chi.NewRouter()
 
 	mux.With(srv.httpLogger).Get("/sse/transactions", srv.handleTxSSE)
-	// mux.With(srv.httpLogger).Get("/sse/dummyTx", srv.handleDummyTx)
 
 	if cfg.EnablePprof {
 		srv.log.Info("pprof API enabled")
@@ -117,8 +116,12 @@ func (s *Server) SendTx(ctx context.Context, tx *common.TxIn) error {
 		return err
 	}
 
+	// Send tx to all subscribers (only if channel is not full)
 	for _, sub := range s.sseConnectionMap {
-		sub.txC <- txRLP
+		select {
+		case sub.txC <- txRLP:
+		default:
+		}
 	}
 
 	return nil
