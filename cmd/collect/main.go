@@ -159,7 +159,7 @@ func runCollector(cCtx *cli.Context) error {
 
 	collector.Start(&opts)
 
-	// Wwait for termination signal
+	// Wait for termination signal
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
