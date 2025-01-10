@@ -227,7 +227,11 @@ go run cmd/collect/main.go -out ./out -nodes ws://server1.com:8546,ws://server2.
 - Deduplicates transactions, sorts them by timestamp
 
 ```bash
-go run cmd/merge/main.go -h
+# print help
+go run cmd/merge/* -h
+
+# deduplicate transactions
+go run cmd/merge/* transactions --check-node ws://server1.com ./out/2023-08-07/transactions/txs_2023-08-07-10-00_collector1.csv
 ```
 
 
