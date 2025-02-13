@@ -15,7 +15,7 @@ import (
 var (
 	version = "dev" // is set during build process
 	debug   = os.Getenv("DEBUG") == "1"
-	maxTxs  = common.GetEnvInt("MAX", 0)
+	maxTxs  = common.GetEnvInt("MAX", 0) // 0 means no limit
 
 	// Helpers
 	log *zap.SugaredLogger
