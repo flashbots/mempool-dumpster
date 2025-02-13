@@ -26,6 +26,7 @@ linters:
     - exhaustruct
     - perfsprint
     - mnd
+    - gomnd
 
     #
     # Disabled because of generics:
@@ -46,6 +47,7 @@ linters-settings:
   gosec:
     excludes:
       - G108
+      - G115
 
   tagliatelle:
     case:
