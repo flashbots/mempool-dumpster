@@ -89,6 +89,7 @@ func (p *TxUpdateWorker) updateTx(tx *common.TxSummaryEntry) error {
 	header := p.blockCache.getHeaderForTx(tx.Hash)
 	if header != nil {
 		tx.IncludedAtBlockHeight = header.Number.Int64()
+		//lint:ignore G115 header.Time is in seconds
 		tx.IncludedBlockTimestamp = int64(header.Time * 1000)
 		tx.InclusionDelayMs = tx.IncludedBlockTimestamp - tx.Timestamp
 		return nil
@@ -113,6 +114,7 @@ func (p *TxUpdateWorker) updateTx(tx *common.TxSummaryEntry) error {
 		return err
 	}
 	p.blockCache.addBlock(block)
+	//lint:ignore G115 header.Time is in seconds
 	tx.IncludedBlockTimestamp = int64(block.Time() * 1000)
 	tx.InclusionDelayMs = tx.IncludedBlockTimestamp - tx.Timestamp
 	return nil

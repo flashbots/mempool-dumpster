@@ -127,6 +127,7 @@ func (t *TxSummaryEntry) UpdateInclusionStatus(ethClient *ethclient.Client) (*ty
 	if err != nil {
 		return nil, err
 	} else {
+		//lint:ignore G115 header.Time is in seconds
 		t.IncludedBlockTimestamp = int64(header.Time * 1000)
 		t.InclusionDelayMs = t.IncludedBlockTimestamp - t.Timestamp
 	}

@@ -9,7 +9,6 @@ linters:
     - gocritic
     - godot
     - godox
-    - gomnd
     - lll
     - nestif
     - nilnil
