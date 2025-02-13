@@ -110,7 +110,7 @@ func analyzeV2(cCtx *cli.Context) error {
 	num := int(pr.GetNumRows())
 	entries := make(map[string]*common.TxSummaryEntry)
 	var i int
-	for i = 0; i < num; i++ {
+	for i := range num {
 		stus := make([]common.TxSummaryEntry, 1)
 		if err = pr.Read(&stus); err != nil {
 			log.Errorw("Read error", "error", err)
