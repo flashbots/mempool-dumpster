@@ -15,7 +15,7 @@ import (
 var (
 	version = "dev" // is set during build process
 	debug   = os.Getenv("DEBUG") == "1"
-	max     = common.GetEnvInt("MAX", 0)
+	maxTxs  = common.GetEnvInt("MAX", 0) // 0 means no limit
 
 	// Helpers
 	log *zap.SugaredLogger
@@ -110,7 +110,7 @@ func analyzeV2(cCtx *cli.Context) error {
 	num := int(pr.GetNumRows())
 	entries := make(map[string]*common.TxSummaryEntry)
 	var i int
-	for i = 0; i < num; i++ {
+	for i := range num {
 		stus := make([]common.TxSummaryEntry, 1)
 		if err = pr.Read(&stus); err != nil {
 			log.Errorw("Read error", "error", err)
@@ -119,7 +119,7 @@ func analyzeV2(cCtx *cli.Context) error {
 			log.Infow(common.Printer.Sprintf("- Loaded %10d / %d rows", i, num), "memUsed", common.GetMemUsageHuman())
 		}
 		entries[stus[0].Hash] = &stus[0]
-		if i+1 == max {
+		if i+1 == maxTxs {
 			break
 		}
 	}

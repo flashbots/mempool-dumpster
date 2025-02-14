@@ -20,7 +20,7 @@ type Analyzer2Opts struct {
 
 type Analyzer2 struct {
 	Transactions map[string]*TxSummaryEntry
-	Sourelog     map[string]map[string]int64
+	Sourcelog    map[string]map[string]int64
 	SourceComps  []SourceComp
 
 	nTransactionsPerSource map[string]int64
@@ -54,7 +54,7 @@ type Analyzer2 struct {
 func NewAnalyzer2(opts Analyzer2Opts) *Analyzer2 {
 	a := &Analyzer2{ //nolint:exhaustruct
 		Transactions: make(map[string]*TxSummaryEntry),
-		Sourelog:     opts.Sourelog,
+		Sourcelog:    opts.Sourelog,
 		SourceComps:  opts.SourceComps,
 
 		nTransactionsPerSource: make(map[string]int64),
@@ -177,7 +177,7 @@ func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histo
 	}
 
 	// 2. Iterate over sourcelog and find the first timestamp for each source
-	for txHash, sources := range a.Sourelog {
+	for txHash, sources := range a.Sourcelog {
 		txHashLower := strings.ToLower(txHash)
 		if _, ok := txHashes[txHashLower]; !ok {
 			continue
@@ -246,7 +246,7 @@ func (a *Analyzer2) Sprint() string {
 	out += Printer.Sprintf("- Included on-chain: %10d (%5s) \n", a.nIncluded, Int64DiffPercentFmt(a.nIncluded, a.nUniqueTransactions, 1))
 	out += Printer.Sprintf("- Not included:      %10d (%5s) \n", a.nNotIncluded, Int64DiffPercentFmt(a.nNotIncluded, a.nUniqueTransactions, 1))
 
-	if a.Sourelog == nil || len(a.Sourelog) == 0 {
+	if a.Sourcelog == nil {
 		return out
 	}
 

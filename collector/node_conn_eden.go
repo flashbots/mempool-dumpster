@@ -208,7 +208,7 @@ func (nc *EdenNodeConnectionGRPC) reconnect() {
 func (nc *EdenNodeConnectionGRPC) connect() {
 	nc.log.Infow("connecting...", "uri", nc.url)
 
-	conn, err := grpc.Dial(nc.url, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithInitialWindowSize(common.GRPCWindowSize))
+	conn, err := grpc.NewClient(nc.url, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithInitialWindowSize(common.GRPCWindowSize))
 	if err != nil {
 		nc.log.Errorw("failed to connect to eden gRPC, reconnecting in a bit...", "error", err)
 		go nc.reconnect()

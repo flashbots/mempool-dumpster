@@ -127,7 +127,7 @@ func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs m
 
 	// kick off geth workers
 	for _, checkNodeURI := range checkNodeURIs {
-		for i := 0; i < numRPCWorkers; i++ {
+		for range numRPCWorkers {
 			w := NewTxUpdateWorker(log, checkNodeURI, txC, respC, blockCache)
 			go w.start()
 		}
@@ -143,7 +143,7 @@ func updateInclusionStatus(log *zap.SugaredLogger, checkNodeURIs []string, txs m
 
 	// wait for results
 	log.Info("Loading inclusion status - waiting for results...")
-	for i := 0; i < len(txs); i++ {
+	for i := range len(txs) {
 		err := <-respC
 		if err != nil {
 			log.Errorw("updateInclusionStatus", "error", err)
