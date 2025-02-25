@@ -14,6 +14,7 @@ Overview:
 - This project is under active development and the codebase might change significantly without notice. The functionality itself is pretty stable.
 - Related tooling: https://github.com/dvush/mempool-dumpster-rs
 - Introduction & guide: https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401
+- Mempool dumpster data is also available through [BigQuery](https://console.cloud.google.com/bigquery/analytics-hub/exchanges/projects/1035301635708/locations/us/dataExchanges/ethereum_mempool_dumpster_by_flashbots_1953788a09b/listings/ethereum_mempool_dumpster_community_dataset_by_flashbots_19537a4ec38) and [Dune](https://www.dune.com) (`dune.flashbots.dataset_mempool_dumpster`).
 
 ---
 
