@@ -26,7 +26,7 @@ var (
 	dev    = flag.Bool("dev", false, "run dev server")
 	build  = flag.Bool("build", false, "build prod output")
 	upload = flag.Bool("upload", false, "upload prod output")
-	outDir = flag.String("out", "./build/website", "where to save output files")
+	outDir = flag.String("out", "./build/website-html", "where to save output files")
 
 	// Helpers
 	log *zap.SugaredLogger
