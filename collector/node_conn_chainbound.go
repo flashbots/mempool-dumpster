@@ -86,7 +86,6 @@ func (cbc *ChainboundNodeConnection) connect() {
 	cbc.log.Infow("connecting...", "uri", cbc.url)
 
 	client := fiber.NewClient(chainboundDefaultURL, cbc.apiKey)
-	defer client.Close()
 
 	// Connect
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -96,6 +95,9 @@ func (cbc *ChainboundNodeConnection) connect() {
 		go cbc.reconnect()
 		return
 	}
+
+	// Only close the client when the connection was successful
+	defer client.Close()
 
 	cbc.log.Infow("connection successful", "uri", cbc.url)
 	cbc.backoffSec = initialBackoffSec
