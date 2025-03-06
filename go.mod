@@ -8,7 +8,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/bloXroute-Labs/gateway/v2 v2.127.42
-	github.com/chainbound/fiber-go v1.9.2
+	github.com/chainbound/fiber-go v1.9.3
 	github.com/dustin/go-humanize v1.0.1
 	github.com/eden-network/mempool-service v1.0.1
 	github.com/ethereum/go-ethereum v1.14.13
@@ -26,7 +26,7 @@ require (
 	github.com/xitongsys/parquet-go v1.6.2
 	github.com/xitongsys/parquet-go-source v0.0.0-20230830030807-0dd610dbff1d
 	go.uber.org/atomic v1.11.0
-	go.uber.org/zap v1.25.0
+	go.uber.org/zap v1.27.0
 	golang.org/x/text v0.22.0
 	google.golang.org/grpc v1.70.0
 )

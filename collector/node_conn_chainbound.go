@@ -85,7 +85,9 @@ func (cbc *ChainboundNodeConnection) reconnect() {
 func (cbc *ChainboundNodeConnection) connect() {
 	cbc.log.Infow("connecting...", "uri", cbc.url)
 
-	client := fiber.NewClient(chainboundDefaultURL, cbc.apiKey)
+	config := fiber.NewConfig().SetIdleTimeout(10 * time.Second).SetHealthCheckInterval(10 * time.Second)
+
+	client := fiber.NewClientWithConfig(chainboundDefaultURL, cbc.apiKey, config)
 
 	// Connect
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
