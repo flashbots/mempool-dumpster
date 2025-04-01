@@ -8,7 +8,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/bloXroute-Labs/gateway/v2 v2.127.42
-	github.com/chainbound/fiber-go v1.9.3
+	github.com/chainbound/fiber-go v1.9.4
 	github.com/dustin/go-humanize v1.0.1
 	github.com/eden-network/mempool-service v1.0.1
 	github.com/ethereum/go-ethereum v1.14.13
