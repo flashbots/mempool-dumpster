@@ -5,12 +5,15 @@ package collector
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	fiber "github.com/chainbound/fiber-go"
 	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
+
+const watchdogTimeout = 1 * time.Minute
 
 type ChainboundNodeOpts struct {
 	TxC       chan common.TxIn
@@ -28,6 +31,10 @@ type ChainboundNodeConnection struct {
 	fiberC     chan *fiber.TransactionWithSender
 	txC        chan common.TxIn
 	backoffSec int
+
+	watchdog      *time.Timer
+	watchdogMu    sync.Mutex
+	watchdogStopC chan struct{}
 }
 
 func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnection {
@@ -42,22 +49,75 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnect
 	}
 
 	return &ChainboundNodeConnection{
-		log:        opts.Log.With("src", srcTag),
-		apiKey:     opts.APIKey,
-		url:        url,
-		srcTag:     srcTag,
-		fiberC:     make(chan *fiber.TransactionWithSender),
-		txC:        opts.TxC,
-		backoffSec: initialBackoffSec,
+		log:           opts.Log.With("src", srcTag),
+		apiKey:        opts.APIKey,
+		url:           url,
+		srcTag:        srcTag,
+		fiberC:        make(chan *fiber.TransactionWithSender),
+		txC:           opts.TxC,
+		backoffSec:    initialBackoffSec,
+		watchdogStopC: make(chan struct{}),
+	}
+}
+
+func (cbc *ChainboundNodeConnection) resetWatchdog() {
+	cbc.watchdogMu.Lock()
+	defer cbc.watchdogMu.Unlock()
+
+	if cbc.watchdog == nil {
+		cbc.watchdog = time.NewTimer(watchdogTimeout)
+	} else {
+		if !cbc.watchdog.Stop() {
+			select {
+			case <-cbc.watchdog.C:
+			default:
+			}
+		}
+		cbc.watchdog.Reset(watchdogTimeout)
+	}
+}
+
+func (cbc *ChainboundNodeConnection) startWatchdog() {
+	cbc.resetWatchdog()
+
+	go func() {
+		for {
+			select {
+			case <-cbc.watchdog.C:
+				cbc.log.Warn("watchdog timeout: no transactions received for 1 minute, reconnecting...")
+				cbc.reconnect()
+				return
+			case <-cbc.watchdogStopC:
+				cbc.log.Debug("watchdog stopped")
+				return
+			}
+		}
+	}()
+}
+
+func (cbc *ChainboundNodeConnection) shutdownWatchdog() {
+	cbc.watchdogMu.Lock()
+	defer cbc.watchdogMu.Unlock()
+
+	if cbc.watchdog != nil {
+		cbc.watchdog.Stop()
+	}
+
+	select {
+	case cbc.watchdogStopC <- struct{}{}:
+	default:
 	}
 }
 
 func (cbc *ChainboundNodeConnection) Start() {
 	cbc.log.Debug("chainbound stream starting...")
 	cbc.fiberC = make(chan *fiber.TransactionWithSender)
+	cbc.watchdogStopC = make(chan struct{})
 	go cbc.connect()
+	cbc.startWatchdog()
 
 	for fiberTx := range cbc.fiberC {
+		cbc.resetWatchdog()
 		cbc.txC <- common.TxIn{
 			T:      time.Now().UTC(),
 			Tx:     fiberTx.Transaction,
@@ -69,6 +129,11 @@ func (cbc *ChainboundNodeConnection) Start() {
 }
 
 func (cbc *ChainboundNodeConnection) reconnect() {
+	cbc.shutdownWatchdog()
+
+	// Close the existing fiber channel to break out of the loop in Start()
+	close(cbc.fiberC)
+
 	backoffDuration := time.Duration(cbc.backoffSec) * time.Second
 	cbc.log.Infof("reconnecting to chainbound in %s sec ...", backoffDuration.String())
 	time.Sleep(backoffDuration)
