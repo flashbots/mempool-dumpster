@@ -90,7 +90,7 @@ func (cbc *ChainboundNodeConnection) connect() {
 	client := fiber.NewClientWithConfig(chainboundDefaultURL, cbc.apiKey, config)
 
 	// Connect
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := client.Connect(ctx); err != nil {
 		cbc.log.Errorw("failed to connect to chainbound, reconnecting in a bit...", "error", err)
