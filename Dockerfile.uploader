@@ -1,0 +1,18 @@
+FROM alpine:latest
+
+# Install AWS CLI
+RUN apk add --no-cache aws-cli python3 py3-pip && pip install awscli --upgrade
+
+# Add the upload script
+COPY upload_hourly.sh /usr/local/bin/upload_hourly.sh
+RUN chmod +x /usr/local/bin/upload_hourly.sh
+
+WORKDIR /data
+
+# Expects /data volume to be mounted from collector
+# Expects AWS credentials and S3/R2 config via ENV variables:
+# AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION
+# R2_ACCOUNT_ID, S3_BUCKET (e.g., s3://my-bucket/hourly-data)
+# UPLOAD_INTERVAL (e.g., 3600 for 1 hour)
+
+CMD ["/usr/local/bin/upload_hourly.sh"] 
