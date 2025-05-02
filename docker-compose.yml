@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+      args:
+        VERSION: ${VERSION:-latest} # Optional: Pass a version during build
+    container_name: mempool-collector
+    volumes:
+      - collector_data:/app/out # Mount volume for collector output
+    environment:
+      # Define sources for the collector (replace with actual URLs/aliases)
+      # Example: SRC_ALIASES=geth_local=ws://host.docker.internal:8546,infura=wss://mainnet.infura.io/ws/v3/YOUR_KEY
+      SRC_ALIASES: "${SRC_ALIASES:-local=ws://localhost:8546}"
+      # Optional: Set collector ID if running multiple instances
+      COLLECTOR_ID: "${COLLECTOR_ID:-collector1}"
+      # Optional: Output directory within the container (matches volume mount)
+      OUT_DIR: "/app/out"
+    # command: ["/app/collect", "-out", "/app/out", "-id", "${COLLECTOR_ID:-collector1}", "-sources", "${SRC_ALIASES}"] # Example override if needed
+    restart: unless-stopped
+
+  uploader:
+    build:
+      context: .
+      dockerfile: Dockerfile.uploader
+    container_name: mempool-uploader
+    depends_on:
+      - collector
+    volumes:
+      - collector_data:/data # Mount the same volume as collector, read-only recommended if possible
+    environment:
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}" # Required
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}" # Required
+      AWS_REGION: "${AWS_REGION:-us-east-1}" # Required
+      R2_ACCOUNT_ID: "${R2_ACCOUNT_ID}" # Required for R2
+      # S3 Bucket URL (e.g., s3://your-mempool-bucket) - Base path for hourly/daily data
+      S3_BUCKET: "${S3_BUCKET}" # Required
+      UPLOAD_INTERVAL: "${UPLOAD_INTERVAL:-3600}" # Sync interval in seconds (default 1h)
+    restart: unless-stopped
+
+  processor:
+    build:
+      context: .
+      dockerfile: Dockerfile.processor
+      args:
+        VERSION: ${VERSION:-latest}
+    container_name: mempool-processor
+    # This service is intended for nightly runs, not continuous running.
+    # It should be triggered by an external scheduler (e.g., cron, Argo Workflows, AWS Batch).
+    # It needs AWS credentials and config to download hourly data and upload daily results.
+    environment:
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}" # Required
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}" # Required
+      AWS_REGION: "${AWS_REGION:-us-east-1}" # Required
+      R2_ACCOUNT_ID: "${R2_ACCOUNT_ID}" # Required for R2
+      S3_BUCKET: "${S3_BUCKET}" # Required
+      # EL Node for checking inclusion status (replace with actual URL)
+      CHECK_NODE_URI: "${CHECK_NODE_URI}" # Required
+      # Date to process (e.g., YYYY-MM-DD), should be passed by the scheduler
+      PROCESSING_DATE: "${PROCESSING_DATE}"
+    # The command will likely need to be customized based on the scheduler's invocation
+    # It needs to:
+    # 1. Determine input paths based on S3_BUCKET and PROCESSING_DATE (e.g., s3://.../hourly_raw/YYYY-MM-DD/)
+    # 2. Download data from S3/R2 using aws s3 sync
+    # 3. Run the merge command with appropriate args (--check-node, input paths, output paths)
+    # 4. Compress output files (zip/gzip)
+    # 5. Upload results to S3/R2 (e.g., s3://.../daily_processed/YYYY-MM-DD/)
+    # Example entrypoint/command structure (needs a wrapper script):
+    # command: ["/app/run_processor.sh"]
+    # We need to create run_processor.sh based on scripts/upload.sh logic
+    # Consider memory limits (needs ~6.5GB+)
+    deploy:
+      resources:
+        limits:
+          memory: 8G # Set memory limit based on requirements
+        reservations:
+          memory: 7G # Reserve memory
+
+volumes:
+  collector_data:
+    # Define volume driver if needed (e.g., for specific cloud storage) 

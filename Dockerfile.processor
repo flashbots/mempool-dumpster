@@ -1,0 +1,30 @@
+# syntax=docker/dockerfile:1
+FROM golang:1.22 AS builder
+ARG VERSION
+WORKDIR /build
+
+# Cache for the modules
+COPY go.mod ./
+COPY go.sum ./
+ENV GOCACHE=/root/.cache/go-build
+RUN --mount=type=cache,target=/root/.cache/go-build go mod download
+
+# Now adding all the code and start building
+ADD . .
+ENV GOCACHE=/root/.cache/go-build
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -X main.version=${VERSION}" -v -o ./bin/merge cmd/merge/*
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-s -X main.version=${VERSION}" -v -o ./bin/analyze cmd/analyze/*
+
+FROM alpine:latest
+RUN apk add --no-cache aws-cli
+WORKDIR /app
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /build/bin/merge /app/
+COPY --from=builder /build/bin/analyze /app/
+
+# Add the processor script
+COPY run_processor.sh /usr/local/bin/run_processor.sh
+RUN chmod +x /usr/local/bin/run_processor.sh
+
+# Set the script as the entrypoint/command
+CMD ["/usr/local/bin/run_processor.sh"] 
