@@ -25,7 +25,6 @@ type ChainboundNodeConnection struct {
 	apiKey     string
 	url        string
 	srcTag     string
-	fiberC     chan *fiber.TransactionWithSender
 	txC        chan common.TxIn
 	backoffSec int
 }
@@ -46,7 +45,6 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnect
 		apiKey:     opts.APIKey,
 		url:        url,
 		srcTag:     srcTag,
-		fiberC:     make(chan *fiber.TransactionWithSender),
 		txC:        opts.TxC,
 		backoffSec: initialBackoffSec,
 	}
@@ -57,13 +55,13 @@ func (cbc *ChainboundNodeConnection) Start() {
 
 	for {
 		// (Re)create incoming-tx channel
-		cbc.fiberC = make(chan *fiber.TransactionWithSender)
+		ch := make(chan *fiber.TransactionWithSender)
 
 		// Fire off connect (will close fiberC on error)
-		go cbc.connect()
+		go cbc.connect(ch)
 
 		// Forward transactions to collector
-		for fiberTx := range cbc.fiberC {
+		for fiberTx := range ch {
 			cbc.txC <- common.TxIn{
 				T:      time.Now().UTC(),
 				Tx:     fiberTx.Transaction,
@@ -81,7 +79,7 @@ func (cbc *ChainboundNodeConnection) Start() {
 	}
 }
 
-func (cbc *ChainboundNodeConnection) connect() {
+func (cbc *ChainboundNodeConnection) connect(ch chan *fiber.TransactionWithSender) {
 	cbc.log.Infow("connecting...", "uri", cbc.url)
 
 	config := fiber.NewConfig().SetIdleTimeout(10 * time.Second).SetHealthCheckInterval(10 * time.Second)
@@ -93,7 +91,7 @@ func (cbc *ChainboundNodeConnection) connect() {
 	defer cancel()
 	if err := client.Connect(ctx); err != nil {
 		cbc.log.Errorw("failed to connect to chainbound", "error", err)
-		close(cbc.fiberC)
+		close(ch)
 		return
 	}
 
@@ -105,10 +103,10 @@ func (cbc *ChainboundNodeConnection) connect() {
 
 	// First make a sink channel on which to receive the transactions
 	// This is a blocking call, so it needs to run in a Goroutine
-	err := client.SubscribeNewTxs(nil, cbc.fiberC)
+	err := client.SubscribeNewTxs(nil, ch)
 	if err != nil {
 		cbc.log.Errorw("chainbound subscription error", "error", err)
-		close(cbc.fiberC)
+		close(ch)
 		return
 	}
 }
