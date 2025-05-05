@@ -57,7 +57,7 @@ func (cbc *ChainboundNodeConnection) Start() {
 		// (Re)create incoming-tx channel
 		ch := make(chan *fiber.TransactionWithSender)
 
-		// Fire off connect (will close fiberC on error)
+		// Fire off connect (will close ch on error)
 		go cbc.connect(ch)
 
 		// Forward transactions to collector
