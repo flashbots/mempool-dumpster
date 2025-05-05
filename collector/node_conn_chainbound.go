@@ -54,32 +54,31 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnect
 
 func (cbc *ChainboundNodeConnection) Start() {
 	cbc.log.Debug("chainbound stream starting...")
-	cbc.fiberC = make(chan *fiber.TransactionWithSender)
-	go cbc.connect()
 
-	for fiberTx := range cbc.fiberC {
-		cbc.txC <- common.TxIn{
-			T:      time.Now().UTC(),
-			Tx:     fiberTx.Transaction,
-			Source: cbc.srcTag,
+	for {
+		// (Re)create incoming-tx channel
+		cbc.fiberC = make(chan *fiber.TransactionWithSender)
+
+		// Fire off connect (will close fiberC on error)
+		go cbc.connect()
+
+		// Forward transactions to collector
+		for fiberTx := range cbc.fiberC {
+			cbc.txC <- common.TxIn{
+				T:      time.Now().UTC(),
+				Tx:     fiberTx.Transaction,
+				Source: cbc.srcTag,
+			}
+		}
+
+		backoffDuration := time.Duration(cbc.backoffSec) * time.Second
+		cbc.log.Infof("chainbound stream closed, reconnecting in %s sec ...", backoffDuration.String())
+		time.Sleep(backoffDuration)
+		cbc.backoffSec *= 2
+		if cbc.backoffSec > maxBackoffSec {
+			cbc.backoffSec = maxBackoffSec
 		}
 	}
-
-	cbc.log.Error("chainbound stream closed")
-}
-
-func (cbc *ChainboundNodeConnection) reconnect() {
-	backoffDuration := time.Duration(cbc.backoffSec) * time.Second
-	cbc.log.Infof("reconnecting to chainbound in %s sec ...", backoffDuration.String())
-	time.Sleep(backoffDuration)
-
-	// increase backoff timeout for next try
-	cbc.backoffSec *= 2
-	if cbc.backoffSec > maxBackoffSec {
-		cbc.backoffSec = maxBackoffSec
-	}
-
-	cbc.Start()
 }
 
 func (cbc *ChainboundNodeConnection) connect() {
@@ -94,7 +93,7 @@ func (cbc *ChainboundNodeConnection) connect() {
 	defer cancel()
 	if err := client.Connect(ctx); err != nil {
 		cbc.log.Errorw("failed to connect to chainbound, reconnecting in a bit...", "error", err)
-		go cbc.reconnect()
+		close(cbc.fiberC)
 		return
 	}
 
@@ -109,7 +108,7 @@ func (cbc *ChainboundNodeConnection) connect() {
 	err := client.SubscribeNewTxs(nil, cbc.fiberC)
 	if err != nil {
 		cbc.log.Errorw("chainbound subscription error", "error", err)
-		go cbc.reconnect()
+		close(cbc.fiberC)
 		return
 	}
 }
