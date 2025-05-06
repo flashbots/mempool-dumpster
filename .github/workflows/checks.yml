@@ -40,7 +40,7 @@ jobs:
         run: go install mvdan.cc/gofumpt@v0.6.0
 
       - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@v0.5.1
+        run: go install honnef.co/go/tools/cmd/staticcheck@v0.6.1
 
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.3
