@@ -153,6 +153,11 @@ func ParseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transac
 		return TxSummaryEntry{}, nil, err
 	}
 
+	// Make sure the transaction is signed properly.
+	if tx.ChainId().Sign() <= 0 {
+		return TxSummaryEntry{}, nil, ErrChainIDNotSet
+	}
+
 	from, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx)
 	if err != nil {
 		// fmt.Println("Error: ", err)
