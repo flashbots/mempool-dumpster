@@ -255,13 +255,13 @@ func (p *TxProcessor) validateTx(fTrash *os.File, txIn common.TxIn) error { // i
 	txHashLower := strings.ToLower(tx.Hash().Hex())
 	log := p.log.With("tx_hash", txHashLower).With("source", txIn.Source)
 
-	// Make sure the transaction is signed properly.
 	if tx.ChainId().Sign() <= 0 {
 		log.Debugf("error: invalid chainID %w", tx.ChainId())
 		p.writeTrash(fTrash, txIn, "chainId not set", "")
-		return fmt.Errorf("chainId not set") //nolint:err113
+		return common.ErrChainIDNotSet
 	}
 
+	// Make sure the transaction is signed properly.
 	if _, err := types.Sender(types.LatestSignerForChainID(tx.ChainId()), tx); err != nil {
 		log.Debugw("error: transaction signature incorrect")
 		p.writeTrash(fTrash, txIn, common.TrashTxSignatureError, "")
