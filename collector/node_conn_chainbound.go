@@ -25,7 +25,6 @@ type ChainboundNodeConnection struct {
 	apiKey     string
 	url        string
 	srcTag     string
-	fiberC     chan *fiber.TransactionWithSender
 	txC        chan common.TxIn
 	backoffSec int
 }
@@ -46,7 +45,6 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnect
 		apiKey:     opts.APIKey,
 		url:        url,
 		srcTag:     srcTag,
-		fiberC:     make(chan *fiber.TransactionWithSender),
 		txC:        opts.TxC,
 		backoffSec: initialBackoffSec,
 	}
@@ -54,35 +52,34 @@ func NewChainboundNodeConnection(opts ChainboundNodeOpts) *ChainboundNodeConnect
 
 func (cbc *ChainboundNodeConnection) Start() {
 	cbc.log.Debug("chainbound stream starting...")
-	cbc.fiberC = make(chan *fiber.TransactionWithSender)
-	go cbc.connect()
 
-	for fiberTx := range cbc.fiberC {
-		cbc.txC <- common.TxIn{
-			T:      time.Now().UTC(),
-			Tx:     fiberTx.Transaction,
-			Source: cbc.srcTag,
+	for {
+		// (Re)create incoming-tx channel
+		ch := make(chan *fiber.TransactionWithSender)
+
+		// Fire off connect (will close ch on error)
+		go cbc.connect(ch)
+
+		// Forward transactions to collector
+		for fiberTx := range ch {
+			cbc.txC <- common.TxIn{
+				T:      time.Now().UTC(),
+				Tx:     fiberTx.Transaction,
+				Source: cbc.srcTag,
+			}
+		}
+
+		backoffDuration := time.Duration(cbc.backoffSec) * time.Second
+		cbc.log.Infof("chainbound stream closed, reconnecting in %s sec ...", backoffDuration.String())
+		time.Sleep(backoffDuration)
+		cbc.backoffSec *= 2
+		if cbc.backoffSec > maxBackoffSec {
+			cbc.backoffSec = maxBackoffSec
 		}
 	}
-
-	cbc.log.Error("chainbound stream closed")
 }
 
-func (cbc *ChainboundNodeConnection) reconnect() {
-	backoffDuration := time.Duration(cbc.backoffSec) * time.Second
-	cbc.log.Infof("reconnecting to chainbound in %s sec ...", backoffDuration.String())
-	time.Sleep(backoffDuration)
-
-	// increase backoff timeout for next try
-	cbc.backoffSec *= 2
-	if cbc.backoffSec > maxBackoffSec {
-		cbc.backoffSec = maxBackoffSec
-	}
-
-	cbc.Start()
-}
-
-func (cbc *ChainboundNodeConnection) connect() {
+func (cbc *ChainboundNodeConnection) connect(ch chan *fiber.TransactionWithSender) {
 	cbc.log.Infow("connecting...", "uri", cbc.url)
 
 	config := fiber.NewConfig().SetIdleTimeout(10 * time.Second).SetHealthCheckInterval(10 * time.Second)
@@ -93,8 +90,8 @@ func (cbc *ChainboundNodeConnection) connect() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := client.Connect(ctx); err != nil {
-		cbc.log.Errorw("failed to connect to chainbound, reconnecting in a bit...", "error", err)
-		go cbc.reconnect()
+		cbc.log.Errorw("failed to connect to chainbound", "error", err)
+		close(ch)
 		return
 	}
 
@@ -106,10 +103,10 @@ func (cbc *ChainboundNodeConnection) connect() {
 
 	// First make a sink channel on which to receive the transactions
 	// This is a blocking call, so it needs to run in a Goroutine
-	err := client.SubscribeNewTxs(nil, cbc.fiberC)
+	err := client.SubscribeNewTxs(nil, ch)
 	if err != nil {
 		cbc.log.Errorw("chainbound subscription error", "error", err)
-		go cbc.reconnect()
+		close(ch)
 		return
 	}
 }
