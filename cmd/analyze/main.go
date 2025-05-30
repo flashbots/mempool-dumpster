@@ -1,4 +1,4 @@
-package main
+package cmd_analyze //nolint:stylecheck
 
 import (
 	"fmt"
@@ -9,16 +9,11 @@ import (
 	"github.com/urfave/cli/v2"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/reader"
-	"go.uber.org/zap"
 )
 
 var (
-	version = "dev" // is set during build process
-	debug   = os.Getenv("DEBUG") == "1"
-	maxTxs  = common.GetEnvInt("MAX", 0) // 0 means no limit
-
-	// Helpers
-	log *zap.SugaredLogger
+	debug  = os.Getenv("DEBUG") == "1"
+	maxTxs = common.GetEnvInt("MAX", 0) // 0 means no limit
 
 	// CLI flags
 	cliFlags = []cli.Flag{
@@ -34,14 +29,6 @@ var (
 			Name:  "out",
 			Usage: "output filename",
 		},
-		// &cli.StringSliceFlag{
-		// 	Name:  "tx-blacklist",
-		// 	Usage: "metadata CSV/ZIP input files with transactions to ignore in analysis",
-		// },
-		// &cli.StringSliceFlag{
-		// 	Name:  "tx-whitelist",
-		// 	Usage: "metadata CSV/ZIP input files to only use transactions in there for analysis",
-		// },
 		&cli.StringSliceFlag{
 			Name:  "cmp",
 			Usage: "compare these sources",
@@ -49,26 +36,18 @@ var (
 	}
 )
 
-func main() {
-	log = common.GetLogger(debug, false)
-	defer func() { _ = log.Sync() }()
-
-	app := &cli.App{
-		Name:   "analyze",
-		Usage:  "Analyze transaction and sourcelog files",
-		Flags:  cliFlags,
-		Action: analyzeV2,
-	}
-
-	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
-	}
+var Command = cli.Command{
+	Name:   "analyze",
+	Usage:  "Analyze transaction and sourcelog files",
+	Flags:  cliFlags,
+	Action: analyzeV2,
 }
 
 func analyzeV2(cCtx *cli.Context) error {
+	log := common.GetLogger(debug, false)
+	defer func() { _ = log.Sync() }()
+
 	outFile := cCtx.String("out")
-	// ignoreTxsFiles := cCtx.StringSlice("tx-blacklist")
-	// whitelistTxsFiles := cCtx.StringSlice("tx-whitelist")
 	parquetInputFiles := cCtx.StringSlice("input-parquet")
 	inputSourceLogFiles := cCtx.StringSlice("input-sourcelog")
 	cmpSources := cCtx.StringSlice("cmp")
@@ -81,7 +60,7 @@ func analyzeV2(cCtx *cli.Context) error {
 		log.Fatal("no input-parquet files specified")
 	}
 
-	log.Infow("Analyzer V2", "version", version)
+	log.Infow("Analyzer V2", "version", common.Version)
 	// log.Infow("Comparing:", "sources", sourceComps)
 
 	// Ensure output files are don't yet exist
