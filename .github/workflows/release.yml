@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build_and_release:
-    runs-on: ubuntu-latest
+    runs-on: warp-ubuntu-latest-x64-32x
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,15 +22,12 @@ jobs:
         with:
           go-version: ^v1.24
 
-      - name: Build
-        run: make build
-
-      # https://goreleaser.com/cmd/goreleaser_release/
+      # https://github.com/goreleaser/goreleaser-action
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: release --config .goreleaser.yaml
+          args: release --config .goreleaser.yaml --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

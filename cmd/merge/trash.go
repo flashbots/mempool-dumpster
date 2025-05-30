@@ -1,4 +1,4 @@
-package main
+package cmd_merge //nolint:stylecheck
 
 import (
 	"fmt"
@@ -18,10 +18,12 @@ func mergeTrash(cCtx *cli.Context) error {
 		log.Fatal("no input files specified as arguments")
 	}
 
-	log.Infow("Merge trash", "outDir", outDir, "fnPrefix", fnPrefix, "version", version)
+	log.Infow("Merge trash", "outDir", outDir, "fnPrefix", fnPrefix, "version", common.Version)
 
 	err := os.MkdirAll(outDir, os.ModePerm)
-	check(err, "os.MkdirAll")
+	if err != nil {
+		return err
+	}
 
 	// Ensure output files are don't yet exist
 	fnOutCSV := filepath.Join(outDir, "trash.csv")
@@ -39,7 +41,10 @@ func mergeTrash(cCtx *cli.Context) error {
 	// Load input files
 	log.Infof("Loading %d trash input files ...", len(inputFiles))
 	trashTxs, err := common.LoadTrashFiles(log, inputFiles)
-	check(err, "LoadTrashFiles")
+	if err != nil {
+		return err
+	}
+
 	log.Infow("Processed all trash input files",
 		"trashTxTotal", printer.Sprintf("%d", len(trashTxs)),
 		"memUsed", common.GetMemUsageHuman(),
@@ -48,7 +53,10 @@ func mergeTrash(cCtx *cli.Context) error {
 	// Write output files
 	log.Infof("Writing trash CSV file %s ...", fnOutCSV)
 	err = writeTrashCSV(fnOutCSV, trashTxs)
-	check(err, "writeSourcelogCSV")
+	if err != nil {
+		return err
+	}
+
 	log.Infof("Output file written: %s", fnOutCSV)
 	return nil
 }

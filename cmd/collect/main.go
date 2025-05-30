@@ -1,7 +1,6 @@
-package main
+package cmd_collect //nolint:stylecheck
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,100 +11,89 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-var (
-	version = "dev" // is set during build process
+var cliFlags = []cli.Flag{
+	// Collector configuration
+	&cli.BoolFlag{
+		Name:     "debug",
+		EnvVars:  []string{"DEBUG"},
+		Usage:    "enable debug logging",
+		Category: "Collector Configuration",
+	},
+	&cli.StringFlag{
+		Name:     "out",
+		EnvVars:  []string{"OUT"},
+		Required: true,
+		Usage:    "output base directory",
+		Category: "Collector Configuration",
+	},
+	&cli.StringFlag{
+		Name:     "uid",
+		EnvVars:  []string{"UID"},
+		Usage:    "collector uid, part of output CSV filenames (default: random)",
+		Category: "Collector Configuration",
+	},
+	&cli.StringFlag{
+		Name:     "check-node",
+		EnvVars:  []string{"CHECK_NODE"},
+		Usage:    "EL node URL to check incoming transactions",
+		Category: "Collector Configuration",
+	},
 
-	cliFlags = []cli.Flag{
-		// Collector configuration
-		&cli.BoolFlag{
-			Name:     "debug",
-			EnvVars:  []string{"DEBUG"},
-			Usage:    "enable debug logging",
-			Category: "Collector Configuration",
-		},
-		&cli.StringFlag{
-			Name:     "out",
-			EnvVars:  []string{"OUT"},
-			Required: true,
-			Usage:    "output base directory",
-			Category: "Collector Configuration",
-		},
-		&cli.StringFlag{
-			Name:     "uid",
-			EnvVars:  []string{"UID"},
-			Usage:    "collector uid, part of output CSV filenames (default: random)",
-			Category: "Collector Configuration",
-		},
-		&cli.StringFlag{
-			Name:     "check-node",
-			EnvVars:  []string{"CHECK_NODE"},
-			Usage:    "EL node URL to check incoming transactions",
-			Category: "Collector Configuration",
-		},
+	// Sources
+	&cli.StringSliceFlag{
+		Name:     "node",
+		Aliases:  []string{"nodes"},
+		EnvVars:  []string{"NODE", "NODES"},
+		Usage:    "EL node URL(s)",
+		Category: "Sources Configuration",
+	},
+	&cli.StringSliceFlag{
+		Name:     "blx",
+		EnvVars:  []string{"BLX_AUTH"},
+		Usage:    "bloXroute auth-header (or auth-header@url)",
+		Category: "Sources Configuration",
+	},
+	&cli.StringSliceFlag{
+		Name:     "eden",
+		EnvVars:  []string{"EDEN_AUTH"},
+		Usage:    "Eden auth-header (or auth-header@url)",
+		Category: "Sources Configuration",
+	},
+	&cli.StringSliceFlag{
+		Name:     "chainbound",
+		EnvVars:  []string{"CHAINBOUND_AUTH"},
+		Usage:    "Chainbound API key (or api-key@url)",
+		Category: "Sources Configuration",
+	},
 
-		// Sources
-		&cli.StringSliceFlag{
-			Name:     "node",
-			Aliases:  []string{"nodes"},
-			EnvVars:  []string{"NODE", "NODES"},
-			Usage:    "EL node URL(s)",
-			Category: "Sources Configuration",
-		},
-		&cli.StringSliceFlag{
-			Name:     "blx",
-			EnvVars:  []string{"BLX_AUTH"},
-			Usage:    "bloXroute auth-header (or auth-header@url)",
-			Category: "Sources Configuration",
-		},
-		&cli.StringSliceFlag{
-			Name:     "eden",
-			EnvVars:  []string{"EDEN_AUTH"},
-			Usage:    "Eden auth-header (or auth-header@url)",
-			Category: "Sources Configuration",
-		},
-		&cli.StringSliceFlag{
-			Name:     "chainbound",
-			EnvVars:  []string{"CHAINBOUND_AUTH"},
-			Usage:    "Chainbound API key (or api-key@url)",
-			Category: "Sources Configuration",
-		},
+	// Tx receivers
+	&cli.StringSliceFlag{
+		Name:     "tx-receivers",
+		EnvVars:  []string{"TX_RECEIVERS"},
+		Usage:    "URL(s) to send transactions to as octet-stream over http",
+		Category: "Tx Receivers Configuration",
+	},
+	&cli.StringSliceFlag{
+		Name:     "tx-receivers-allowed-sources",
+		EnvVars:  []string{"TX_RECEIVERS_ALLOWED_SOURCES"},
+		Usage:    "sources of txs to send to receivers",
+		Category: "Tx Receivers Configuration",
+	},
 
-		// Tx receivers
-		&cli.StringSliceFlag{
-			Name:     "tx-receivers",
-			EnvVars:  []string{"TX_RECEIVERS"},
-			Usage:    "URL(s) to send transactions to as octet-stream over http",
-			Category: "Tx Receivers Configuration",
-		},
-		&cli.StringSliceFlag{
-			Name:     "tx-receivers-allowed-sources",
-			EnvVars:  []string{"TX_RECEIVERS_ALLOWED_SOURCES"},
-			Usage:    "sources of txs to send to receivers",
-			Category: "Tx Receivers Configuration",
-		},
+	// SSE tx subscription
+	&cli.StringFlag{
+		Name:     "api-listen-addr",
+		EnvVars:  []string{"API_ADDR"},
+		Usage:    "API listen address (host:port)",
+		Category: "Tx Receivers Configuration",
+	},
+}
 
-		// SSE tx subscription
-		&cli.StringFlag{
-			Name:     "api-listen-addr",
-			EnvVars:  []string{"API_ADDR"},
-			Usage:    "API listen address (host:port)",
-			Category: "Tx Receivers Configuration",
-		},
-	}
-)
-
-func main() {
-	app := &cli.App{
-		Name:    "mempool-dumpster/collector",
-		Usage:   "Collect mempool transactions from various sources",
-		Version: version,
-		Flags:   cliFlags,
-		Action:  runCollector,
-	}
-
-	if err := app.Run(os.Args); err != nil {
-		log.Fatal(err)
-	}
+var Command = cli.Command{
+	Name:   "collect",
+	Usage:  "collect mempool transactions from various sources",
+	Flags:  cliFlags,
+	Action: runCollector,
 }
 
 func runCollector(cCtx *cli.Context) error {
@@ -135,7 +123,7 @@ func runCollector(cCtx *cli.Context) error {
 		log.Fatal("No nodes, bloxroute, or eden token set (use -nodes <url1>,<url2> / -blx-token <token> / -eden-token <token>)")
 	}
 
-	log.Infow("Starting mempool-collector", "version", version, "outDir", outDir, "uid", uid)
+	log.Infow("Starting mempool-collector", "version", common.Version, "outDir", outDir, "uid", uid)
 
 	aliases := common.SourceAliasesFromEnv()
 	if len(aliases) > 0 {

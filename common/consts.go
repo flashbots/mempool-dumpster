@@ -2,6 +2,8 @@ package common
 
 import "strings"
 
+var Version = "dev"
+
 const (
 	SourceTagLocal      = "local"
 	SourceTagBloxroute  = "bloxroute"

@@ -1,4 +1,4 @@
-package main
+package cmd_merge //nolint:stylecheck
 
 import (
 	"fmt"
@@ -14,14 +14,20 @@ func mergeSourcelog(cCtx *cli.Context) error {
 	outDir := cCtx.String("out")
 	fnPrefix := cCtx.String("fn-prefix")
 	inputFiles := cCtx.Args().Slice()
+
+	log = common.GetLogger(false, false)
+	defer func() { _ = log.Sync() }()
+
 	if cCtx.NArg() == 0 {
 		log.Fatal("no input files specified as arguments")
 	}
 
-	log.Infow("Merge sourcelog", "outDir", outDir, "fnPrefix", fnPrefix, "version", version)
+	log.Infow("Merge sourcelog", "outDir", outDir, "fnPrefix", fnPrefix, "version", common.Version)
 
 	err := os.MkdirAll(outDir, os.ModePerm)
-	check(err, "os.MkdirAll")
+	if err != nil {
+		return fmt.Errorf("os.MkdirAll: %w", err)
+	}
 
 	// Ensure output files are don't yet exist
 	fnCSVSourcelog := filepath.Join(outDir, "sourcelog.csv")
@@ -47,7 +53,10 @@ func mergeSourcelog(cCtx *cli.Context) error {
 	// Write output files
 	log.Infof("Writing sourcelog CSV file %s ...", fnCSVSourcelog)
 	err = writeSourcelogCSV(fnCSVSourcelog, sourcelog)
-	check(err, "writeSourcelogCSV")
+	if err != nil {
+		return fmt.Errorf("writeSourcelogCSV: %w", err)
+	}
+
 	log.Infof("Output file written: %s", fnCSVSourcelog)
 	return nil
 }
