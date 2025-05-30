@@ -1,0 +1,13 @@
+# https://goreleaser.com/customization/release/
+version: 2
+builds:
+  - skip: true
+release:
+  draft: true
+  extra_files:
+    - glob: ./build/*
+  header: |
+    # 🚀 Features
+    # 🎄 Enhancements
+    # 🐞 Notable bug fixes
+    # 🎠 Community
