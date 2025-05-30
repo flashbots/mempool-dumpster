@@ -1,9 +1,8 @@
 // Website dev server (-dev) and prod build/upload tool (-build and -upload)
-package main
+package cmd_website //nolint:stylecheck
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -17,60 +16,83 @@ import (
 	"github.com/tdewolff/minify"
 	"github.com/tdewolff/minify/css"
 	"github.com/tdewolff/minify/html"
-	"go.uber.org/zap"
+	"github.com/urfave/cli/v2"
 )
 
-var (
-	listenAddr = ":8095"
+var Command = cli.Command{
+	Name:  "website",
+	Usage: "manage website tasks",
 
-	dev    = flag.Bool("dev", false, "run dev server")
-	build  = flag.Bool("build", false, "build prod output")
-	upload = flag.Bool("upload", false, "upload prod output")
-	outDir = flag.String("out", "./build/website-html", "where to save output files")
-
-	// Helpers
-	log *zap.SugaredLogger
-)
-
-func main() {
-	flag.Parse()
-
-	// Logger setup
-	log = common.GetLogger(false, false)
-	defer func() { _ = log.Sync() }()
-
-	if *dev {
-		runDevServer()
-	} else if *build {
-		buildWebsite()
-	} else {
-		fmt.Println("No action specified -- use either -dev or -build")
-		flag.Usage()
-		os.Exit(1)
-	}
+	Subcommands: []*cli.Command{
+		{
+			Name:  "dev",
+			Usage: "run dev server",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:    "listen-addr",
+					Aliases: []string{"l"},
+					Usage:   "address to listen on for the dev server",
+					Value:   ":8095",
+				},
+			},
+			Action: runDevServer,
+		},
+		{
+			Name:  "build",
+			Usage: "build prod output",
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:    "upload",
+					Aliases: []string{"u"},
+					Usage:   "upload prod output to S3",
+					Value:   false,
+				},
+				&cli.StringFlag{
+					Name:    "out",
+					Aliases: []string{"o"},
+					Usage:   "where to save output files",
+					Value:   "./build/website-html",
+				},
+			},
+			Action: buildWebsite,
+		},
+	},
 }
 
-func runDevServer() {
+func runDevServer(cCtx *cli.Context) error {
+	listenAddr := cCtx.String("listen-addr")
+	dev := cCtx.Bool("dev")
+
+	log := common.GetLogger(false, false)
+	defer func() { _ = log.Sync() }()
+
 	log.Infof("Starting webserver on %s", listenAddr)
 	webserver, err := website.NewDevWebserver(&website.DevWebserverOpts{ //nolint:exhaustruct
 		ListenAddress: listenAddr,
 		Log:           log,
-		Dev:           *dev,
+		Dev:           dev,
 	})
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	err = webserver.StartServer()
-	if err != nil {
-		log.Fatal(err)
-	}
+	return err
 }
 
-func buildWebsite() {
-	log.Infof("Creating build server in %s", *outDir)
-	err := os.MkdirAll(*outDir, os.ModePerm)
+func buildWebsite(cCtx *cli.Context) error {
+	outDir := cCtx.String("out")
+	upload := cCtx.Bool("upload")
+	if outDir == "" {
+		return fmt.Errorf("output directory is required") //nolint:err113
+	}
+
+	log := common.GetLogger(false, false)
+	defer func() { _ = log.Sync() }()
+
+	log.Infof("Starting HTML build, will output to %s", outDir)
+	err := os.MkdirAll(outDir, os.ModePerm)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	dir := "ethereum/mainnet/"
@@ -84,7 +106,7 @@ func buildWebsite() {
 	log.Infof("Getting folders from S3 for %s ...", dir)
 	months, err := getFoldersFromS3(dir)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	fmt.Println("Months:", months)
 
@@ -98,27 +120,27 @@ func buildWebsite() {
 
 	tpl, err := website.ParseIndexTemplate()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	buf := new(bytes.Buffer)
 	err = tpl.ExecuteTemplate(buf, "base", rootPageData)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// minify
 	mBytes, err := minifier.Bytes("text/html", buf.Bytes())
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// write to file
-	fn := filepath.Join(*outDir, "index.html")
+	fn := filepath.Join(outDir, "index.html")
 	log.Infof("Writing to %s ...", fn)
 	err = os.WriteFile(fn, mBytes, 0o0600)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	toUpload := []struct{ from, to string }{
@@ -131,7 +153,7 @@ func buildWebsite() {
 		log.Infof("Getting files from S3 for %s ...", dir)
 		files, err := getFilesFromS3(dir)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		rootPageData := website.HTMLData{ //nolint:exhaustruct
@@ -145,39 +167,39 @@ func buildWebsite() {
 
 		tpl, err := website.ParseFilesTemplate()
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		buf := new(bytes.Buffer)
 		err = tpl.ExecuteTemplate(buf, "base", rootPageData)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		// minify
 		mBytes, err := minifier.Bytes("text/html", buf.Bytes())
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		// write to file
-		_outDir := filepath.Join(*outDir, dir)
+		_outDir := filepath.Join(outDir, dir)
 		err = os.MkdirAll(_outDir, os.ModePerm)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		fn := filepath.Join(_outDir, "index.html")
 		log.Infof("Writing to %s ...", fn)
 		err = os.WriteFile(fn, mBytes, 0o0600)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 
 		toUpload = append(toUpload, struct{ from, to string }{fn, "/" + dir})
 	}
 
-	if *upload {
+	if upload {
 		log.Infow("Uploading to S3 ...")
 		// for _, file := range toUpload {
 		// 	fmt.Printf("- %s -> %s\n", file.from, file.to)
@@ -188,11 +210,13 @@ func buildWebsite() {
 			cmd := exec.Command(app, file.from, file.to) //nolint:gosec
 			stdout, err := cmd.Output()
 			if err != nil {
-				log.Fatal(err)
+				return err
 			}
 			fmt.Println(string(stdout))
 		}
 	}
+
+	return nil
 }
 
 func getFoldersFromS3(dir string) ([]string, error) {
