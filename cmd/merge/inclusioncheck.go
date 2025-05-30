@@ -1,4 +1,4 @@
-package main
+package cmd_merge //nolint:stylecheck
 
 import (
 	"context"
@@ -72,7 +72,7 @@ func NewTxUpdateWorker(log *zap.SugaredLogger, checkNodeURI string, txC chan *co
 func (p *TxUpdateWorker) start() {
 	var err error
 
-	log.Infof("- conecting worker to %s ...", p.checkNodeURI)
+	p.log.Infof("- conecting worker to %s ...", p.checkNodeURI)
 	p.ethClient, err = ethclient.Dial(p.checkNodeURI)
 	if err != nil {
 		p.log.Fatal("ethclient.Dial", "error", err)

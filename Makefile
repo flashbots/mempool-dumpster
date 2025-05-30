@@ -17,10 +17,7 @@ v: ## Show the current version
 .PHONY: build
 build: clean-build  ## build the binaries
 	@mkdir -p build
-	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/collect cmd/collect/*
-	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/merge cmd/merge/*
-	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/analyze cmd/analyze/*
-	go build -trimpath -ldflags "-X main.version=${VERSION}" -v -o ./build/website cmd/website/*
+	go build -trimpath -ldflags "-X github.com/flashbots/mempool-dumpster/common.Version=${VERSION}" -v -o ./build/mempool-dumpster cmd/main.go
 
 .PHONY: website
 website: ## Build the website and upload to R2
