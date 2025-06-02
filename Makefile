@@ -21,7 +21,7 @@ build: clean-build  ## build the binaries
 
 .PHONY: website
 website: ## Build the website and upload to R2
-	go run cmd/website/main.go -build -upload
+	go run cmd/main.go website build --upload
 
 .PHONY: docker-image
 docker-image: ## Build the docker image
@@ -36,7 +36,7 @@ clean-dev: ## Clean dev files
 	rm -rf out/ test/
 
 website-dev: ## Run the website in dev mode (hot reloading templates)
-	go run cmd/website/main.go -dev
+	go run cmd/main.go website dev
 
 test: ## Run tests
 	go test ./...

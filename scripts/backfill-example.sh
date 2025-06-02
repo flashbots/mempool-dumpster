@@ -34,7 +34,7 @@ while [ "$date" != $date_to ]; do
         sourcelog_arg="--sourcelog ${DATA_DIR}/${date}/orig/${date}_sourcelog.csv"
     fi
 
-    $SCRIPT_DIR/../../build/merge t \
+    $SCRIPT_DIR/../../build/mempool-dumpster merge t \
         --out "${DATA_DIR}/${date}/" \
         --fn-prefix $date \
         --write-tx-csv \

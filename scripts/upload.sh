@@ -51,10 +51,10 @@ fi
 # PROCESS RAW FILES
 #
 echo "Merging sourcelog..."
-/server/mempool-dumpster/build/merge sourcelog --out $1 --fn-prefix $date $1/sourcelog/*.csv
+/server/mempool-dumpster/build/mempool-dumpster merge sourcelog --out $1 --fn-prefix $date $1/sourcelog/*.csv
 
 echo "Merging transactions..."
-/server/mempool-dumpster/build/merge transactions \
+/server/mempool-dumpster/build/mempool-dumpster merge transactions \
   --out $1 \
   --fn-prefix $date \
   --write-tx-csv \
