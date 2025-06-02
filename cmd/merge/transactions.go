@@ -1,4 +1,4 @@
-package main
+package cmd_merge //nolint:stylecheck
 
 import (
 	"fmt"
@@ -15,11 +15,8 @@ import (
 	"github.com/xitongsys/parquet-go/writer"
 )
 
-var (
-	// Number of RPC workers for checking transaction inclusion status
-	numRPCWorkers = common.GetEnvInt("MERGER_RPC_WORKERS", 8)
-	txLimit       = 0 // max transactions to process
-)
+// Number of RPC workers for checking transaction inclusion status
+var txLimit = 0 // max transactions to process
 
 // mergeTransactions merges multiple transaction CSV files into transactions.parquet + metadata.csv files
 func mergeTransactions(cCtx *cli.Context) error {
@@ -35,19 +32,24 @@ func mergeTransactions(cCtx *cli.Context) error {
 	writeSummary := cCtx.Bool("write-summary")
 	inputFiles := cCtx.Args().Slice()
 
+	log = common.GetLogger(false, false)
+	defer func() { _ = log.Sync() }()
+
 	if cCtx.NArg() == 0 {
 		log.Fatal("no input files specified as arguments")
 	}
 
 	log.Infow("Merge transactions",
-		"version", version,
+		"version", common.Version,
 		"outDir", outDir,
 		"fnPrefix", fnPrefix,
 		"checkNodes", checkNodeURIs,
 	)
 
 	err = os.MkdirAll(outDir, os.ModePerm)
-	check(err, "os.MkdirAll")
+	if err != nil {
+		return fmt.Errorf("os.MkdirAll: %w", err)
+	}
 
 	// Ensure output files are don't yet exist
 	fnCSVMeta := filepath.Join(outDir, "metadata.csv")
@@ -89,7 +91,10 @@ func mergeTransactions(cCtx *cli.Context) error {
 	// Load input files
 	//
 	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, txBlacklistFiles)
-	check(err, "LoadTransactionCSVFiles")
+	if err != nil {
+		return fmt.Errorf("LoadTransactionCSVFiles: %w", err)
+	}
+
 	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsed", common.GetMemUsageHuman())
 
 	// Attach sources (sorted by timestamp) to transactions
@@ -123,7 +128,9 @@ func mergeTransactions(cCtx *cli.Context) error {
 	// Update txs with inclusion status
 	//
 	err = updateInclusionStatus(log, checkNodeURIs, txs)
-	check(err, "updateInclusionStatus")
+	if err != nil {
+		return fmt.Errorf("updateInclusionStatus: %w", err)
+	}
 
 	//
 	// Convert map to slice sorted by summary.timestamp
@@ -154,34 +161,51 @@ func mergeTransactions(cCtx *cli.Context) error {
 		})
 
 		err = analyzer.WriteToFile(fnSummary)
-		check(err, "analyzer.WriteToFile")
+		if err != nil {
+			return fmt.Errorf("analyzer.WriteToFile: %w", err)
+		}
 		log.Infof("Wrote summary file %s", fnSummary)
 	}
 	return nil
 }
 
-func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta string) (cntTxWritten int) {
+func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta string) (cntTxWritten int) { //nolint:gocognit
 	writeTxCSV := fnCSVTxs != ""
 
 	fCSVMeta, err := os.OpenFile(fnCSVMeta, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	check(err, "os.Create")
+	if err != nil {
+		log.Fatalw("os.Create", "error", err, "file", fnCSVMeta)
+	}
+
 	csvHeader := strings.Join(common.TxSummaryEntryCSVHeader, ",")
 	_, err = fmt.Fprintf(fCSVMeta, "%s\n", csvHeader)
-	check(err, "fCSVTxs.WriteCSVHeader")
+	if err != nil {
+		log.Fatalw("fCSVMeta.WriteCSVHeader", "error", err, "file", fnCSVMeta)
+	}
 
 	var fCSVTxs *os.File
 	if writeTxCSV {
 		fCSVTxs, err = os.OpenFile(fnCSVTxs, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-		check(err, "os.Create")
+		if err != nil {
+			log.Fatalw("os.Create", "error", err, "file", fnCSVTxs)
+		}
+
 		_, err = fmt.Fprintf(fCSVTxs, "timestamp_ms,hash,raw_tx\n")
-		check(err, "fCSVTxs.WriteCSVHeader")
+		if err != nil {
+			log.Fatalw("fCSVTxs.WriteCSVHeader", "error", err, "file", fnCSVTxs)
+		}
 	}
 
 	// Setup parquet writer
 	fw, err := local.NewLocalFileWriter(fnParquetTxs)
-	check(err, "parquet.NewLocalFileWriter")
+	if err != nil {
+		log.Fatalw("parquet.NewLocalFileWriter", "error", err, "file", fnParquetTxs)
+	}
+
 	pw, err := writer.NewParquetWriter(fw, new(common.TxSummaryEntry), 4)
-	check(err, "parquet.NewParquetWriter")
+	if err != nil {
+		log.Fatalw("parquet.NewParquetWriter", "error", err, "file", fnParquetTxs)
+	}
 
 	// Parquet config: https://parquet.apache.org/docs/file-format/configurations/
 	pw.RowGroupSize = 128 * 1024 * 1024 // 128M
@@ -241,12 +265,20 @@ func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta 
 	log.Info("Flushing and closing files...")
 	if writeTxCSV {
 		err = fCSVTxs.Close()
-		check(err, "fCSVTxs.Close")
+		if err != nil {
+			log.Fatalw("os.Close", "error", err, "file", fnCSVTxs)
+		}
 	}
 	err = fCSVMeta.Close()
-	check(err, "fCSVMeta.Close")
+	if err != nil {
+		log.Fatalw("os.Close", "error", err, "file", fnCSVMeta)
+	}
+
 	err = pw.WriteStop()
-	check(err, "pw.WriteStop")
+	if err != nil {
+		log.Fatalw("pw.WriteStop", "error", err, "file", fnParquetTxs)
+	}
+
 	fw.Close()
 
 	return cntTxWritten
