@@ -7,6 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/NYTimes/gziphandler v1.1.1
+	github.com/VictoriaMetrics/metrics v1.37.0
 	github.com/bloXroute-Labs/gateway/v2 v2.127.42
 	github.com/chainbound/fiber-go v1.10.0
 	github.com/dustin/go-humanize v1.0.1
@@ -87,6 +88,8 @@ require (
 	github.com/tdewolff/test v1.0.9 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
+	github.com/valyala/fastrand v1.1.0 // indirect
+	github.com/valyala/histogram v1.2.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

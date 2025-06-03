@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/flashbots/mempool-dumpster/common"
+	"github.com/flashbots/mempool-dumpster/metrics"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 )
@@ -161,6 +162,8 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 	log := p.log.With("tx_hash", txHashLower).With("source", txIn.Source)
 	log.Debug("processTx")
 
+	metrics.IncTxReceived(txIn.Source)
+
 	// count all transactions per source
 	p.srcMetrics.Inc(KeyStatsAll, txIn.Source)
 	p.srcMetrics.IncKey(KeyStatsUnique, txIn.Source, tx.Hash().Hex())
@@ -210,6 +213,7 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		} else if receipt != nil {
 			p.srcMetrics.Inc(KeyStatsTxOnChain, txIn.Source)
 			p.srcMetrics.Inc(KeyStatsTxTrash, txIn.Source)
+			metrics.IncTxReceivedTrash(txIn.Source)
 			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
 			p.writeTrash(outFiles.FTrash, txIn, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			return
@@ -221,6 +225,7 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 
 	// count first transactions per source (i.e. who delivers a given tx first)
 	p.srcMetrics.Inc(KeyStatsFirst, txIn.Source)
+	metrics.IncTxReceivedFirst(txIn.Source)
 
 	// create tx rlp
 	rlpHex, err := common.TxToRLPString(tx)

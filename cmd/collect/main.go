@@ -39,6 +39,16 @@ var cliFlags = []cli.Flag{
 		Category: "Collector Configuration",
 	},
 
+	// Metrics
+	&cli.StringFlag{
+		Name:     "metrics-listen-addr",
+		EnvVars:  []string{"METRICS_ADDR"},
+		Value:    "localhost:9090",
+		Required: false,
+		Usage:    "Metrics listen address (host:port)",
+		Category: "Collector Configuration",
+	},
+
 	// Sources
 	&cli.StringSliceFlag{
 		Name:     "node",
@@ -109,6 +119,7 @@ func runCollector(cCtx *cli.Context) error {
 		receivers               = cCtx.StringSlice("tx-receivers")
 		receiversAllowedSources = cCtx.StringSlice("tx-receivers-allowed-sources")
 		apiListenAddr           = cCtx.String("api-listen-addr")
+		metricsListenAddr       = cCtx.String("metrics-listen-addr")
 	)
 
 	// Logger setup
@@ -143,6 +154,7 @@ func runCollector(cCtx *cli.Context) error {
 		Receivers:               receivers,
 		ReceiversAllowedSources: receiversAllowedSources,
 		APIListenAddr:           apiListenAddr,
+		MetricsListenAddr:       metricsListenAddr,
 	}
 
 	collector.Start(&opts)
