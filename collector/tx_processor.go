@@ -458,6 +458,7 @@ func (p *TxProcessor) healthCheckCall() {
 	resp, err := http.Get(healthChecksIOURL) //nolint:gosec
 	if err != nil {
 		p.log.Errorw("[HealthCheckCall] ERROR", "error", err)
+		return
 	}
 	resp.Body.Close()
 }
