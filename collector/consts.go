@@ -10,15 +10,15 @@ const (
 	// txCacheTime is the amount of time before TxProcessor removes transactions from the "already processed" list
 	txCacheTime = time.Minute * 30
 
-	// bucketMinutes is the number of minutes to write into each CSV file (i.e. new file created for every X minutes bucket)
-	bucketMinutes = 60
-
 	// exponential backoff settings
 	initialBackoffSec = 5
 	maxBackoffSec     = 120
 )
 
 var (
+	// bucketMinutes is the number of minutes to write into each CSV file (i.e. new file created for every X minutes bucket)
+	bucketMinutes = common.GetEnvInt("BUCKET_MINUTES", 60)
+
 	// Bloxroute URL - Websocket URI or Gateway GRPC URI (https://docs.bloxroute.com/introduction/cloud-api-ips)
 	blxDefaultURL = common.GetEnv("BLX_URI", "wss://germany.eth.blxrbdn.com/ws")
 
