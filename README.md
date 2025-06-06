@@ -2,6 +2,7 @@
 
 [![Goreport status](https://goreportcard.com/badge/github.com/flashbots/mempool-dumpster)](https://goreportcard.com/report/github.com/flashbots/mempool-dumpster)
 [![Test status](https://github.com/flashbots/mempool-dumpster/actions/workflows/checks.yml/badge.svg?branch=main)](https://github.com/flashbots/mempool-dumpster/actions?query=workflow%3A%22Checks%22)
+[![Docker hub](https://badgen.net/docker/size/flashbots/mempool-dumpster?icon=docker&label=image)](https://hub.docker.com/r/flashbots/mempool-dumpster/tags)
 
 Archiving mempool transactions in [Parquet](https://github.com/apache/parquet-format) and CSV format.
 
