@@ -213,13 +213,13 @@ Trash
 
 ```bash
 # print help
-go run cmd/collect/main.go -help
+go run cmd/main.go collect -help
 
 # Connect to ws://localhost:8546 and write CSVs into ./out
-go run cmd/collect/main.go -out ./out
+go run cmd/main.go collect -out ./out
 
 # Connect to multiple nodes
-go run cmd/collect/main.go -out ./out -nodes ws://server1.com:8546,ws://server2.com:8546
+go run cmd/main.go collect -out ./out -nodes ws://server1.com:8546,ws://server2.com:8546
 ```
 
 ## Merger
@@ -229,10 +229,10 @@ go run cmd/collect/main.go -out ./out -nodes ws://server1.com:8546,ws://server2.
 
 ```bash
 # print help
-go run cmd/merge/* -h
+go run cmd/main.go merge -h
 
 # deduplicate transactions
-go run cmd/merge/* transactions --check-node ws://server1.com ./out/2023-08-07/transactions/txs_2023-08-07-10-00_collector1.csv
+go run cmd/main.go merge transactions --check-node ws://server1.com ./out/2023-08-07/transactions/txs_2023-08-07-10-00_collector1.csv
 ```
 
 
