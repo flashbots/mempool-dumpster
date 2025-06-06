@@ -27,6 +27,10 @@ website: ## Build the website and upload to R2
 docker-image: ## Build the docker image
 	docker build --platform linux/amd64 --build-arg VERSION=${VERSION} . -t mempool-dumpster
 
+.PHONY: docker-run
+docker-run: ## Run the docker container
+	docker run --rm -it --platform linux/amd64 mempool-dumpster
+
 ##@ Development
 
 clean-build: ## Clean build files
