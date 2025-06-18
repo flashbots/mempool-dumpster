@@ -14,8 +14,7 @@ require (
 	github.com/eden-network/mempool-service v1.0.1
 	github.com/ethereum/go-ethereum v1.15.11
 	github.com/flashbots/go-utils v0.6.1-0.20240610084140-4461ab748667
-	github.com/go-chi/chi v1.5.5
-	github.com/go-chi/chi/v5 v5.0.12
+	github.com/go-chi/chi/v5 v5.2.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
