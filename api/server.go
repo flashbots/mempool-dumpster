@@ -10,7 +10,6 @@ import (
 
 	"github.com/flashbots/go-utils/httplogger"
 	"github.com/flashbots/mempool-dumpster/common"
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
@@ -19,8 +18,6 @@ import (
 type HTTPServerConfig struct {
 	ListenAddr string
 	Log        *zap.SugaredLogger
-
-	EnablePprof bool // https://go-chi.io/#/pages/middleware?id=profiler
 
 	DrainDuration            time.Duration
 	GracefulShutdownDuration time.Duration
@@ -49,12 +46,16 @@ func New(cfg *HTTPServerConfig) (srv *Server) {
 
 	mux := chi.NewRouter()
 
-	mux.With(srv.httpLogger).Get("/sse/transactions", srv.handleTxSSE)
-
-	if cfg.EnablePprof {
-		srv.log.Info("pprof API enabled")
-		mux.Mount("/debug", middleware.Profiler())
-	}
+	mux.Use(srv.httpLogger)
+	mux.Get("/sse/transactions", srv.handleTxSSE)
+	mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
 
 	srv.srv = &http.Server{
 		Addr:         cfg.ListenAddr,

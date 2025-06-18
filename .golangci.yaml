@@ -26,7 +26,6 @@ linters:
     - exhaustruct
     - perfsprint
     - mnd
-    - gomnd
 
     #
     # Disabled because of generics:
@@ -35,6 +34,11 @@ linters:
     - rowserrcheck
     - sqlclosecheck
     - wastedassign
+
+    #
+    # Disabled because deprecated:
+    #
+    - tenv
 
 linters-settings:
   #

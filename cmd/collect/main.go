@@ -39,13 +39,30 @@ var cliFlags = []cli.Flag{
 		Category: "Collector Configuration",
 	},
 
-	// Metrics
+	// Metrics API Endpoint
 	&cli.StringFlag{
 		Name:     "metrics-listen-addr",
 		EnvVars:  []string{"METRICS_ADDR"},
 		Value:    "localhost:9090",
 		Required: false,
 		Usage:    "Metrics listen address (host:port)",
+		Category: "Collector Configuration",
+	},
+
+	// PPROF
+	&cli.BoolFlag{
+		Name:     "pprof",
+		EnvVars:  []string{"ENABLE_PPROF"},
+		Value:    false,
+		Usage:    "Enable pprof on the metrics server",
+		Category: "Collector Configuration",
+	},
+
+	// SSE TX Subscription API
+	&cli.StringFlag{
+		Name:     "api-listen-addr",
+		EnvVars:  []string{"API_ADDR"},
+		Usage:    "API listen address (host:port)",
 		Category: "Collector Configuration",
 	},
 
@@ -89,14 +106,6 @@ var cliFlags = []cli.Flag{
 		Usage:    "sources of txs to send to receivers",
 		Category: "Tx Receivers Configuration",
 	},
-
-	// SSE tx subscription
-	&cli.StringFlag{
-		Name:     "api-listen-addr",
-		EnvVars:  []string{"API_ADDR"},
-		Usage:    "API listen address (host:port)",
-		Category: "Tx Receivers Configuration",
-	},
 }
 
 var Command = cli.Command{
@@ -120,6 +129,7 @@ func runCollector(cCtx *cli.Context) error {
 		receiversAllowedSources = cCtx.StringSlice("tx-receivers-allowed-sources")
 		apiListenAddr           = cCtx.String("api-listen-addr")
 		metricsListenAddr       = cCtx.String("metrics-listen-addr")
+		enablePprof             = cCtx.Bool("enable-pprof")
 	)
 
 	// Logger setup
@@ -155,6 +165,7 @@ func runCollector(cCtx *cli.Context) error {
 		ReceiversAllowedSources: receiversAllowedSources,
 		APIListenAddr:           apiListenAddr,
 		MetricsListenAddr:       metricsListenAddr,
+		EnablePprof:             enablePprof,
 	}
 
 	collector.Start(&opts)

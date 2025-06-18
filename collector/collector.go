@@ -8,6 +8,8 @@ import (
 	"github.com/VictoriaMetrics/metrics"
 	"github.com/flashbots/mempool-dumpster/api"
 	"github.com/flashbots/mempool-dumpster/common"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 )
 
@@ -27,6 +29,7 @@ type CollectorOpts struct {
 
 	APIListenAddr     string
 	MetricsListenAddr string
+	EnablePprof       bool // if true, enables pprof on the metrics server
 }
 
 // Start kicks off all the service components in the background
@@ -43,14 +46,31 @@ func Start(opts *CollectorOpts) {
 
 	// Start metrics server
 	if opts.MetricsListenAddr != "" {
-		metricsMux := http.NewServeMux()
-		metricsMux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		mux := chi.NewRouter()
+
+		// Add regular routes
+		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 			metrics.WritePrometheus(w, true)
 		})
+		mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		})
+		mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		})
+
+		// Enable pprof if requested
+		if opts.EnablePprof {
+			opts.Log.Info("pprof API enabled on metrics server")
+			mux.Mount("/debug", middleware.Profiler())
+		}
+
 		metricsServer := &http.Server{
 			Addr:              opts.MetricsListenAddr,
 			ReadHeaderTimeout: 5 * time.Second,
-			Handler:           metricsMux,
+			Handler:           mux,
 		}
 		go func() {
 			opts.Log.Infow("Starting metrics server", "listenAddr", opts.MetricsListenAddr)
