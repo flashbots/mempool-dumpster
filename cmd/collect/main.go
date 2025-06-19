@@ -38,6 +38,12 @@ var cliFlags = []cli.Flag{
 		Usage:    "EL node URL to check incoming transactions",
 		Category: "Collector Configuration",
 	},
+	&cli.StringFlag{
+		Name:     "clickhouse-dsn",
+		EnvVars:  []string{"CLICKHOUSE_DSN"},
+		Usage:    "ClickHouse server DSN (e.g., clickhouse://user:password@localhost:9000/dbname)",
+		Category: "Collector Configuration",
+	},
 
 	// Metrics API Endpoint
 	&cli.StringFlag{
@@ -130,6 +136,7 @@ func runCollector(cCtx *cli.Context) error {
 		apiListenAddr           = cCtx.String("api-listen-addr")
 		metricsListenAddr       = cCtx.String("metrics-listen-addr")
 		enablePprof             = cCtx.Bool("pprof")
+		clickhouseDSN           = cCtx.String("clickhouse-dsn")
 	)
 
 	// Logger setup
@@ -157,6 +164,7 @@ func runCollector(cCtx *cli.Context) error {
 		UID:                     uid,
 		OutDir:                  outDir,
 		CheckNodeURI:            checkNodeURI,
+		ClickhouseDSN:           clickhouseDSN,
 		Nodes:                   nodeURIs,
 		BloxrouteAuth:           blxAuth,
 		EdenAuth:                edenAuth,

@@ -14,11 +14,12 @@ import (
 )
 
 type CollectorOpts struct {
-	Log          *zap.SugaredLogger
-	UID          string
-	Nodes        []string
-	OutDir       string
-	CheckNodeURI string
+	Log           *zap.SugaredLogger
+	UID           string
+	Nodes         []string
+	OutDir        string
+	CheckNodeURI  string
+	ClickhouseDSN string
 
 	BloxrouteAuth  []string
 	EdenAuth       []string
@@ -87,6 +88,7 @@ func Start(opts *CollectorOpts) {
 		UID:                     opts.UID,
 		OutDir:                  opts.OutDir,
 		CheckNodeURI:            opts.CheckNodeURI,
+		ClickhouseDSN:           opts.ClickhouseDSN,
 		HTTPReceivers:           opts.Receivers,
 		ReceiversAllowedSources: opts.ReceiversAllowedSources,
 	})

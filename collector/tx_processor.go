@@ -33,6 +33,7 @@ type TxProcessorOpts struct {
 	OutDir                  string
 	UID                     string
 	CheckNodeURI            string
+	ClickhouseDSN           string
 	HTTPReceivers           []string
 	ReceiversAllowedSources []string
 }
@@ -59,6 +60,9 @@ type TxProcessor struct {
 	receiversAllowedSources []string
 
 	lastHealthCheckCall time.Time
+
+	clickhouseDSN  string
+	clickhouseConn *Clickhouse
 }
 
 type OutFiles struct {
@@ -88,12 +92,25 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 
 		receivers:               receivers,
 		receiversAllowedSources: opts.ReceiversAllowedSources,
+		clickhouseDSN:           opts.ClickhouseDSN,
 	}
 }
 
 func (p *TxProcessor) Start() {
 	p.log.Info("Starting TxProcessor ...")
 	var err error
+
+	if p.clickhouseDSN != "" {
+		p.log.Info("Connecting to Clickhouse...")
+		p.clickhouseConn, err = NewClickhouse(ClickhouseOpts{
+			DSN: p.clickhouseDSN,
+			Log: p.log,
+		})
+		if err != nil {
+			p.log.Fatalw("failed to connect to Clickhouse", "error", err)
+		}
+		p.log.Info("Connected to Clickhouse!")
+	}
 
 	if p.checkNodeURI != "" {
 		p.log.Infof("Conecting to check-node at %s ...", p.checkNodeURI)

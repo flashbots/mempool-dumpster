@@ -236,6 +236,14 @@ go run cmd/main.go merge -h
 go run cmd/main.go merge transactions --check-node ws://server1.com ./out/2023-08-07/transactions/txs_2023-08-07-10-00_collector1.csv
 ```
 
+## Docker
+
+You can run mempool-dumpster with docker-compose like this:
+
+```bash
+docker-compose build
+docker-compose up
+```
 
 ---
 

@@ -1,10 +1,18 @@
 services:
   mempool-dumpster:
     image: mempool-dumpster
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: /app/mempool-dumpster collect
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    links:
+      - "clickhouse:clickhouse"
     ports:
-      - 127.0.0.1:9092:9092  # Transaction API
-      - 127.0.0.1:9090:9090  # Metrics API
+      - "127.0.0.1:9092:9092"  # Transaction API
+      - "127.0.0.1:9090:9090"  # Metrics API
     environment:
       OUT: /tmp/mempool-dumpster
       CHECK_NODE: ws://host.docker.internal:8546
@@ -12,4 +20,33 @@ services:
       METRICS_ADDR: 0.0.0.0:9090
       ENABLE_PPROF: "1"
       NODES: ws://host.docker.internal:8546
+      CLICKHOUSE_DSN: clickhouse://default:password@clickhouse:9000/mempool
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-server
+    ports:
+      - "127.0.0.1:8123:8123"  # HTTP interface
+      - "127.0.0.1:9000:9000"  # Native TCP interface
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+    environment:
+      CLICKHOUSE_DB: mempool
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: password
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 1s
+      retries: 5
+      start_period: 1s
+      timeout: 1s
+
+volumes:
+  clickhouse_data:
+  clickhouse_logs:
