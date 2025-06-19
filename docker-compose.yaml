@@ -1,0 +1,15 @@
+services:
+  mempool-dumpster:
+    image: mempool-dumpster
+    command: /app/mempool-dumpster collect
+    ports:
+      - 127.0.0.1:9092:9092  # Transaction API
+      - 127.0.0.1:9090:9090  # Metrics API
+    environment:
+      OUT: /tmp/mempool-dumpster
+      CHECK_NODE: ws://host.docker.internal:8546
+      API_ADDR: 0.0.0.0:9092
+      METRICS_ADDR: 0.0.0.0:9090
+      ENABLE_PPROF: "1"
+      NODES: ws://host.docker.internal:8546
+
