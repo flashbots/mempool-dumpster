@@ -218,6 +218,13 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		return
 	}
 
+	if p.clickhouseConn != nil {
+		err = p.clickhouseConn.AddTransaction(txIn) // send to Clickhouse
+		if err != nil {
+			log.Errorw("failed to add transaction to Clickhouse", "error", err)
+		}
+	}
+
 	// check if tx was already included
 	if p.ethClient != nil {
 		receipt, err := p.ethClient.TransactionReceipt(context.Background(), tx.Hash())

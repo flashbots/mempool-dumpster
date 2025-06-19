@@ -20,7 +20,8 @@ services:
       METRICS_ADDR: 0.0.0.0:9090
       ENABLE_PPROF: "1"
       NODES: ws://host.docker.internal:8546
-      CLICKHOUSE_DSN: clickhouse://default:password@clickhouse:9000/mempool
+      CLICKHOUSE_DSN: clickhouse://default:password@clickhouse:9000/default
+      CLICKHOUSE_BATCH_SIZE: 300
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest
@@ -32,7 +33,7 @@ services:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
     environment:
-      CLICKHOUSE_DB: mempool
+      CLICKHOUSE_DB: default
       CLICKHOUSE_USER: default
       CLICKHOUSE_PASSWORD: password
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1

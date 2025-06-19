@@ -129,7 +129,7 @@ func readTxFile(log *zap.SugaredLogger, rd io.Reader, prevKnownTxs map[string]bo
 		}
 
 		// Process this tx
-		txSummary, _, err := ParseTx(txTimestamp, items[2])
+		txSummary, _, err := ParseTxRLP(txTimestamp, items[2])
 		if err != nil {
 			log.Errorw("parseTx", "error", err, "line", l)
 			continue
@@ -147,12 +147,16 @@ func readTxFile(log *zap.SugaredLogger, rd io.Reader, prevKnownTxs map[string]bo
 	return nil
 }
 
-func ParseTx(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transaction, error) {
+func ParseTxRLP(timestampMs int64, rawTxHex string) (TxSummaryEntry, *types.Transaction, error) {
 	tx, err := RLPStringToTx(rawTxHex)
 	if err != nil {
 		return TxSummaryEntry{}, nil, err
 	}
 
+	return ParseTx(timestampMs, tx)
+}
+
+func ParseTx(timestampMs int64, tx *types.Transaction) (TxSummaryEntry, *types.Transaction, error) {
 	// Make sure the transaction is signed properly.
 	if tx.ChainId().Sign() <= 0 {
 		return TxSummaryEntry{}, nil, ErrChainIDNotSet

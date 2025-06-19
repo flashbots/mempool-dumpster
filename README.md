@@ -164,12 +164,35 @@ MAX=10000 go run cmd/analyze/* \
     --input-sourcelog /mnt/data/mempool-dumpster/2023-09-22/2023-09-22_sourcelog.csv.zip
 ```
 
-## Interesting analyses
+## Clickhouse for data storage
 
-- Something interesting with `inclusionDelay`?
-- Trash transactions (invalid nonce, not enough sender funds)
+We're experimenting with using [ClickHouse](https://clickhouse.com/) for collector instances to directly store transactions.
 
-Feel free to continue the conversation in the [Flashbots Forum](https://collective.flashbots.net/t/mempool-dumpster-a-free-mempool-transaction-archive/2401)!
+Writes batches into two Clickhouse tables:
+
+- `transactions` (no duplicates, even with multiple collector instances)
+- `sourcelogs` (will have duplicates, can be filtered with min(receivedAt))
+
+Links:
+- https://clickhouse.com/docs/integrations/go
+- https://github.com/ClickHouse/clickhouse-go/blob/main/examples/clickhouse_api/batch.go
+- https://clickhouse.com/docs/guides/developer/deduplication
+- https://clickhouse.com/docs/best-practices/selecting-an-insert-strategy
+
+| We recommend inserting data in batches of at least 1,000 rows, and ideally between 10,000–100,000 rows. Fewer, larger inserts reduce the number of parts written, minimize merge load, and lower overall system resource usage.
+
+For testing, you need to manually apply the migration before running the collector:
+
+```bash
+# Start the clickhouse docker container
+docker-compose start clickhouse
+
+# Apply the schema migrations
+for fn in schema/clickhouse/*.sql; do echo $fn && cat $fn | clickhouse client clickhouse://default:password@localhost:9000/default; done
+
+# Start the remaining containers (collector)
+docker-compose up
+```
 
 ---
 
