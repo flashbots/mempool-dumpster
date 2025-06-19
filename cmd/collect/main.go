@@ -129,7 +129,7 @@ func runCollector(cCtx *cli.Context) error {
 		receiversAllowedSources = cCtx.StringSlice("tx-receivers-allowed-sources")
 		apiListenAddr           = cCtx.String("api-listen-addr")
 		metricsListenAddr       = cCtx.String("metrics-listen-addr")
-		enablePprof             = cCtx.Bool("enable-pprof")
+		enablePprof             = cCtx.Bool("pprof")
 	)
 
 	// Logger setup
@@ -144,7 +144,7 @@ func runCollector(cCtx *cli.Context) error {
 		log.Fatal("No nodes, bloxroute, or eden token set (use -nodes <url1>,<url2> / -blx-token <token> / -eden-token <token>)")
 	}
 
-	log.Infow("Starting mempool-collector", "version", common.Version, "outDir", outDir, "uid", uid)
+	log.Infow("Starting mempool-collector", "version", common.Version, "outDir", outDir, "uid", uid, "enablePprof", enablePprof)
 
 	aliases := common.SourceAliasesFromEnv()
 	if len(aliases) > 0 {
