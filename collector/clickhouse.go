@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"time"
@@ -71,9 +72,17 @@ func (ch *Clickhouse) connect() error {
 		return fmt.Errorf("failed to parse Clickhouse DSN: %w", err)
 	}
 
+	var chTLS *tls.Config
+	if clickhouseEnableTLS {
+		chTLS = &tls.Config{
+			InsecureSkipVerify: true, //nolint:gosec
+		}
+	}
+
 	ch.conn, err = clickhouse.Open(&clickhouse.Options{
 		Addr: options.Addr,
 		Auth: options.Auth,
+		TLS:  chTLS,
 		Debugf: func(format string, v ...interface{}) {
 			ch.log.Infof("Clickhouse debug: "+format, v...)
 		},
@@ -244,9 +253,11 @@ func (ch *Clickhouse) sendBatchWithRetries(name string, batch driver.Batch) {
 		err := batch.Send()
 		if err == nil {
 			// Successfully sent the batch
-			metrics.IncClickhouseBatchSaveSuccess()
 			timeElapsed := time.Since(timeStarted)
 			ch.log.Infow("Successfully saved Clickhouse batch", "name", name, "size", batch.Rows(), "retryCount", retryCount, "timeElapsedMs", timeElapsed.Milliseconds())
+			metrics.IncClickhouseBatchSaveSuccess()
+			metrics.AddClickhouseBatchSaveDurationMilliseconds(name, timeElapsed.Milliseconds())
+			metrics.AddClickhouseEntriesSaved(name, batch.Rows())
 			return
 		}
 

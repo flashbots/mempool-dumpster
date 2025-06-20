@@ -22,6 +22,9 @@ const (
 	TxReceivedSourceLabel      = `tx_received_total{source="%s"}`
 	TxReceivedFirstSourceLabel = `tx_received_first{source="%s"}`
 	TxReceivedTrashLabel       = `tx_received_trash{source="%s"}`
+
+	ClickhouseBatchSaveTimeLabel = `clickhouse_batch_save_duration_milliseconds{type="%s"}`
+	ClickhouseEntriesSavedLabel  = `clickhouse_entries_saved_total{type="%s"}`
 )
 
 func IncTxReceived(source string) {
@@ -60,4 +63,14 @@ func IncClickhouseBatchSaveGiveup() {
 
 func IncClickhouseBatchSaveSuccess() {
 	clickhouseBatchSaveSuccess.Inc()
+}
+
+func AddClickhouseBatchSaveDurationMilliseconds(cntType string, durationMs int64) {
+	label := fmt.Sprintf(ClickhouseBatchSaveTimeLabel, cntType)
+	metrics.GetOrCreateHistogram(label).Update(float64(durationMs))
+}
+
+func AddClickhouseEntriesSaved(cntType string, cnt int) {
+	label := fmt.Sprintf(ClickhouseEntriesSavedLabel, cntType)
+	metrics.GetOrCreateCounter(label).Add(cnt)
 }

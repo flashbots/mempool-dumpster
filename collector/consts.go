@@ -35,4 +35,5 @@ var (
 	clickhouseBatchSize    = common.GetEnvInt("CLICKHOUSE_BATCH_SIZE", 10_000)
 	clickhouseSaveRetries  = common.GetEnvInt("CLICKHOUSE_SAVE_RETRIES", 5)
 	clickhouseApplySQLPath = common.GetEnv("CLICKHOUSE_APPLY_SQL_PATH", "")
+	clickhouseEnableTLS    = common.GetEnv("CLICKHOUSE_ENABLE_TLS", "") == "1"
 )

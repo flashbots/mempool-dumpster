@@ -136,6 +136,13 @@ func (p *TxProcessor) Start() {
 	go p.startHousekeeper()
 
 	// start listening for transactions coming in through the channel
+	go p.startTransactionReceiver()
+
+	time.Sleep(100 * time.Millisecond) // give some time for the goroutine to start
+	p.log.Info("TxProcessor started successfully")
+}
+
+func (p *TxProcessor) startTransactionReceiver() {
 	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
 		// send tx to receivers before processing it
@@ -227,6 +234,7 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 
 	// Sanity check transaction
 	if err = p.validateTx(outFiles.FTrash, txIn); err != nil {
+		metrics.IncTxReceivedTrash(txIn.Source)
 		p.srcMetrics.Inc(KeyStatsTxTrash, txIn.Source)
 		return
 	}

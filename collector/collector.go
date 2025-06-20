@@ -65,7 +65,6 @@ func Start(opts *CollectorOpts) {
 
 		// Enable pprof if requested
 		if opts.EnablePprof {
-			opts.Log.Info("pprof API enabled on metrics server")
 			mux.Mount("/debug", middleware.Profiler())
 		}
 
@@ -75,7 +74,7 @@ func Start(opts *CollectorOpts) {
 			Handler:           mux,
 		}
 		go func() {
-			opts.Log.Infow("Starting metrics server", "listenAddr", opts.MetricsListenAddr)
+			opts.Log.Infow("Starting metrics server", "listenAddr", opts.MetricsListenAddr, "pprofEnabled", opts.EnablePprof)
 			err := metricsServer.ListenAndServe()
 			if err != nil {
 				opts.Log.Fatal("Failed to start metrics server", zap.Error(err))
@@ -100,15 +99,16 @@ func Start(opts *CollectorOpts) {
 		processor.receivers = append(processor.receivers, apiServer)
 	}
 
-	go processor.Start()
+	// Start the transaction processor, which kicks off background goroutines
+	processor.Start()
 
-	// Regular nodes
+	// Connect to regular nodes
 	for _, node := range opts.Nodes {
 		conn := NewNodeConnection(opts.Log, node, processor.txC)
 		conn.StartInBackground()
 	}
 
-	// Bloxroute
+	// Connect to Bloxroute
 	for _, auth := range opts.BloxrouteAuth {
 		token, url := common.GetAuthTokenAndURL(auth)
 		startBloxrouteConnection(BlxNodeOpts{
@@ -119,7 +119,7 @@ func Start(opts *CollectorOpts) {
 		})
 	}
 
-	// Eden
+	// Connect to Eden
 	for _, auth := range opts.EdenAuth {
 		token, url := common.GetAuthTokenAndURL(auth)
 		startEdenConnection(EdenNodeOpts{
@@ -130,7 +130,7 @@ func Start(opts *CollectorOpts) {
 		})
 	}
 
-	// Chainbound
+	// Connect to Chainbound
 	for _, auth := range opts.ChainboundAuth {
 		token, url := common.GetAuthTokenAndURL(auth)
 		chainboundConn := NewChainboundNodeConnection(ChainboundNodeOpts{
