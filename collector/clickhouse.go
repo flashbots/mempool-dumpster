@@ -141,7 +141,7 @@ func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 	// First, check if the current batch is full, in which case we need to send it to Clickhouse
 	// ch.currentTxBatchLock.Lock()
 	// defer ch.currentTxBatchLock.Unlock()
-	if len(ch.currentTxBatch) >= cap(ch.currentTxBatch) {
+	if len(ch.currentTxBatch) >= clickhouseBatchSize {
 		// Create a copy of the batche and save it to Clickhouse (with retries)
 		txs := make([]common.TxSummaryEntry, clickhouseBatchSize)
 		copy(txs, ch.currentTxBatch)
@@ -195,7 +195,7 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, location string) error {
 	// ch.currentSourcelogBatchLock.Lock()
 	// defer ch.currentSourcelogBatchLock.Unlock()
-	if len(ch.currentSourcelogBatch) >= cap(ch.currentSourcelogBatch) {
+	if len(ch.currentSourcelogBatch) >= clickhouseBatchSize {
 		// Time to save the batch. Create a copy of the batches and send it off to save to Clickhouse (with retries)
 		sourcelogs := make([]SourceLogEntry, clickhouseBatchSize)
 		copy(sourcelogs, ch.currentSourcelogBatch)
