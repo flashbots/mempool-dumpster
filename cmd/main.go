@@ -21,6 +21,7 @@ func main() {
 			&cmd_analyze.Command,
 			&cmd_merge.Command,
 		},
+		HideVersion: false,
 	}
 
 	if err := app.Run(os.Args); err != nil {

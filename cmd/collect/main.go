@@ -33,9 +33,21 @@ var cliFlags = []cli.Flag{
 		Category: "Collector Configuration",
 	},
 	&cli.StringFlag{
+		Name:     "location",
+		EnvVars:  []string{"LOCATION"},
+		Usage:    "collector location, will be stored as part of sourcelogs",
+		Category: "Collector Configuration",
+	},
+	&cli.StringFlag{
 		Name:     "check-node",
 		EnvVars:  []string{"CHECK_NODE"},
 		Usage:    "EL node URL to check incoming transactions",
+		Category: "Collector Configuration",
+	},
+	&cli.StringFlag{
+		Name:     "clickhouse-dsn",
+		EnvVars:  []string{"CLICKHOUSE_DSN"},
+		Usage:    "ClickHouse server DSN (e.g., clickhouse://user:password@localhost:9000/dbname)",
 		Category: "Collector Configuration",
 	},
 
@@ -120,6 +132,7 @@ func runCollector(cCtx *cli.Context) error {
 		debug                   = cCtx.Bool("debug")
 		outDir                  = cCtx.String("out")
 		uid                     = cCtx.String("uid")
+		location                = cCtx.String("location")
 		checkNodeURI            = cCtx.String("check-node")
 		nodeURIs                = cCtx.StringSlice("node")
 		blxAuth                 = cCtx.StringSlice("blx")
@@ -130,6 +143,7 @@ func runCollector(cCtx *cli.Context) error {
 		apiListenAddr           = cCtx.String("api-listen-addr")
 		metricsListenAddr       = cCtx.String("metrics-listen-addr")
 		enablePprof             = cCtx.Bool("pprof")
+		clickhouseDSN           = cCtx.String("clickhouse-dsn")
 	)
 
 	// Logger setup
@@ -155,8 +169,10 @@ func runCollector(cCtx *cli.Context) error {
 	opts := collector.CollectorOpts{
 		Log:                     log,
 		UID:                     uid,
+		Location:                location,
 		OutDir:                  outDir,
 		CheckNodeURI:            checkNodeURI,
+		ClickhouseDSN:           clickhouseDSN,
 		Nodes:                   nodeURIs,
 		BloxrouteAuth:           blxAuth,
 		EdenAuth:                edenAuth,

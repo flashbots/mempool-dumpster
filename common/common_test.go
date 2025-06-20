@@ -27,7 +27,7 @@ func TestParseTx(t *testing.T) {
 	//
 	// check the first rlp
 	///
-	summary, tx, err := ParseTx(ts, test1Rlp)
+	summary, tx, err := ParseTxRLP(ts, test1Rlp)
 	require.NoError(t, err)
 	require.Equal(t, ts, summary.Timestamp)
 	require.Equal(t, test1Hash, summary.Hash)
@@ -43,7 +43,7 @@ func TestParseTx(t *testing.T) {
 	//
 	// check the incorrect rlp... ParseTx should fix it internally
 	//
-	summary, tx, err = ParseTx(ts, test2RlpIncorrect)
+	summary, tx, err = ParseTxRLP(ts, test2RlpIncorrect)
 	require.NoError(t, err)
 	require.Equal(t, test2Hash, summary.Hash)
 	require.Equal(t, summary.Hash, tx.Hash().Hex())
@@ -56,7 +56,7 @@ func TestParseTx(t *testing.T) {
 }
 
 func TestParquet(t *testing.T) {
-	summary, _, err := ParseTx(int64(1693785600337), test1Rlp)
+	summary, _, err := ParseTxRLP(int64(1693785600337), test1Rlp)
 	require.NoError(t, err)
 
 	// Create a new Parquet file
@@ -121,7 +121,7 @@ func TestParquet(t *testing.T) {
 	//
 	// Double-check - parse the final rawTx
 	//
-	summary2, _, err := ParseTx(int64(1693785600337), test1Rlp)
+	summary2, _, err := ParseTxRLP(int64(1693785600337), test1Rlp)
 	require.NoError(t, err)
 	require.Equal(t, summary.Hash, summary2.Hash)
 }

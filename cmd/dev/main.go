@@ -70,7 +70,7 @@ func runDev(cCtx *cli.Context) error {
 
 	// Send dummy txs all X seconds
 	txRLP := "0x02f873018305643b840f2c19f08503f8bfbbb2832ab980940ed1bcc400acd34593451e76f854992198995f52808498e5b12ac080a051eb99ae13fd1ace55dd93a4b36eefa5d34e115cd7b9fd5d0ffac07300cbaeb2a0782d9ad12490b45af932d8c98cb3c2fd8c02cdd6317edb36bde2df7556fa9132"
-	_, tx, err := common.ParseTx(int64(1693785600337), txRLP)
+	_, tx, err := common.ParseTxRLP(int64(1693785600337), txRLP)
 	if err != nil {
 		return err
 	}
