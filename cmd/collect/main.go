@@ -33,6 +33,12 @@ var cliFlags = []cli.Flag{
 		Category: "Collector Configuration",
 	},
 	&cli.StringFlag{
+		Name:     "location",
+		EnvVars:  []string{"LOCATION"},
+		Usage:    "collector location, will be stored as part of sourcelogs",
+		Category: "Collector Configuration",
+	},
+	&cli.StringFlag{
 		Name:     "check-node",
 		EnvVars:  []string{"CHECK_NODE"},
 		Usage:    "EL node URL to check incoming transactions",
@@ -126,6 +132,7 @@ func runCollector(cCtx *cli.Context) error {
 		debug                   = cCtx.Bool("debug")
 		outDir                  = cCtx.String("out")
 		uid                     = cCtx.String("uid")
+		location                = cCtx.String("location")
 		checkNodeURI            = cCtx.String("check-node")
 		nodeURIs                = cCtx.StringSlice("node")
 		blxAuth                 = cCtx.StringSlice("blx")
@@ -162,6 +169,7 @@ func runCollector(cCtx *cli.Context) error {
 	opts := collector.CollectorOpts{
 		Log:                     log,
 		UID:                     uid,
+		Location:                location,
 		OutDir:                  outDir,
 		CheckNodeURI:            checkNodeURI,
 		ClickhouseDSN:           clickhouseDSN,

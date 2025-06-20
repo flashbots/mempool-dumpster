@@ -16,6 +16,7 @@ import (
 type CollectorOpts struct {
 	Log           *zap.SugaredLogger
 	UID           string
+	Location      string // location of the collector, will be stored in sourcelogs
 	Nodes         []string
 	OutDir        string
 	CheckNodeURI  string
@@ -86,6 +87,7 @@ func Start(opts *CollectorOpts) {
 	processor := NewTxProcessor(TxProcessorOpts{
 		Log:                     opts.Log,
 		UID:                     opts.UID,
+		Location:                opts.Location,
 		OutDir:                  opts.OutDir,
 		CheckNodeURI:            opts.CheckNodeURI,
 		ClickhouseDSN:           opts.ClickhouseDSN,

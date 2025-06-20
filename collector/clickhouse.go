@@ -3,7 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
-	"sync"
+	"os"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -23,6 +23,7 @@ type SourceLogEntry struct {
 	ReceivedAt time.Time
 	Hash       string
 	Source     string
+	Location   string
 }
 
 type Clickhouse struct {
@@ -31,9 +32,11 @@ type Clickhouse struct {
 	log  *zap.SugaredLogger
 	conn driver.Conn
 
-	currentTxBatch        []common.TxSummaryEntry // Batch of transactions to be inserted
-	currentSourcelogBatch []SourceLogEntry        // Batch of source logs to be inserted
-	currentBatchLock      sync.Mutex
+	currentTxBatch []common.TxSummaryEntry // Batch of transactions to be inserted
+	// currentTxBatchLock sync.Mutex
+
+	currentSourcelogBatch []SourceLogEntry // Batch of source logs to be inserted
+	// currentSourcelogBatchLock sync.Mutex
 }
 
 // NewClickhouse creates a new Clickhouse instance with a connection to the database.
@@ -82,6 +85,34 @@ func (ch *Clickhouse) connect() error {
 		return err
 	}
 
+	return ch.applyMigrations()
+}
+
+func (ch *Clickhouse) applyMigrations() error {
+	if clickhouseApplySQLPath == "" {
+		return nil
+	}
+
+	// Load files from disk
+	items, _ := os.ReadDir(clickhouseApplySQLPath)
+	for _, item := range items {
+		if item.IsDir() {
+			continue
+		}
+
+		filePath := clickhouseApplySQLPath + "/" + item.Name()
+		ch.log.Infow("Applying Clickhouse SQL file", "file", filePath)
+
+		sql, err := os.ReadFile(filePath)
+		if err != nil {
+			return fmt.Errorf("failed to read Clickhouse SQL file %s: %w", filePath, err)
+		}
+
+		if err := ch.conn.Exec(context.Background(), string(sql)); err != nil {
+			return fmt.Errorf("failed to execute Clickhouse SQL file %s: %w", filePath, err)
+		}
+	}
+
 	return nil
 }
 
@@ -93,31 +124,20 @@ func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 	}
 
 	// First, check if the current batch is full, in which case we need to send it to Clickhouse
-	ch.currentBatchLock.Lock()
-	defer ch.currentBatchLock.Unlock()
+	// ch.currentTxBatchLock.Lock()
+	// defer ch.currentTxBatchLock.Unlock()
 	if len(ch.currentTxBatch) >= cap(ch.currentTxBatch) {
-		// Create a copy of the batches and save it to Clickhouse (with retries)
+		// Create a copy of the batche and save it to Clickhouse (with retries)
 		txs := make([]common.TxSummaryEntry, clickhouseBatchSize)
 		copy(txs, ch.currentTxBatch)
 		go ch.saveTxs(txs)
 
-		sourcelogs := make([]SourceLogEntry, clickhouseBatchSize)
-		copy(sourcelogs, ch.currentSourcelogBatch)
-		go ch.saveSourcelogs(sourcelogs)
-
-		// Reset the current batches
+		// Reset the current batche
 		ch.currentTxBatch = make([]common.TxSummaryEntry, 0, clickhouseBatchSize)
-		ch.currentSourcelogBatch = make([]SourceLogEntry, 0, clickhouseBatchSize)
 	}
 
 	// Add item to batches
 	ch.currentTxBatch = append(ch.currentTxBatch, txSummary)
-	ch.currentSourcelogBatch = append(ch.currentSourcelogBatch, SourceLogEntry{
-		ReceivedAt: tx.T,
-		Hash:       txSummary.Hash,
-		Source:     tx.Source,
-	})
-
 	return nil
 }
 
@@ -130,9 +150,6 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 	}
 
 	for _, tx := range txs {
-		if tx.Hash == "" {
-			continue
-		}
 		err := batch.Append(
 			tx.Hash,
 			tx.ChainID,
@@ -151,11 +168,35 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 		)
 		if err != nil {
 			ch.log.Errorw("Failed to append transaction to Clickhouse batch", "error", err, "txHash", tx.Hash)
-			return
 		}
 	}
 
 	ch.sendBatchWithRetries("transactions", batch)
+}
+
+// AddSourceLog adds a source log to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse.
+func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, location string) error {
+	// ch.currentSourcelogBatchLock.Lock()
+	// defer ch.currentSourcelogBatchLock.Unlock()
+	if len(ch.currentSourcelogBatch) >= cap(ch.currentSourcelogBatch) {
+		// Time to save the batch. Create a copy of the batches and send it off to save to Clickhouse (with retries)
+		sourcelogs := make([]SourceLogEntry, clickhouseBatchSize)
+		copy(sourcelogs, ch.currentSourcelogBatch)
+		go ch.saveSourcelogs(sourcelogs)
+
+		// Reset the current batche
+		ch.currentSourcelogBatch = make([]SourceLogEntry, 0, clickhouseBatchSize)
+	}
+
+	// Add item to batches
+	ch.currentSourcelogBatch = append(ch.currentSourcelogBatch, SourceLogEntry{
+		ReceivedAt: timeReceived,
+		Hash:       hash,
+		Source:     source,
+		Location:   location,
+	})
+
+	return nil
 }
 
 // saveTxs saves the current batch of transactions to Clickhouse, with retries.
@@ -171,6 +212,7 @@ func (ch *Clickhouse) saveSourcelogs(sourcelogs []SourceLogEntry) {
 			log.ReceivedAt,
 			log.Hash,
 			log.Source,
+			log.Location,
 		)
 		if err != nil {
 			ch.log.Errorw("Failed to append source log to Clickhouse batch", "error", err, "logHash", log.Hash)
@@ -185,7 +227,7 @@ func (ch *Clickhouse) sendBatchWithRetries(name string, batch driver.Batch) {
 	retryCount := 0
 
 	timeStarted := time.Now()
-	ch.log.Infow("Starting Clickhouse batch save", "name", name, "size", batch.Rows())
+	ch.log.Debugw("Starting Clickhouse batch save", "name", name, "size", batch.Rows())
 
 	for {
 		// Save batch

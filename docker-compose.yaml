@@ -1,9 +1,6 @@
 services:
-  mempool-dumpster:
+  collector:
     image: mempool-dumpster
-    build:
-      context: .
-      dockerfile: Dockerfile
     command: /app/mempool-dumpster collect
     depends_on:
       clickhouse:
@@ -20,8 +17,10 @@ services:
       METRICS_ADDR: 0.0.0.0:9090
       ENABLE_PPROF: "1"
       NODES: ws://host.docker.internal:8546
-      CLICKHOUSE_DSN: clickhouse://default:password@clickhouse:9000/default
+      LOCATION: local-eu
+      CLICKHOUSE_DSN: "clickhouse://default:password@clickhouse:9000/default"
       CLICKHOUSE_BATCH_SIZE: 300
+      CLICKHOUSE_APPLY_SQL_PATH: "/sql/"
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest

@@ -32,6 +32,7 @@ type TxProcessorOpts struct {
 	Log                     *zap.SugaredLogger
 	OutDir                  string
 	UID                     string
+	Location                string // location of the collector, will be stored in sourcelogs
 	CheckNodeURI            string
 	ClickhouseDSN           string
 	HTTPReceivers           []string
@@ -39,8 +40,11 @@ type TxProcessorOpts struct {
 }
 
 type TxProcessor struct {
-	log    *zap.SugaredLogger
-	uid    string
+	log *zap.SugaredLogger
+
+	uid      string
+	location string
+
 	outDir string
 	txC    chan common.TxIn // note: it's important that the value is sent in here instead of a pointer, otherwise there are memory race conditions
 
@@ -80,7 +84,9 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
 		log: opts.Log, // .With("uid", uid),
 		txC: make(chan common.TxIn, 100),
-		uid: opts.UID,
+
+		uid:      opts.UID,
+		location: opts.Location,
 
 		outDir:   opts.OutDir,
 		outFiles: make(map[int64]*OutFiles),
@@ -201,6 +207,13 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 	if err != nil {
 		log.Errorw("fmt.Fprintf", "error", err)
 		return
+	}
+
+	if p.clickhouseConn != nil {
+		err = p.clickhouseConn.AddSourceLog(txIn.T, txHashLower, txIn.Source, p.location)
+		if err != nil {
+			log.Errorw("failed to add transaction to Clickhouse", "error", err)
+		}
 	}
 
 	// process transactions only once

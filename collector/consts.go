@@ -32,6 +32,7 @@ var (
 	healthChecksIOURL = common.GetEnv("HEALTHCHECKS_IO_URI", "")
 
 	// https://clickhouse.com/docs/best-practices/selecting-an-insert-strategy
-	clickhouseBatchSize   = common.GetEnvInt("CLICKHOUSE_BATCH_SIZE", 10_000)
-	clickhouseSaveRetries = common.GetEnvInt("CLICKHOUSE_SAVE_RETRIES", 5)
+	clickhouseBatchSize    = common.GetEnvInt("CLICKHOUSE_BATCH_SIZE", 10_000)
+	clickhouseSaveRetries  = common.GetEnvInt("CLICKHOUSE_SAVE_RETRIES", 5)
+	clickhouseApplySQLPath = common.GetEnv("CLICKHOUSE_APPLY_SQL_PATH", "")
 )

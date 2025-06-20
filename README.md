@@ -181,16 +181,13 @@ Links:
 
 | We recommend inserting data in batches of at least 1,000 rows, and ideally between 10,000–100,000 rows. Fewer, larger inserts reduce the number of parts written, minimize merge load, and lower overall system resource usage.
 
-For testing, you need to manually apply the migration before running the collector:
+For testing, you can use [docker-compose](./docker-compose.yaml) (expects an EL node on the host, to connect to with `ws://localhost:8546`):
 
 ```bash
-# Start the clickhouse docker container
-docker-compose start clickhouse
+# Build the mempool-dumpster Docker image
+make docker-image
 
-# Apply the schema migrations
-for fn in schema/clickhouse/*.sql; do echo $fn && cat $fn | clickhouse client clickhouse://default:password@localhost:9000/default; done
-
-# Start the remaining containers (collector)
+# Start the collector and ClickHouse
 docker-compose up
 ```
 
