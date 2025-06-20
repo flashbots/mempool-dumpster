@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     gasFeeCap String,
     dataSize Int64,
     data4Bytes String,
-    rawTx String
+    rawTx String,
 )
 ENGINE = ReplacingMergeTree
 PRIMARY KEY (hash)
