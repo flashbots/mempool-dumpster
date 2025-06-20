@@ -9,6 +9,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/flashbots/mempool-dumpster/common"
+	"github.com/flashbots/mempool-dumpster/metrics"
 	"go.uber.org/zap"
 )
 
@@ -66,6 +67,7 @@ func (ch *Clickhouse) connect() error {
 	// Parse the DSN to extract address and authentication details
 	options, err := clickhouse.ParseDSN(ch.opts.DSN)
 	if err != nil {
+		metrics.IncClickhouseError()
 		return fmt.Errorf("failed to parse Clickhouse DSN: %w", err)
 	}
 
@@ -81,6 +83,7 @@ func (ch *Clickhouse) connect() error {
 	}
 
 	if err := ch.conn.Ping(ctx); err != nil {
+		metrics.IncClickhouseError()
 		ch.log.Errorw("Failed to connect to Clickhouse", "error", err)
 		return err
 	}
@@ -105,10 +108,12 @@ func (ch *Clickhouse) applyMigrations() error {
 
 		sql, err := os.ReadFile(filePath)
 		if err != nil {
+			metrics.IncClickhouseError()
 			return fmt.Errorf("failed to read Clickhouse SQL file %s: %w", filePath, err)
 		}
 
 		if err := ch.conn.Exec(context.Background(), string(sql)); err != nil {
+			metrics.IncClickhouseError()
 			return fmt.Errorf("failed to execute Clickhouse SQL file %s: %w", filePath, err)
 		}
 	}
@@ -120,6 +125,7 @@ func (ch *Clickhouse) applyMigrations() error {
 func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 	txSummary, _, err := common.ParseTx(0, tx.Tx)
 	if err != nil {
+		metrics.IncClickhouseError()
 		return fmt.Errorf("failed to parse transaction: %w", err)
 	}
 
@@ -141,10 +147,11 @@ func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 	return nil
 }
 
-// saveTxs saves the current batch of transactions to Clickhouse, with retries.
+// saveTxs saves the current batch of transactions to Clickhouse, with retries. Expected to be run in a background goroutine.
 func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 	batch, err := ch.conn.PrepareBatch(context.Background(), "INSERT INTO transactions")
 	if err != nil {
+		metrics.IncClickhouseError()
 		ch.log.Errorw("Failed to prepare Clickhouse batch insert", "error", err)
 		return
 	}
@@ -167,6 +174,7 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 			tx.RawTxHex(),
 		)
 		if err != nil {
+			metrics.IncClickhouseError()
 			ch.log.Errorw("Failed to append transaction to Clickhouse batch", "error", err, "txHash", tx.Hash)
 		}
 	}
@@ -199,10 +207,11 @@ func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, locatio
 	return nil
 }
 
-// saveTxs saves the current batch of transactions to Clickhouse, with retries.
+// saveTxs saves the current batch of transactions to Clickhouse, with retries. Expected to be run in a background goroutine.
 func (ch *Clickhouse) saveSourcelogs(sourcelogs []SourceLogEntry) {
 	batch, err := ch.conn.PrepareBatch(context.Background(), "INSERT INTO sourcelogs")
 	if err != nil {
+		metrics.IncClickhouseError()
 		ch.log.Errorw("Failed to prepare Clickhouse batch insert", "error", err)
 		return
 	}
@@ -215,6 +224,7 @@ func (ch *Clickhouse) saveSourcelogs(sourcelogs []SourceLogEntry) {
 			log.Location,
 		)
 		if err != nil {
+			metrics.IncClickhouseError()
 			ch.log.Errorw("Failed to append source log to Clickhouse batch", "error", err, "logHash", log.Hash)
 			return
 		}
@@ -234,20 +244,26 @@ func (ch *Clickhouse) sendBatchWithRetries(name string, batch driver.Batch) {
 		err := batch.Send()
 		if err == nil {
 			// Successfully sent the batch
+			metrics.IncClickhouseBatchSaveSuccess()
 			timeElapsed := time.Since(timeStarted)
 			ch.log.Infow("Successfully saved Clickhouse batch", "name", name, "size", batch.Rows(), "retryCount", retryCount, "timeElapsedMs", timeElapsed.Milliseconds())
 			return
 		}
 
-		// If there was an error, we will retry
-		ch.log.Errorw("Failed to save Clickhouse batch, retrying", "name", name, "error", err)
+		// There was an error saving the batch. Log the error and possibly retry.
+		metrics.IncClickhouseErrorBatchSave()
+		ch.log.Errorw("Failed to save Clickhouse batch", "name", name, "error", err)
+
 		retryCount++
 		if retryCount >= clickhouseSaveRetries {
+			metrics.IncClickhouseBatchSaveGiveup()
 			ch.log.Errorw("Max retries reached, giving up on Clickhouse batch", "name", name, "retryCount", retryCount)
 			return
 		}
+
 		sleepTime := time.Duration(retryCount*3) * time.Second
 		ch.log.Infow("Retrying to save Clickhouse batch", "name", name, "retryCount", retryCount, "sleepTime", sleepTime)
 		time.Sleep(sleepTime)
+		metrics.IncClickhouseBatchSaveRetries()
 	}
 }

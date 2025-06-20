@@ -10,6 +10,12 @@ var (
 	txReceived      = metrics.NewCounter("tx_received_total")
 	txReceivedFirst = metrics.NewCounter("tx_received_first")
 	txReceivedTrash = metrics.NewCounter("tx_received_trash")
+
+	clickhouseErrors           = metrics.NewCounter("clickhouse_errors_total")
+	clickhouseErrorsBatchSave  = metrics.NewCounter("clickhouse_errors_batch_save_total")
+	clickhouseBatchSaveRetries = metrics.NewCounter("clickhouse_batch_save_retries_total")
+	clickhouseBatchSaveGiveup  = metrics.NewCounter("clickhouse_batch_save_giveup_total")
+	clickhouseBatchSaveSuccess = metrics.NewCounter("clickhouse_batch_save_success_total")
 )
 
 const (
@@ -34,4 +40,24 @@ func IncTxReceivedTrash(source string) {
 	txReceivedTrash.Inc()
 	l := fmt.Sprintf(TxReceivedTrashLabel, source)
 	metrics.GetOrCreateCounter(l).Inc()
+}
+
+func IncClickhouseError() {
+	clickhouseErrors.Inc()
+}
+
+func IncClickhouseErrorBatchSave() {
+	clickhouseErrorsBatchSave.Inc()
+}
+
+func IncClickhouseBatchSaveRetries() {
+	clickhouseBatchSaveRetries.Inc()
+}
+
+func IncClickhouseBatchSaveGiveup() {
+	clickhouseBatchSaveGiveup.Inc()
+}
+
+func IncClickhouseBatchSaveSuccess() {
+	clickhouseBatchSaveSuccess.Inc()
 }
