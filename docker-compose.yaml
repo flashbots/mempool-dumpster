@@ -30,8 +30,7 @@ services:
       CLICKHOUSE_DISABLE_TLS: "1"
 
   clickhouse:
-    # Uses a ClickHouse image with applied SQL schemas (see also docker/clickhouse-server/Dockerfile)
-    image: mempool-dumpster-clickhouse-server
+    image: clickhouse/clickhouse-server:25.3
     container_name: clickhouse-server
     ports:
       - "127.0.0.1:8123:8123"  # HTTP interface
@@ -39,6 +38,7 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - clickhouse_logs:/var/log/clickhouse-server
+      - ${PWD}/schema/clickhouse:/docker-entrypoint-initdb.d
     environment:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: default

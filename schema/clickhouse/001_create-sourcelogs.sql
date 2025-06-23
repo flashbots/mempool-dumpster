@@ -7,4 +7,5 @@ CREATE TABLE IF NOT EXISTS sourcelogs (
 ENGINE = MergeTree
 PRIMARY KEY (received_at, hash)
 ORDER BY (received_at, hash)
-PARTITION BY toDate(received_at);
+PARTITION BY toDate(received_at)
+COMMENT 'Receipt log for every transaction the collector has seen';

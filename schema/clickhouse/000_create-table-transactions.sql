@@ -20,4 +20,5 @@ CREATE TABLE IF NOT EXISTS transactions (
 ENGINE = ReplacingMergeTree(ver)
 PRIMARY KEY (hash)
 ORDER BY (hash)
-PARTITION BY toDate(received_at);
+PARTITION BY toDate(received_at)
+COMMENT 'Transaction details, deduplicated by hash, will keep the transaction with earliest received_at.';
