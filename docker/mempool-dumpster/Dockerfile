@@ -19,5 +19,4 @@ WORKDIR /app
 RUN mkdir /mnt/data
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /build/bin/* /app/
-COPY schema/clickhouse/* /sql/
 CMD ["/app/mempool-dumpster", "collect"]

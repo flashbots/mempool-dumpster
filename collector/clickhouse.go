@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -99,42 +98,12 @@ func (ch *Clickhouse) connect() error {
 		return err
 	}
 
-	return ch.applyMigrations()
-}
-
-func (ch *Clickhouse) applyMigrations() error {
-	if clickhouseApplySQLPath == "" {
-		return nil
-	}
-
-	// Load files from disk
-	items, _ := os.ReadDir(clickhouseApplySQLPath)
-	for _, item := range items {
-		if item.IsDir() {
-			continue
-		}
-
-		filePath := clickhouseApplySQLPath + "/" + item.Name()
-		ch.log.Infow("Applying Clickhouse SQL file", "file", filePath)
-
-		sql, err := os.ReadFile(filePath)
-		if err != nil {
-			metrics.IncClickhouseError()
-			return fmt.Errorf("failed to read Clickhouse SQL file %s: %w", filePath, err)
-		}
-
-		if err := ch.conn.Exec(context.Background(), string(sql)); err != nil {
-			metrics.IncClickhouseError()
-			return fmt.Errorf("failed to execute Clickhouse SQL file %s: %w", filePath, err)
-		}
-	}
-
 	return nil
 }
 
 // AddTransaction adds a transaction to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse.
 func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
-	txSummary, _, err := common.ParseTx(0, tx.Tx)
+	txSummary, _, err := common.ParseTx(tx.T.UnixMilli(), tx.Tx)
 	if err != nil {
 		metrics.IncClickhouseError()
 		return fmt.Errorf("failed to parse transaction: %w", err)
@@ -169,6 +138,7 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 
 	for _, tx := range txs {
 		err := batch.Append(
+			tx.Timestamp,
 			tx.Hash,
 			tx.ChainID,
 			tx.TxType,

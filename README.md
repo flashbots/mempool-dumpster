@@ -178,6 +178,7 @@ Links:
 - https://github.com/ClickHouse/clickhouse-go/blob/main/examples/clickhouse_api/batch.go
 - https://clickhouse.com/docs/guides/developer/deduplication
 - https://clickhouse.com/docs/best-practices/selecting-an-insert-strategy
+- https://clickhouse.com/docs/engines/table-engines/mergetree-family/replacingmergetree
 
 | We recommend inserting data in batches of at least 1,000 rows, and ideally between 10,000–100,000 rows. Fewer, larger inserts reduce the number of parts written, minimize merge load, and lower overall system resource usage.
 
@@ -185,7 +186,8 @@ For testing, you can use [docker-compose](./docker-compose.yaml) (expects an EL 
 
 ```bash
 # Build the mempool-dumpster Docker image
-make docker-image
+make docker-mempool-dumpster
+make docker-clickhouse-server
 
 # Start the collector and ClickHouse
 docker-compose up

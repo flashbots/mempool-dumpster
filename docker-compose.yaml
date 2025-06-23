@@ -20,11 +20,11 @@ services:
       LOCATION: local-eu
       CLICKHOUSE_DSN: "clickhouse://default:password@clickhouse:9000/default"
       CLICKHOUSE_BATCH_SIZE: 300
-      CLICKHOUSE_APPLY_SQL_PATH: "/sql/"
       CLICKHOUSE_DISABLE_TLS: "1"
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    # Uses a ClickHouse image with applied SQL schemas (see also docker/clickhouse-server/Dockerfile)
+    image: mempool-dumpster-clickhouse-server
     container_name: clickhouse-server
     ports:
       - "127.0.0.1:8123:8123"  # HTTP interface

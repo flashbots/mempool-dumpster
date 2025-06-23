@@ -1,20 +1,23 @@
 CREATE TABLE IF NOT EXISTS transactions (
+    received_at DateTime64(3, 'UTC'),
     hash String,
-    chainId String,
-    txType Int64,
+    chain_id String,
+    tx_type Int64,
     from String,
     to String,
     value String,
     nonce String,
     gas String,
-    gasPrice String,
-    gasTipCap String,
-    gasFeeCap String,
-    dataSize Int64,
-    data4Bytes String,
-    rawTx String,
-)
-ENGINE = ReplacingMergeTree
-PRIMARY KEY (hash)
-ORDER BY (hash);
+    gas_price String,
+    gas_tip_cap String,
+    gas_fee_cap String,
+    data_size Int64,
+    data_4bytes String,
+    raw_tx String,
 
+    ver Int64 MATERIALIZED -toUnixTimestamp(received_at)
+)
+ENGINE = ReplacingMergeTree(ver)
+PRIMARY KEY (hash)
+ORDER BY (hash)
+PARTITION BY toDate(received_at);
