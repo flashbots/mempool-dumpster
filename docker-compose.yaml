@@ -21,6 +21,7 @@ services:
       CLICKHOUSE_DSN: "clickhouse://default:password@clickhouse:9000/default"
       CLICKHOUSE_BATCH_SIZE: 300
       CLICKHOUSE_APPLY_SQL_PATH: "/sql/"
+      CLICKHOUSE_DISABLE_TLS: "1"
 
   clickhouse:
     image: clickhouse/clickhouse-server:latest

@@ -14,13 +14,15 @@ import (
 )
 
 type CollectorOpts struct {
-	Log           *zap.SugaredLogger
-	UID           string
-	Location      string // location of the collector, will be stored in sourcelogs
-	Nodes         []string
-	OutDir        string
-	CheckNodeURI  string
-	ClickhouseDSN string
+	Log      *zap.SugaredLogger
+	UID      string
+	Location string // location of the collector, will be stored in sourcelogs
+	Nodes    []string
+	OutDir   string
+
+	CheckNodeURI         string
+	ClickhouseDSN        string
+	ClickhouseDisableTLS bool // if true, disables TLS verification for Clickhouse connections
 
 	BloxrouteAuth  []string
 	EdenAuth       []string
@@ -90,6 +92,7 @@ func Start(opts *CollectorOpts) {
 		OutDir:                  opts.OutDir,
 		CheckNodeURI:            opts.CheckNodeURI,
 		ClickhouseDSN:           opts.ClickhouseDSN,
+		ClickhouseDisableTLS:    opts.ClickhouseDisableTLS,
 		HTTPReceivers:           opts.Receivers,
 		ReceiversAllowedSources: opts.ReceiversAllowedSources,
 	})

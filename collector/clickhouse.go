@@ -17,8 +17,10 @@ import (
 var ErrNoDSN = fmt.Errorf("Clickhouse DSN is required")
 
 type ClickhouseOpts struct {
-	DSN string
 	Log *zap.SugaredLogger
+
+	DSN        string
+	DisableTLS bool // if true, disables TLS verification for Clickhouse connections
 }
 
 type SourceLogEntry struct {
@@ -73,7 +75,7 @@ func (ch *Clickhouse) connect() error {
 	}
 
 	var chTLS *tls.Config
-	if clickhouseEnableTLS {
+	if !ch.opts.DisableTLS {
 		chTLS = &tls.Config{
 			InsecureSkipVerify: true, //nolint:gosec
 		}
