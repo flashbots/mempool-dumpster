@@ -23,6 +23,10 @@ build: clean-build  ## build the binaries
 website: ## Build the website and upload to R2
 	go run cmd/main.go website build --upload
 
+.PHONY: docker
+docker: docker-mempool-dumpster docker-clickhouse-server ## Build all docker images
+	@echo "Docker images built successfully"
+
 .PHONY: docker-mempool-dumpster
 docker-mempool-dumpster: ## Build the docker image
 	docker build -f docker/mempool-dumpster/Dockerfile --platform linux/amd64 --build-arg VERSION=${VERSION} . -t mempool-dumpster

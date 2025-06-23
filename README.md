@@ -185,9 +185,8 @@ Links:
 For testing, you can use [docker-compose](./docker-compose.yaml) (expects an EL node on the host, to connect to with `ws://localhost:8546`):
 
 ```bash
-# Build the mempool-dumpster Docker image
-make docker-mempool-dumpster
-make docker-clickhouse-server
+# Build the Docker images for mempool dumpster and Clickhouse
+make docker
 
 # Start the collector and ClickHouse
 docker-compose up

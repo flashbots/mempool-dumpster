@@ -1,6 +1,7 @@
 services:
   collector:
     image: mempool-dumpster
+    container_name: mempool-dumpster
     command: /app/mempool-dumpster collect
     depends_on:
       clickhouse:
@@ -41,8 +42,9 @@ services:
       nofile:
         soft: 262144
         hard: 262144
-    healthcheck:
+    healthcheck: # not working well on initial startup when schemas are applied
       test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      # test: clickhouse-client --query "SELECT sum(number) FROM numbers(10)" || exit 1
       interval: 1s
       retries: 5
       start_period: 1s
