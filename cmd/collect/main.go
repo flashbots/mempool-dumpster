@@ -22,8 +22,8 @@ var cliFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "out",
 		EnvVars:  []string{"OUT"},
-		Required: true,
-		Usage:    "output base directory",
+		Required: false,
+		Usage:    "output base directory (optional, file writes disabled if not set)",
 		Category: "Collector Configuration",
 	},
 	&cli.StringFlag{
@@ -163,6 +163,10 @@ func runCollector(cCtx *cli.Context) error {
 
 	if len(nodeURIs) == 0 && len(blxAuth) == 0 && len(edenAuth) == 0 && len(chainboundAuth) == 0 {
 		log.Fatal("No nodes, bloxroute, or eden token set (use -nodes <url1>,<url2> / -blx-token <token> / -eden-token <token>)")
+	}
+
+	if outDir == "" && clickhouseDSN == "" {
+		log.Fatal("Either --out or --clickhouse-dsn must be specified")
 	}
 
 	log.Infow("Starting mempool-collector", "version", common.Version, "outDir", outDir, "uid", uid, "enablePprof", enablePprof)
