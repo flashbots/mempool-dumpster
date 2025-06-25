@@ -1,10 +1,22 @@
+#
+# This docker-compose file is used to run the mempool-dumpster collector and ClickHouse server.
+#
+# - Build the Docker images: make docker
+# - Dockerfiles can be found in docker/mempool-dumpster and docker/clickhouse-server
+#
 services:
-  mempool-dumpster:
+  collector:
     image: mempool-dumpster
+    container_name: mempool-dumpster
     command: /app/mempool-dumpster collect
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    links:
+      - "clickhouse:clickhouse"
     ports:
-      - 127.0.0.1:9092:9092  # Transaction API
-      - 127.0.0.1:9090:9090  # Metrics API
+      - "127.0.0.1:9092:9092"  # Transaction API
+      - "127.0.0.1:9090:9090"  # Metrics API
     environment:
       OUT: /tmp/mempool-dumpster
       CHECK_NODE: ws://host.docker.internal:8546
@@ -12,4 +24,37 @@ services:
       METRICS_ADDR: 0.0.0.0:9090
       ENABLE_PPROF: "1"
       NODES: ws://host.docker.internal:8546
+      LOCATION: local-eu
+      CLICKHOUSE_DSN: "clickhouse://default:password@clickhouse:9000/default"
+      CLICKHOUSE_BATCH_SIZE: 300
+      CLICKHOUSE_DISABLE_TLS: "1"
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: clickhouse-server
+    ports:
+      - "127.0.0.1:8123:8123"  # HTTP interface
+      - "127.0.0.1:9000:9000"  # Native TCP interface
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - clickhouse_logs:/var/log/clickhouse-server
+      - ${PWD}/schema/clickhouse:/docker-entrypoint-initdb.d
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: password
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: clickhouse-client --query "select count(*) from sourcelogs" # this works only if the sourcelogs table is the last table created
+      interval: 2s
+      retries: 5
+      start_period: 10s
+      timeout: 2s
+
+volumes:
+  clickhouse_data:
+  clickhouse_logs:

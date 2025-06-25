@@ -32,14 +32,20 @@ type TxProcessorOpts struct {
 	Log                     *zap.SugaredLogger
 	OutDir                  string
 	UID                     string
+	Location                string // location of the collector, will be stored in sourcelogs
 	CheckNodeURI            string
+	ClickhouseDSN           string
+	ClickhouseDisableTLS    bool
 	HTTPReceivers           []string
 	ReceiversAllowedSources []string
 }
 
 type TxProcessor struct {
-	log    *zap.SugaredLogger
-	uid    string
+	log *zap.SugaredLogger
+
+	uid      string
+	location string
+
 	outDir string
 	txC    chan common.TxIn // note: it's important that the value is sent in here instead of a pointer, otherwise there are memory race conditions
 
@@ -59,6 +65,10 @@ type TxProcessor struct {
 	receiversAllowedSources []string
 
 	lastHealthCheckCall time.Time
+
+	clickhouseDSN        string
+	clickhouseConn       *Clickhouse
+	clickhouseDisableTLS bool
 }
 
 type OutFiles struct {
@@ -76,7 +86,9 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 	return &TxProcessor{ //nolint:exhaustruct
 		log: opts.Log, // .With("uid", uid),
 		txC: make(chan common.TxIn, 100),
-		uid: opts.UID,
+
+		uid:      opts.UID,
+		location: opts.Location,
 
 		outDir:   opts.OutDir,
 		outFiles: make(map[int64]*OutFiles),
@@ -88,12 +100,27 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 
 		receivers:               receivers,
 		receiversAllowedSources: opts.ReceiversAllowedSources,
+		clickhouseDSN:           opts.ClickhouseDSN,
+		clickhouseDisableTLS:    opts.ClickhouseDisableTLS,
 	}
 }
 
 func (p *TxProcessor) Start() {
 	p.log.Info("Starting TxProcessor ...")
 	var err error
+
+	if p.clickhouseDSN != "" {
+		p.log.Info("Connecting to Clickhouse...")
+		p.clickhouseConn, err = NewClickhouse(ClickhouseOpts{
+			Log:        p.log,
+			DSN:        p.clickhouseDSN,
+			DisableTLS: p.clickhouseDisableTLS,
+		})
+		if err != nil {
+			p.log.Fatalw("failed to connect to Clickhouse", "error", err)
+		}
+		p.log.Info("Connected to Clickhouse!")
+	}
 
 	if p.checkNodeURI != "" {
 		p.log.Infof("Conecting to check-node at %s ...", p.checkNodeURI)
@@ -113,6 +140,13 @@ func (p *TxProcessor) Start() {
 	go p.startHousekeeper()
 
 	// start listening for transactions coming in through the channel
+	go p.startTransactionReceiver()
+
+	time.Sleep(100 * time.Millisecond) // give some time for the goroutine to start
+	p.log.Info("TxProcessor started successfully")
+}
+
+func (p *TxProcessor) startTransactionReceiver() {
 	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
 		// send tx to receivers before processing it
@@ -186,6 +220,13 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		return
 	}
 
+	if p.clickhouseConn != nil {
+		err = p.clickhouseConn.AddSourceLog(txIn.T, txHashLower, txIn.Source, p.location)
+		if err != nil {
+			log.Errorw("failed to add transaction to Clickhouse", "error", err)
+		}
+	}
+
 	// process transactions only once
 	p.knownTxsLock.RLock()
 	_, ok := p.knownTxs[txHashLower]
@@ -197,8 +238,16 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 
 	// Sanity check transaction
 	if err = p.validateTx(outFiles.FTrash, txIn); err != nil {
+		metrics.IncTxReceivedTrash(txIn.Source)
 		p.srcMetrics.Inc(KeyStatsTxTrash, txIn.Source)
 		return
+	}
+
+	if p.clickhouseConn != nil {
+		err = p.clickhouseConn.AddTransaction(txIn) // send to Clickhouse
+		if err != nil {
+			log.Errorw("failed to add transaction to Clickhouse", "error", err)
+		}
 	}
 
 	// check if tx was already included

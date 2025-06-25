@@ -14,7 +14,7 @@ source "$(dirname "$0")/../.env.prod"
 
 # Maximum number of allowed errors (above a notification is sent)
 ERROR_LIMIT=3
-SINCE="2h ago"
+SINCE="30m ago"
 
 function error() {
     # write to /tmp/mempool-collector-error-current.log but only if not already exists
@@ -54,7 +54,7 @@ function reset() {
 }
 
 date
-journalctl -u mempool-collector -o cat --since "$SINCE" | grep ERROR | tee /tmp/mempool-collector-errors.log  || true
+journalctl -u mempool-collector -o cat --since "$SINCE" | grep -E "ERROR|panic" | grep -v "k8s-default-builderr" | tee /tmp/mempool-collector-errors.log || true
 lines=$(wc -l /tmp/mempool-collector-errors.log | awk '{print $1}')
 # echo "Found $lines errors in mempool-collector service"
 
