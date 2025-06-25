@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -35,11 +36,8 @@ type Clickhouse struct {
 	log  *zap.SugaredLogger
 	conn driver.Conn
 
-	currentTxBatch []common.TxSummaryEntry // Batch of transactions to be inserted
-	// currentTxBatchLock sync.Mutex
-
-	currentSourcelogBatch []SourceLogEntry // Batch of source logs to be inserted
-	// currentSourcelogBatchLock sync.Mutex
+	currentTxBatch        []common.TxSummaryEntry // Batch of transactions to be inserted
+	currentSourcelogBatch []SourceLogEntry        // Batch of source logs to be inserted
 }
 
 // NewClickhouse creates a new Clickhouse instance with a connection to the database.
@@ -74,7 +72,8 @@ func (ch *Clickhouse) connect() error {
 	}
 
 	var chTLS *tls.Config
-	if !ch.opts.DisableTLS {
+	enableTLS := !ch.opts.DisableTLS
+	if enableTLS {
 		chTLS = &tls.Config{
 			InsecureSkipVerify: true, //nolint:gosec
 		}
@@ -102,6 +101,7 @@ func (ch *Clickhouse) connect() error {
 }
 
 // AddTransaction adds a transaction to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse.
+// This function is not thread-safe and should be called from a single goroutine or with proper synchronization.
 func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 	txSummary, _, err := common.ParseTx(tx.T.UnixMilli(), tx.Tx)
 	if err != nil {
@@ -110,16 +110,13 @@ func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 	}
 
 	// First, check if the current batch is full, in which case we need to send it to Clickhouse
-	// ch.currentTxBatchLock.Lock()
-	// defer ch.currentTxBatchLock.Unlock()
 	if len(ch.currentTxBatch) >= clickhouseBatchSize {
 		// Create a copy of the batche and save it to Clickhouse (with retries)
-		txs := make([]common.TxSummaryEntry, clickhouseBatchSize)
-		copy(txs, ch.currentTxBatch)
+		txs := slices.Clone(ch.currentTxBatch)
 		go ch.saveTxs(txs)
 
-		// Reset the current batche
-		ch.currentTxBatch = make([]common.TxSummaryEntry, 0, clickhouseBatchSize)
+		// Reset the current batches
+		ch.currentTxBatch = ch.currentTxBatch[:0] // Clear the slice without reallocating
 	}
 
 	// Add item to batches
@@ -164,17 +161,15 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 }
 
 // AddSourceLog adds a source log to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse.
+// This function is not thread-safe and should be called from a single goroutine or with proper synchronization.
 func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, location string) error {
-	// ch.currentSourcelogBatchLock.Lock()
-	// defer ch.currentSourcelogBatchLock.Unlock()
 	if len(ch.currentSourcelogBatch) >= clickhouseBatchSize {
 		// Time to save the batch. Create a copy of the batches and send it off to save to Clickhouse (with retries)
-		sourcelogs := make([]SourceLogEntry, clickhouseBatchSize)
-		copy(sourcelogs, ch.currentSourcelogBatch)
+		sourcelogs := slices.Clone(ch.currentSourcelogBatch)
 		go ch.saveSourcelogs(sourcelogs)
 
-		// Reset the current batche
-		ch.currentSourcelogBatch = make([]SourceLogEntry, 0, clickhouseBatchSize)
+		// Reset the current batches
+		ch.currentSourcelogBatch = ch.currentSourcelogBatch[:0] // Clear the slice without reallocating
 	}
 
 	// Add item to batches

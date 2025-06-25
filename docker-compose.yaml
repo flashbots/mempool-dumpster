@@ -49,7 +49,7 @@ services:
         soft: 262144
         hard: 262144
     healthcheck:
-      test: clickhouse-client --query "select count(*) from sourcelogs"
+      test: clickhouse-client --query "select count(*) from sourcelogs" # this works only if the sourcelogs table is the last table created
       interval: 2s
       retries: 5
       start_period: 10s
