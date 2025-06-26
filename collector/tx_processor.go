@@ -35,7 +35,6 @@ type TxProcessorOpts struct {
 	Location                string // location of the collector, will be stored in sourcelogs
 	CheckNodeURI            string
 	ClickhouseDSN           string
-	ClickhouseDisableTLS    bool
 	HTTPReceivers           []string
 	ReceiversAllowedSources []string
 }
@@ -66,9 +65,8 @@ type TxProcessor struct {
 
 	lastHealthCheckCall time.Time
 
-	clickhouseDSN        string
-	clickhouseConn       *Clickhouse
-	clickhouseDisableTLS bool
+	clickhouseDSN  string
+	clickhouseConn *Clickhouse
 }
 
 type OutFiles struct {
@@ -101,7 +99,6 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 		receivers:               receivers,
 		receiversAllowedSources: opts.ReceiversAllowedSources,
 		clickhouseDSN:           opts.ClickhouseDSN,
-		clickhouseDisableTLS:    opts.ClickhouseDisableTLS,
 	}
 }
 
@@ -112,9 +109,8 @@ func (p *TxProcessor) Start() {
 	if p.clickhouseDSN != "" {
 		p.log.Info("Connecting to Clickhouse...")
 		p.clickhouseConn, err = NewClickhouse(ClickhouseOpts{
-			Log:        p.log,
-			DSN:        p.clickhouseDSN,
-			DisableTLS: p.clickhouseDisableTLS,
+			Log: p.log,
+			DSN: p.clickhouseDSN,
 		})
 		if err != nil {
 			p.log.Fatalw("failed to connect to Clickhouse", "error", err)

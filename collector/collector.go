@@ -20,9 +20,8 @@ type CollectorOpts struct {
 	Nodes    []string
 	OutDir   string
 
-	CheckNodeURI         string
-	ClickhouseDSN        string
-	ClickhouseDisableTLS bool // if true, disables TLS verification for Clickhouse connections
+	CheckNodeURI  string
+	ClickhouseDSN string
 
 	BloxrouteAuth  []string
 	EdenAuth       []string
@@ -92,7 +91,6 @@ func Start(opts *CollectorOpts) {
 		OutDir:                  opts.OutDir,
 		CheckNodeURI:            opts.CheckNodeURI,
 		ClickhouseDSN:           opts.ClickhouseDSN,
-		ClickhouseDisableTLS:    opts.ClickhouseDisableTLS,
 		HTTPReceivers:           opts.Receivers,
 		ReceiversAllowedSources: opts.ReceiversAllowedSources,
 	})
