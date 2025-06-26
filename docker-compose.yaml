@@ -7,6 +7,9 @@
 services:
   collector:
     image: mempool-dumpster
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: mempool-dumpster
     command: /app/mempool-dumpster collect
     depends_on:
@@ -27,7 +30,6 @@ services:
       LOCATION: local-eu
       CLICKHOUSE_DSN: "clickhouse://default:password@clickhouse:9000/default"
       CLICKHOUSE_BATCH_SIZE: 300
-      CLICKHOUSE_DISABLE_TLS: "1"
 
   clickhouse:
     image: clickhouse/clickhouse-server:25.3

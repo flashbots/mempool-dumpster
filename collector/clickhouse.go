@@ -2,7 +2,6 @@ package collector
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"slices"
 	"time"
@@ -18,9 +17,7 @@ var ErrNoDSN = fmt.Errorf("Clickhouse DSN is required")
 
 type ClickhouseOpts struct {
 	Log *zap.SugaredLogger
-
-	DSN        string
-	DisableTLS bool // if true, disables TLS verification for Clickhouse connections
+	DSN string
 }
 
 type SourceLogEntry struct {
@@ -71,22 +68,11 @@ func (ch *Clickhouse) connect() error {
 		return fmt.Errorf("failed to parse Clickhouse DSN: %w", err)
 	}
 
-	var chTLS *tls.Config
-	enableTLS := !ch.opts.DisableTLS
-	if enableTLS {
-		chTLS = &tls.Config{
-			InsecureSkipVerify: true, //nolint:gosec
-		}
+	options.Debugf = func(format string, v ...interface{}) {
+		ch.log.Infof("Clickhouse debug: "+format, v...)
 	}
 
-	ch.conn, err = clickhouse.Open(&clickhouse.Options{
-		Addr: options.Addr,
-		Auth: options.Auth,
-		TLS:  chTLS,
-		Debugf: func(format string, v ...interface{}) {
-			ch.log.Infof("Clickhouse debug: "+format, v...)
-		},
-	})
+	ch.conn, err = clickhouse.Open(options)
 	if err != nil {
 		return err
 	}
