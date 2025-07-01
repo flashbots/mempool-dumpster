@@ -47,13 +47,7 @@ var cliFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "clickhouse-dsn",
 		EnvVars:  []string{"CLICKHOUSE_DSN"},
-		Usage:    "ClickHouse server DSN (e.g., clickhouse://user:password@localhost:9000/dbname)",
-		Category: "Collector Configuration",
-	},
-	&cli.BoolFlag{
-		Name:     "clickhouse-disable-tls",
-		EnvVars:  []string{"CLICKHOUSE_DISABLE_TLS"},
-		Usage:    "Allow insecure (non-TLS) connections to ClickHouse",
+		Usage:    "ClickHouse server DSN (e.g. clickhouse://user:password@host:9440/dbname?secure=true or clickhouse://default:password@clickhouse:9000/default)",
 		Category: "Collector Configuration",
 	},
 
@@ -150,7 +144,6 @@ func runCollector(cCtx *cli.Context) error {
 		metricsListenAddr       = cCtx.String("metrics-listen-addr")
 		enablePprof             = cCtx.Bool("pprof")
 		clickhouseDSN           = cCtx.String("clickhouse-dsn")
-		clickhouseDisableTLS    = cCtx.Bool("clickhouse-disable-tls")
 	)
 
 	// Logger setup
@@ -184,7 +177,6 @@ func runCollector(cCtx *cli.Context) error {
 		OutDir:                  outDir,
 		CheckNodeURI:            checkNodeURI,
 		ClickhouseDSN:           clickhouseDSN,
-		ClickhouseDisableTLS:    clickhouseDisableTLS,
 		Nodes:                   nodeURIs,
 		BloxrouteAuth:           blxAuth,
 		EdenAuth:                edenAuth,
