@@ -120,7 +120,13 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 	}
 
 	for _, tx := range txs {
-		err := batch.Append(
+		txBytes, err := tx.RawTxBytes()
+		if err != nil {
+			metrics.IncClickhouseError()
+			ch.log.Errorw("Failed to decode transaction hex", "error", err, "txHash", tx.Hash)
+			continue
+		}
+		err = batch.Append(
 			tx.Timestamp,
 			tx.Hash,
 			tx.ChainID,
@@ -135,7 +141,7 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 			tx.GasFeeCap,
 			tx.DataSize,
 			tx.Data4Bytes,
-			tx.RawTxHex(),
+			txBytes,
 		)
 		if err != nil {
 			metrics.IncClickhouseError()

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -78,6 +79,10 @@ func (t *TxSummaryEntry) HasSource(src string) bool {
 
 func (t *TxSummaryEntry) RawTxHex() string {
 	return fmt.Sprintf("0x%x", t.RawTx)
+}
+
+func (t *TxSummaryEntry) RawTxBytes() ([]byte, error) {
+	return hexutil.Decode(t.RawTxHex())
 }
 
 func (t *TxSummaryEntry) WasIncludedBeforeReceived() bool {
