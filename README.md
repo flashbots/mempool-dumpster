@@ -166,9 +166,11 @@ MAX=10000 go run cmd/analyze/* \
 
 ## Clickhouse for data storage
 
-We're experimenting with using [ClickHouse](https://clickhouse.com/) for collector instances to directly store transactions.
+Collector instances can write directly to [ClickHouse](https://clickhouse.com/).
 
-Writes batches into two Clickhouse tables:
+See the `v1.1.0` release notes for more details: https://github.com/flashbots/mempool-dumpster/releases/tag/v1.1.0
+
+The collector can write batches into two Clickhouse tables:
 
 - `transactions` (no duplicates, even with multiple collector instances)
 - `sourcelogs` (will have duplicates, can be filtered with min(receivedAt))
@@ -180,13 +182,11 @@ Links:
 - https://clickhouse.com/docs/best-practices/selecting-an-insert-strategy
 - https://clickhouse.com/docs/engines/table-engines/mergetree-family/replacingmergetree
 
-| We recommend inserting data in batches of at least 1,000 rows, and ideally between 10,000–100,000 rows. Fewer, larger inserts reduce the number of parts written, minimize merge load, and lower overall system resource usage.
-
 For testing, you can use [docker-compose](./docker-compose.yaml) (expects an EL node on the host, to connect to with `ws://localhost:8546`):
 
 ```bash
 # Build the Docker images for mempool dumpster and Clickhouse
-make docker
+docker-compose build
 
 # Start the collector and ClickHouse
 docker-compose up
