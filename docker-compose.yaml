@@ -1,8 +1,11 @@
 #
-# This docker-compose file is used to run the mempool-dumpster collector and ClickHouse server.
+# Docker setup for running mempool-dumpster collector and ClickHouse server.
 #
-# - Build the Docker images: make docker
-# - Dockerfiles can be found in docker/mempool-dumpster and docker/clickhouse-server
+# The collector connects to an EL node on the host (via ws://host.docker.internal:8546). Make sure
+# this is available (i.e. using port-forwarding to a server, or running a local node).
+#
+# 1. Build the images:   docker-compose build
+# 2. Start the services: docker-compose up
 #
 services:
   collector:
