@@ -29,9 +29,6 @@ builds:
 # https://goreleaser.com/customization/release/
 release:
   draft: true
-  extra_files:
-    - glob: ./dist/mempool-dumpster*.tar.gz
-    - glob: ./dist/mempool-dumpster*.txt
   header: |
     # 🚀 Features
     # 🎄 Enhancements
