@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -69,12 +70,7 @@ type TxSummaryEntry struct {
 }
 
 func (t *TxSummaryEntry) HasSource(src string) bool {
-	for _, s := range t.Sources {
-		if s == src {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(t.Sources, src)
 }
 
 func (t *TxSummaryEntry) RawTxHex() string {
