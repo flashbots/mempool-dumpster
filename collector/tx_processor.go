@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/flashbots/mempool-dumpster/api"
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/flashbots/mempool-dumpster/metrics"
 	"go.uber.org/atomic"
@@ -33,14 +34,16 @@ var (
 )
 
 type TxProcessorOpts struct {
-	Log                     *zap.SugaredLogger
-	OutDir                  string // if empty no files will be written
-	UID                     string
-	Location                string // location of the collector, will be stored in sourcelogs
-	CheckNodeURI            string
-	ClickhouseDSN           string
-	HTTPReceivers           []string
-	ReceiversAllowedSources []string
+	Log                      *zap.SugaredLogger
+	OutDir                   string // if empty no files will be written
+	UID                      string
+	Location                 string // location of the collector, will be stored in sourcelogs
+	CheckNodeURI             string
+	ClickhouseDSN            string
+	HTTPReceivers            []string
+	ReceiversAllowedSources  []string
+	ReceiversAllowAllSources bool // if true, allows all sources for receivers
+	APIServer                *api.Server
 }
 
 type TxProcessor struct {
@@ -64,8 +67,9 @@ type TxProcessor struct {
 	checkNodeURI string
 	ethClient    *ethclient.Client
 
-	receivers               []TxReceiver
-	receiversAllowedSources []string
+	receivers                []TxReceiver
+	receiversAllowedSources  []string
+	receiversAllowAllSources bool // if true, all sources are allowed to send transactions to the receivers
 
 	lastHealthCheckCall time.Time
 
@@ -80,13 +84,19 @@ type OutFiles struct {
 }
 
 func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
+	// Build the list of (external) transaction receivers
 	receivers := make([]TxReceiver, 0, len(opts.HTTPReceivers))
 	for _, r := range opts.HTTPReceivers {
 		receivers = append(receivers, NewHTTPReceiver(r))
 	}
 
+	// The API server is also a transaction receiver, so we add it to the list
+	if opts.APIServer != nil {
+		receivers = append(receivers, opts.APIServer)
+	}
+
 	return &TxProcessor{ //nolint:exhaustruct
-		log: opts.Log, // .With("uid", uid),
+		log: opts.Log,
 		txC: make(chan common.TxIn, 100),
 
 		uid:      opts.UID,
@@ -98,13 +108,18 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 		knownTxs:   make(map[string]time.Time),
 		srcMetrics: NewMetricsCounter(),
 
-		checkNodeURI: opts.CheckNodeURI,
+		checkNodeURI:  opts.CheckNodeURI,
+		clickhouseDSN: opts.ClickhouseDSN,
 
-		receivers:               receivers,
-		receiversAllowedSources: opts.ReceiversAllowedSources,
-		clickhouseDSN:           opts.ClickhouseDSN,
+		receivers:                receivers,
+		receiversAllowedSources:  opts.ReceiversAllowedSources,
+		receiversAllowAllSources: opts.ReceiversAllowAllSources,
 	}
 }
+
+// func (p *TxProcessor) Shutdown() {
+// 	p.log.Info("Shutting down TxProcessor ...")
+// }
 
 func (p *TxProcessor) Start() {
 	p.log.Info("Starting TxProcessor ...")
@@ -142,29 +157,21 @@ func (p *TxProcessor) Start() {
 	go p.startHousekeeper()
 
 	// start listening for transactions coming in through the channel
-	go p.startTransactionReceiver()
+	go p.startTransactionReceiverLoop()
 
 	time.Sleep(100 * time.Millisecond) // give some time for the goroutine to start
 	p.log.Info("TxProcessor started successfully")
 }
 
-func (p *TxProcessor) startTransactionReceiver() {
+func (p *TxProcessor) startTransactionReceiverLoop() {
 	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
-		// send tx to receivers before processing it
-		// this will reduce the latency for the receivers but may lead to receivers getting the same tx multiple times
-		// or getting txs that are incorrect
-		if txIn.Tx == nil {
-			p.log.Errorf("nil tx from source %s", txIn.Source)
-			continue
-		}
-		go p.sendTxToReceivers(txIn)
 		p.processTx(txIn)
 	}
 }
 
 func (p *TxProcessor) sendTxToReceivers(txIn common.TxIn) {
-	if !slices.Contains(p.receiversAllowedSources, txIn.Source) {
+	if !p.receiversAllowAllSources && !slices.Contains(p.receiversAllowedSources, txIn.Source) {
 		return
 	}
 
@@ -193,11 +200,11 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 
 	metrics.IncTxReceived(txIn.Source)
 
-	// count all transactions per source
+	// Count every transaction per source
 	p.srcMetrics.Inc(KeyStatsAll, txIn.Source)
 	p.srcMetrics.IncKey(KeyStatsUnique, txIn.Source, tx.Hash().Hex())
 
-	// get output file handles (only if outDir is set)
+	// Get output file handles (only if outDir is set)
 	var outFiles OutFiles
 	var err error
 	if p.outDir != "" {
@@ -221,18 +228,14 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 	}
 
 	if p.clickhouseConn != nil {
-		err = p.clickhouseConn.AddSourceLog(txIn.T, txHashLower, txIn.Source, p.location)
-		if err != nil {
-			log.Errorw("failed to add transaction to Clickhouse", "error", err)
-		}
+		p.clickhouseConn.AddSourceLog(txIn.T, txHashLower, txIn.Source, p.location)
 	}
 
-	// process transactions only once
+	// Process transactions only once
 	p.knownTxsLock.RLock()
-	_, ok := p.knownTxs[txHashLower]
+	_, isTxKnown := p.knownTxs[txHashLower]
 	p.knownTxsLock.RUnlock()
-	if ok {
-		log.Debug("transaction already processed")
+	if isTxKnown {
 		return
 	}
 
@@ -244,6 +247,10 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		return
 	}
 
+	// Send tx to receivers
+	go p.sendTxToReceivers(txIn)
+
+	// Add transaction to Clickhouse
 	if p.clickhouseConn != nil {
 		err = p.clickhouseConn.AddTransaction(txIn) // send to Clickhouse
 		if err != nil {
@@ -251,7 +258,7 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		}
 	}
 
-	// check if tx was already included
+	// Check if tx was already included
 	if p.ethClient != nil {
 		receipt, err := p.ethClient.TransactionReceipt(context.Background(), tx.Hash())
 		if err != nil {

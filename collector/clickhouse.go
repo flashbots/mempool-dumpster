@@ -154,7 +154,7 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 
 // AddSourceLog adds a source log to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse.
 // This function is not thread-safe and should be called from a single goroutine or with proper synchronization.
-func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, location string) error {
+func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, location string) {
 	if len(ch.currentSourcelogBatch) >= clickhouseBatchSize {
 		// Time to save the batch. Create a copy of the batches and send it off to save to Clickhouse (with retries)
 		sourcelogs := slices.Clone(ch.currentSourcelogBatch)
@@ -171,8 +171,6 @@ func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, locatio
 		Source:     source,
 		Location:   location,
 	})
-
-	return nil
 }
 
 // saveTxs saves the current batch of transactions to Clickhouse, with retries. Expected to be run in a background goroutine.
@@ -237,3 +235,21 @@ func (ch *Clickhouse) sendBatchWithRetries(name string, batch driver.Batch) {
 		metrics.IncClickhouseBatchSaveRetries()
 	}
 }
+
+// FlishData flushes any remaining transactions and source logs in the batch to Clickhouse.
+// This is useful for ensuring all data is saved before shutting down the collector.
+// Needs a lock to avoid concurrent access to the batches.
+//
+// func (ch *Clickhouse) FlushData() {
+// 	// Flush any remaining transactions in the batch
+// 	if len(ch.currentTxBatch) > 0 {
+// 		ch.saveTxs(slices.Clone(ch.currentTxBatch))
+// 		ch.currentTxBatch = ch.currentTxBatch[:0] // Clear the slice without reallocating
+// 	}
+
+// 	// Flush any remaining source logs in the batch
+// 	if len(ch.currentSourcelogBatch) > 0 {
+// 		ch.saveSourcelogs(slices.Clone(ch.currentSourcelogBatch))
+// 		ch.currentSourcelogBatch = ch.currentSourcelogBatch[:0] // Clear the slice without reallocating
+// 	}
+// }

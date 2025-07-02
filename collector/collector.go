@@ -27,119 +27,146 @@ type CollectorOpts struct {
 	EdenAuth       []string
 	ChainboundAuth []string
 
-	Receivers               []string
-	ReceiversAllowedSources []string
+	Receivers                []string
+	ReceiversAllowedSources  []string
+	ReceiversAllowAllSources bool // if true, allows all sources for receivers
 
 	APIListenAddr     string
 	MetricsListenAddr string
 	EnablePprof       bool // if true, enables pprof on the metrics server
 }
 
+type Collector struct {
+	opts      *CollectorOpts
+	log       *zap.SugaredLogger
+	processor *TxProcessor
+}
+
+func New(opts CollectorOpts) *Collector {
+	return &Collector{
+		opts: &opts,
+		log:  opts.Log,
+	}
+}
+
 // Start kicks off all the service components in the background
-func Start(opts *CollectorOpts) {
-	// Start API first
-	var apiServer *api.Server
-	if opts.APIListenAddr != "" {
-		apiServer = api.New(&api.HTTPServerConfig{
-			Log:        opts.Log,
-			ListenAddr: opts.APIListenAddr,
-		})
-		go apiServer.RunInBackground()
-	}
-
-	// Start metrics server
-	if opts.MetricsListenAddr != "" {
-		mux := chi.NewRouter()
-
-		// Add regular routes
-		mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-			metrics.WritePrometheus(w, true)
-		})
-		mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
-		})
-		mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("ok"))
-		})
-
-		// Enable pprof if requested
-		if opts.EnablePprof {
-			mux.Mount("/debug", middleware.Profiler())
-		}
-
-		metricsServer := &http.Server{
-			Addr:              opts.MetricsListenAddr,
-			ReadHeaderTimeout: 5 * time.Second,
-			Handler:           mux,
-		}
-		go func() {
-			opts.Log.Infow("Starting metrics server", "listenAddr", opts.MetricsListenAddr, "pprofEnabled", opts.EnablePprof)
-			err := metricsServer.ListenAndServe()
-			if err != nil {
-				opts.Log.Fatal("Failed to start metrics server", zap.Error(err))
-			}
-		}()
-	}
+func (c *Collector) Start() {
+	// Start API and metrics servers (if enabled)
+	c.StartMetricsServer()
+	apiServer := c.StartAPIServer()
 
 	// Initialize the transaction processor, which is the brain of the collector
-	processor := NewTxProcessor(TxProcessorOpts{
-		Log:                     opts.Log,
-		UID:                     opts.UID,
-		Location:                opts.Location,
-		OutDir:                  opts.OutDir,
-		CheckNodeURI:            opts.CheckNodeURI,
-		ClickhouseDSN:           opts.ClickhouseDSN,
-		HTTPReceivers:           opts.Receivers,
-		ReceiversAllowedSources: opts.ReceiversAllowedSources,
+	c.processor = NewTxProcessor(TxProcessorOpts{
+		Log:                      c.log,
+		UID:                      c.opts.UID,
+		Location:                 c.opts.Location,
+		OutDir:                   c.opts.OutDir,
+		CheckNodeURI:             c.opts.CheckNodeURI,
+		ClickhouseDSN:            c.opts.ClickhouseDSN,
+		HTTPReceivers:            c.opts.Receivers,
+		ReceiversAllowedSources:  c.opts.ReceiversAllowedSources,
+		ReceiversAllowAllSources: c.opts.ReceiversAllowAllSources,
+		APIServer:                apiServer,
 	})
 
-	// If API server is running, add it as a TX receiver
-	if apiServer != nil {
-		processor.receivers = append(processor.receivers, apiServer)
-	}
-
 	// Start the transaction processor, which kicks off background goroutines
-	processor.Start()
+	c.processor.Start()
 
 	// Connect to regular nodes
-	for _, node := range opts.Nodes {
-		conn := NewNodeConnection(opts.Log, node, processor.txC)
+	for _, node := range c.opts.Nodes {
+		conn := NewNodeConnection(c.log, node, c.processor.txC)
 		conn.StartInBackground()
 	}
 
 	// Connect to Bloxroute
-	for _, auth := range opts.BloxrouteAuth {
+	for _, auth := range c.opts.BloxrouteAuth {
 		token, url := common.GetAuthTokenAndURL(auth)
 		startBloxrouteConnection(BlxNodeOpts{
-			TxC:        processor.txC,
-			Log:        opts.Log,
+			TxC:        c.processor.txC,
+			Log:        c.log,
 			AuthHeader: token,
 			URL:        url,
 		})
 	}
 
 	// Connect to Eden
-	for _, auth := range opts.EdenAuth {
+	for _, auth := range c.opts.EdenAuth {
 		token, url := common.GetAuthTokenAndURL(auth)
 		startEdenConnection(EdenNodeOpts{
-			TxC:        processor.txC,
-			Log:        opts.Log,
+			TxC:        c.processor.txC,
+			Log:        c.log,
 			AuthHeader: token,
 			URL:        url,
 		})
 	}
 
 	// Connect to Chainbound
-	for _, auth := range opts.ChainboundAuth {
+	for _, auth := range c.opts.ChainboundAuth {
 		token, url := common.GetAuthTokenAndURL(auth)
 		chainboundConn := NewChainboundNodeConnection(ChainboundNodeOpts{
-			TxC:    processor.txC,
-			Log:    opts.Log,
+			TxC:    c.processor.txC,
+			Log:    c.log,
 			APIKey: token,
 			URL:    url,
 		})
 		go chainboundConn.Start()
 	}
 }
+
+func (c *Collector) StartAPIServer() *api.Server {
+	if c.opts.APIListenAddr == "" {
+		return nil
+	}
+	apiServer := api.New(&api.HTTPServerConfig{
+		Log:        c.log,
+		ListenAddr: c.opts.APIListenAddr,
+	})
+	go apiServer.RunInBackground()
+	return apiServer
+}
+
+func (c *Collector) StartMetricsServer() {
+	if c.opts.MetricsListenAddr == "" {
+		return
+	}
+	mux := chi.NewRouter()
+
+	// Add regular routes
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		metrics.WritePrometheus(w, true)
+	})
+	mux.HandleFunc("/livez", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+
+	// Enable pprof if requested
+	if c.opts.EnablePprof {
+		mux.Mount("/debug", middleware.Profiler())
+	}
+
+	metricsServer := &http.Server{
+		Addr:              c.opts.MetricsListenAddr,
+		ReadHeaderTimeout: 5 * time.Second,
+		Handler:           mux,
+	}
+	go func() {
+		c.log.Infow("Starting metrics server", "listenAddr", c.opts.MetricsListenAddr, "pprofEnabled", c.opts.EnablePprof)
+		err := metricsServer.ListenAndServe()
+		if err != nil {
+			c.log.Fatal("Failed to start metrics server", zap.Error(err))
+		}
+	}()
+}
+
+// Shutdown stops the collector and flush all pending transactions
+// func (c *Collector) Shutdown() {
+// 	if c.processor == nil {
+// 		return
+// 	}
+// 	c.processor.Shutdown()
+// }

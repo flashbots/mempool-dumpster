@@ -115,7 +115,8 @@ var cliFlags = []cli.Flag{
 	&cli.StringSliceFlag{
 		Name:     "tx-receivers-allowed-sources",
 		EnvVars:  []string{"TX_RECEIVERS_ALLOWED_SOURCES"},
-		Usage:    "sources of txs to send to receivers",
+		Value:    cli.NewStringSlice("all"),
+		Usage:    "sources of txs to send to receivers, or 'all' for all sources",
 		Category: "Tx Receivers Configuration",
 	},
 }
@@ -170,30 +171,32 @@ func runCollector(cCtx *cli.Context) error {
 	}
 
 	// Start service components
-	opts := collector.CollectorOpts{
-		Log:                     log,
-		UID:                     uid,
-		Location:                location,
-		OutDir:                  outDir,
-		CheckNodeURI:            checkNodeURI,
-		ClickhouseDSN:           clickhouseDSN,
-		Nodes:                   nodeURIs,
-		BloxrouteAuth:           blxAuth,
-		EdenAuth:                edenAuth,
-		ChainboundAuth:          chainboundAuth,
-		Receivers:               receivers,
-		ReceiversAllowedSources: receiversAllowedSources,
-		APIListenAddr:           apiListenAddr,
-		MetricsListenAddr:       metricsListenAddr,
-		EnablePprof:             enablePprof,
-	}
-
-	collector.Start(&opts)
+	collector := collector.New(collector.CollectorOpts{
+		Log:                      log,
+		UID:                      uid,
+		Location:                 location,
+		OutDir:                   outDir,
+		CheckNodeURI:             checkNodeURI,
+		ClickhouseDSN:            clickhouseDSN,
+		Nodes:                    nodeURIs,
+		BloxrouteAuth:            blxAuth,
+		EdenAuth:                 edenAuth,
+		ChainboundAuth:           chainboundAuth,
+		Receivers:                receivers,
+		ReceiversAllowedSources:  receiversAllowedSources,
+		ReceiversAllowAllSources: len(receiversAllowedSources) == 1 && receiversAllowedSources[0] == "all",
+		APIListenAddr:            apiListenAddr,
+		MetricsListenAddr:        metricsListenAddr,
+		EnablePprof:              enablePprof,
+	})
+	collector.Start()
 
 	// Wait for termination signal
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
+
+	// All done, log goodbye message
 	log.Info("bye")
 	return nil
 }
