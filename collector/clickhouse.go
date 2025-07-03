@@ -235,21 +235,3 @@ func (ch *Clickhouse) sendBatchWithRetries(name string, batch driver.Batch) {
 		metrics.IncClickhouseBatchSaveRetries()
 	}
 }
-
-// FlishData flushes any remaining transactions and source logs in the batch to Clickhouse.
-// This is useful for ensuring all data is saved before shutting down the collector.
-// Needs a lock to avoid concurrent access to the batches.
-//
-// func (ch *Clickhouse) FlushData() {
-// 	// Flush any remaining transactions in the batch
-// 	if len(ch.currentTxBatch) > 0 {
-// 		ch.saveTxs(slices.Clone(ch.currentTxBatch))
-// 		ch.currentTxBatch = ch.currentTxBatch[:0] // Clear the slice without reallocating
-// 	}
-
-// 	// Flush any remaining source logs in the batch
-// 	if len(ch.currentSourcelogBatch) > 0 {
-// 		ch.saveSourcelogs(slices.Clone(ch.currentSourcelogBatch))
-// 		ch.currentSourcelogBatch = ch.currentSourcelogBatch[:0] // Clear the slice without reallocating
-// 	}
-// }

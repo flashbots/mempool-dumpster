@@ -41,6 +41,7 @@ func (s *Server) handleTxSSE(w http.ResponseWriter, r *http.Request) {
 			return
 
 		case tx := <-subscriber.txC:
+			// Note/TODO: a client with a slow connection may cause blocking other clients and cause DoS on all receivers
 			fmt.Fprintf(w, "data: %s\n\n", tx)
 			w.(http.Flusher).Flush() //nolint:forcetypeassert
 

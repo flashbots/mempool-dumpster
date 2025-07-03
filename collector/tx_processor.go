@@ -166,6 +166,9 @@ func (p *TxProcessor) Start() {
 func (p *TxProcessor) startTransactionReceiverLoop() {
 	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
+		if txIn.Tx == nil {
+			continue
+		}
 		p.processTx(txIn)
 	}
 }
