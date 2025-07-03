@@ -3,6 +3,7 @@ package collector
 
 import (
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/VictoriaMetrics/metrics"
@@ -39,6 +40,7 @@ type Collector struct {
 	opts      *CollectorOpts
 	log       *zap.SugaredLogger
 	processor *TxProcessor
+	isReady   atomic.Bool
 }
 
 func New(opts CollectorOpts) *Collector {
@@ -109,6 +111,9 @@ func (c *Collector) Start() {
 		})
 		go chainboundConn.Start()
 	}
+
+	// Mark the collector as ready. TODO: improve to only mark true when at least one connection is established.
+	c.isReady.Store(true)
 }
 
 func (c *Collector) StartAPIServer() *api.Server {
@@ -138,6 +143,11 @@ func (c *Collector) StartMetricsServer() {
 		_, _ = w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if !c.isReady.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("not ready"))
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
@@ -162,9 +172,9 @@ func (c *Collector) StartMetricsServer() {
 }
 
 // Shutdown stops the collector and flush all pending transactions
-// func (c *Collector) Shutdown() {
-// 	if c.processor == nil {
-// 		return
-// 	}
-// 	c.processor.Shutdown()
-// }
+func (c *Collector) Shutdown() {
+	c.isReady.Store(false)
+	if c.processor != nil {
+		c.processor.Shutdown()
+	}
+}

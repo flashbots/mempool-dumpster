@@ -195,6 +195,10 @@ func runCollector(cCtx *cli.Context) error {
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
 
+	// Shutdown collector gracefully
+	log.Info("Received termination signal, shutting down collector...")
+	collector.Shutdown()
+
 	// All done, log goodbye message
 	log.Info("bye")
 	return nil

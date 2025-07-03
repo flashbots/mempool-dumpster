@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -35,6 +36,7 @@ type Clickhouse struct {
 
 	currentTxBatch        []common.TxSummaryEntry // Batch of transactions to be inserted
 	currentSourcelogBatch []SourceLogEntry        // Batch of source logs to be inserted
+	batchLock             sync.RWMutex            // Mutex to protect access to the current batches
 }
 
 // NewClickhouse creates a new Clickhouse instance with a connection to the database.
@@ -86,8 +88,7 @@ func (ch *Clickhouse) connect() error {
 	return nil
 }
 
-// AddTransaction adds a transaction to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse.
-// This function is not thread-safe and should be called from a single goroutine or with proper synchronization.
+// AddTransaction adds a transaction to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse. This function is thread-safe.
 func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 	txSummary, _, err := common.ParseTx(tx.T.UnixMilli(), tx.Tx)
 	if err != nil {
@@ -95,23 +96,31 @@ func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 		return fmt.Errorf("failed to parse transaction: %w", err)
 	}
 
-	// First, check if the current batch is full, in which case we need to send it to Clickhouse
+	// If the current batch is full, send it to Clickhouse
 	if len(ch.currentTxBatch) >= clickhouseBatchSize {
-		// Create a copy of the batche and save it to Clickhouse (with retries)
-		txs := slices.Clone(ch.currentTxBatch)
-		go ch.saveTxs(txs)
-
-		// Reset the current batches
-		ch.currentTxBatch = ch.currentTxBatch[:0] // Clear the slice without reallocating
+		ch.saveAndResetTransactionBatch()
 	}
 
-	// Add item to batches
+	// Add item to current batch
+	ch.batchLock.Lock()
 	ch.currentTxBatch = append(ch.currentTxBatch, txSummary)
+	ch.batchLock.Unlock()
 	return nil
 }
 
-// saveTxs saves the current batch of transactions to Clickhouse, with retries. Expected to be run in a background goroutine.
-func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
+// saveAndResetTransactionBatch saves the current batch of transactions to Clickhouse, with retries. A copy of the data is made and the batch is cleared before
+// saving it to Clickhouse in a background goroutine.
+func (ch *Clickhouse) saveAndResetTransactionBatch() {
+	ch.batchLock.Lock()
+	txs := slices.Clone(ch.currentTxBatch)
+	ch.currentTxBatch = ch.currentTxBatch[:0] // Clear the slice without reallocating
+	ch.batchLock.Unlock()
+	if len(txs) > 0 {
+		go ch.saveTransactionBatch(txs)
+	}
+}
+
+func (ch *Clickhouse) saveTransactionBatch(txs []common.TxSummaryEntry) {
 	batch, err := ch.conn.PrepareBatch(context.Background(), "INSERT INTO transactions")
 	if err != nil {
 		metrics.IncClickhouseError()
@@ -149,31 +158,39 @@ func (ch *Clickhouse) saveTxs(txs []common.TxSummaryEntry) {
 		}
 	}
 
+	// Start trying to save the batch (with retries)
 	ch.sendBatchWithRetries("transactions", batch)
 }
 
-// AddSourceLog adds a source log to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse.
-// This function is not thread-safe and should be called from a single goroutine or with proper synchronization.
+// AddSourceLog adds a source log to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse. This function is thread-safe.
 func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, location string) {
 	if len(ch.currentSourcelogBatch) >= clickhouseBatchSize {
-		// Time to save the batch. Create a copy of the batches and send it off to save to Clickhouse (with retries)
-		sourcelogs := slices.Clone(ch.currentSourcelogBatch)
-		go ch.saveSourcelogs(sourcelogs)
-
-		// Reset the current batches
-		ch.currentSourcelogBatch = ch.currentSourcelogBatch[:0] // Clear the slice without reallocating
+		ch.saveAndResetSourcelogs()
 	}
 
-	// Add item to batches
+	// Add item to current batch
+	ch.batchLock.Lock()
 	ch.currentSourcelogBatch = append(ch.currentSourcelogBatch, SourceLogEntry{
 		ReceivedAt: timeReceived,
 		Hash:       hash,
 		Source:     source,
 		Location:   location,
 	})
+	ch.batchLock.Unlock()
 }
 
-// saveTxs saves the current batch of transactions to Clickhouse, with retries. Expected to be run in a background goroutine.
+// saveAndResetSourcelogs saves the current batch of sourcelogs to Clickhouse, with retries. A copy of the data is made and the batch is cleared before
+// saving it to Clickhouse in a background goroutine.
+func (ch *Clickhouse) saveAndResetSourcelogs() {
+	ch.batchLock.Lock()
+	sourcelogs := slices.Clone(ch.currentSourcelogBatch)
+	ch.currentSourcelogBatch = ch.currentSourcelogBatch[:0] // Clear the slice without reallocating
+	ch.batchLock.Unlock()
+	if len(sourcelogs) > 0 {
+		go ch.saveSourcelogs(sourcelogs)
+	}
+}
+
 func (ch *Clickhouse) saveSourcelogs(sourcelogs []SourceLogEntry) {
 	batch, err := ch.conn.PrepareBatch(context.Background(), "INSERT INTO sourcelogs")
 	if err != nil {
@@ -192,21 +209,20 @@ func (ch *Clickhouse) saveSourcelogs(sourcelogs []SourceLogEntry) {
 		if err != nil {
 			metrics.IncClickhouseError()
 			ch.log.Errorw("Failed to append source log to Clickhouse batch", "error", err, "logHash", log.Hash)
-			return
 		}
 	}
 
+	// Start trying to save the batch (with retries)
 	ch.sendBatchWithRetries("sourcelogs", batch)
 }
 
 func (ch *Clickhouse) sendBatchWithRetries(name string, batch driver.Batch) {
 	retryCount := 0
-
 	timeStarted := time.Now()
 	ch.log.Debugw("Starting Clickhouse batch save", "name", name, "size", batch.Rows())
 
 	for {
-		// Save batch
+		// Try saving the batch
 		err := batch.Send()
 		if err == nil {
 			// Successfully sent the batch
@@ -234,4 +250,12 @@ func (ch *Clickhouse) sendBatchWithRetries(name string, batch driver.Batch) {
 		time.Sleep(sleepTime)
 		metrics.IncClickhouseBatchSaveRetries()
 	}
+}
+
+func (ch *Clickhouse) FlushCurrentBatches() {
+	ch.log.Info("Flushing current Clickhouse batches...")
+	ch.batchLock.Lock()
+	ch.saveTransactionBatch(ch.currentTxBatch)
+	ch.saveSourcelogs(ch.currentSourcelogBatch)
+	ch.batchLock.Unlock()
 }

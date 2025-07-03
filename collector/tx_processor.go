@@ -72,8 +72,8 @@ type TxProcessor struct {
 
 	lastHealthCheckCall time.Time
 
-	clickhouseDSN  string
-	clickhouseConn *Clickhouse
+	clickhouseDSN string
+	clickhouse    *Clickhouse
 }
 
 type OutFiles struct {
@@ -116,9 +116,12 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 	}
 }
 
-// func (p *TxProcessor) Shutdown() {
-// 	p.log.Info("Shutting down TxProcessor ...")
-// }
+func (p *TxProcessor) Shutdown() {
+	p.log.Info("Shutting down TxProcessor ...")
+	if p.clickhouse != nil {
+		p.clickhouse.FlushCurrentBatches()
+	}
+}
 
 func (p *TxProcessor) Start() {
 	p.log.Info("Starting TxProcessor ...")
@@ -126,7 +129,7 @@ func (p *TxProcessor) Start() {
 
 	if p.clickhouseDSN != "" {
 		p.log.Info("Connecting to Clickhouse...")
-		p.clickhouseConn, err = NewClickhouse(ClickhouseOpts{
+		p.clickhouse, err = NewClickhouse(ClickhouseOpts{
 			Log: p.log,
 			DSN: p.clickhouseDSN,
 		})
@@ -230,8 +233,8 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		}
 	}
 
-	if p.clickhouseConn != nil {
-		p.clickhouseConn.AddSourceLog(txIn.T, txHashLower, txIn.Source, p.location)
+	if p.clickhouse != nil {
+		p.clickhouse.AddSourceLog(txIn.T, txHashLower, txIn.Source, p.location)
 	}
 
 	// Process transactions only once
@@ -273,8 +276,8 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 	}
 
 	// Add transaction to Clickhouse
-	if p.clickhouseConn != nil {
-		err = p.clickhouseConn.AddTransaction(txIn) // send to Clickhouse
+	if p.clickhouse != nil {
+		err = p.clickhouse.AddTransaction(txIn) // send to Clickhouse
 		if err != nil {
 			log.Errorw("failed to add transaction to Clickhouse", "error", err)
 		}
