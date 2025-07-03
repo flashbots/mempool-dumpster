@@ -250,14 +250,6 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 	// Send tx to receivers
 	go p.sendTxToReceivers(txIn)
 
-	// Add transaction to Clickhouse
-	if p.clickhouseConn != nil {
-		err = p.clickhouseConn.AddTransaction(txIn) // send to Clickhouse
-		if err != nil {
-			log.Errorw("failed to add transaction to Clickhouse", "error", err)
-		}
-	}
-
 	// Check if tx was already included
 	if p.ethClient != nil {
 		receipt, err := p.ethClient.TransactionReceipt(context.Background(), tx.Hash())
@@ -274,6 +266,14 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
 			p.writeTrash(outFiles.FTrash, txIn, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			return
+		}
+	}
+
+	// Add transaction to Clickhouse
+	if p.clickhouseConn != nil {
+		err = p.clickhouseConn.AddTransaction(txIn) // send to Clickhouse
+		if err != nil {
+			log.Errorw("failed to add transaction to Clickhouse", "error", err)
 		}
 	}
 
