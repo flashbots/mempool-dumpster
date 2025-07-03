@@ -173,7 +173,8 @@ func (p *TxProcessor) startTransactionReceiverLoop() {
 }
 
 func (p *TxProcessor) sendTxToReceivers(txIn common.TxIn) {
-	if !p.receiversAllowAllSources && !slices.Contains(p.receiversAllowedSources, txIn.Source) {
+	txAllowed := p.receiversAllowAllSources || slices.Contains(p.receiversAllowedSources, txIn.Source)
+	if !txAllowed {
 		return
 	}
 
