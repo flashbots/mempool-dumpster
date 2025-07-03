@@ -27,9 +27,8 @@ type CollectorOpts struct {
 	EdenAuth       []string
 	ChainboundAuth []string
 
-	Receivers                []string
-	ReceiversAllowedSources  []string
-	ReceiversAllowAllSources bool // if true, allows all sources for receivers
+	Receivers               []string
+	ReceiversAllowedSources []string
 
 	APIListenAddr     string
 	MetricsListenAddr string
@@ -57,16 +56,15 @@ func (c *Collector) Start() {
 
 	// Initialize the transaction processor, which is the brain of the collector
 	c.processor = NewTxProcessor(TxProcessorOpts{
-		Log:                      c.log,
-		UID:                      c.opts.UID,
-		Location:                 c.opts.Location,
-		OutDir:                   c.opts.OutDir,
-		CheckNodeURI:             c.opts.CheckNodeURI,
-		ClickhouseDSN:            c.opts.ClickhouseDSN,
-		HTTPReceivers:            c.opts.Receivers,
-		ReceiversAllowedSources:  c.opts.ReceiversAllowedSources,
-		ReceiversAllowAllSources: c.opts.ReceiversAllowAllSources,
-		APIServer:                apiServer,
+		Log:                     c.log,
+		UID:                     c.opts.UID,
+		Location:                c.opts.Location,
+		OutDir:                  c.opts.OutDir,
+		CheckNodeURI:            c.opts.CheckNodeURI,
+		ClickhouseDSN:           c.opts.ClickhouseDSN,
+		HTTPReceivers:           c.opts.Receivers,
+		ReceiversAllowedSources: c.opts.ReceiversAllowedSources,
+		APIServer:               apiServer,
 	})
 
 	// Start the transaction processor, which kicks off background goroutines

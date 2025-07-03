@@ -172,22 +172,21 @@ func runCollector(cCtx *cli.Context) error {
 
 	// Start service components
 	collector := collector.New(collector.CollectorOpts{
-		Log:                      log,
-		UID:                      uid,
-		Location:                 location,
-		OutDir:                   outDir,
-		CheckNodeURI:             checkNodeURI,
-		ClickhouseDSN:            clickhouseDSN,
-		Nodes:                    nodeURIs,
-		BloxrouteAuth:            blxAuth,
-		EdenAuth:                 edenAuth,
-		ChainboundAuth:           chainboundAuth,
-		Receivers:                receivers,
-		ReceiversAllowedSources:  receiversAllowedSources,
-		ReceiversAllowAllSources: len(receiversAllowedSources) == 1 && receiversAllowedSources[0] == "all",
-		APIListenAddr:            apiListenAddr,
-		MetricsListenAddr:        metricsListenAddr,
-		EnablePprof:              enablePprof,
+		Log:                     log,
+		UID:                     uid,
+		Location:                location,
+		OutDir:                  outDir,
+		CheckNodeURI:            checkNodeURI,
+		ClickhouseDSN:           clickhouseDSN,
+		Nodes:                   nodeURIs,
+		BloxrouteAuth:           blxAuth,
+		EdenAuth:                edenAuth,
+		ChainboundAuth:          chainboundAuth,
+		Receivers:               receivers,
+		ReceiversAllowedSources: receiversAllowedSources,
+		APIListenAddr:           apiListenAddr,
+		MetricsListenAddr:       metricsListenAddr,
+		EnablePprof:             enablePprof,
 	})
 	collector.Start()
 

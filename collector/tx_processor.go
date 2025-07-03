@@ -34,16 +34,15 @@ var (
 )
 
 type TxProcessorOpts struct {
-	Log                      *zap.SugaredLogger
-	OutDir                   string // if empty no files will be written
-	UID                      string
-	Location                 string // location of the collector, will be stored in sourcelogs
-	CheckNodeURI             string
-	ClickhouseDSN            string
-	HTTPReceivers            []string
-	ReceiversAllowedSources  []string
-	ReceiversAllowAllSources bool // if true, allows all sources for receivers
-	APIServer                *api.Server
+	Log                     *zap.SugaredLogger
+	OutDir                  string // if empty no files will be written
+	UID                     string
+	Location                string // location of the collector, will be stored in sourcelogs
+	CheckNodeURI            string
+	ClickhouseDSN           string
+	HTTPReceivers           []string
+	ReceiversAllowedSources []string
+	APIServer               *api.Server
 }
 
 type TxProcessor struct {
@@ -69,7 +68,7 @@ type TxProcessor struct {
 
 	receivers                []TxReceiver
 	receiversAllowedSources  []string
-	receiversAllowAllSources bool // if true, all sources are allowed to send transactions to the receivers
+	receiversAllowAllSources bool
 
 	lastHealthCheckCall time.Time
 
@@ -113,7 +112,7 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 
 		receivers:                receivers,
 		receiversAllowedSources:  opts.ReceiversAllowedSources,
-		receiversAllowAllSources: opts.ReceiversAllowAllSources,
+		receiversAllowAllSources: len(opts.ReceiversAllowedSources) == 1 && opts.ReceiversAllowedSources[0] == "all",
 	}
 }
 
