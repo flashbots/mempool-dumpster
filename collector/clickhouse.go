@@ -96,28 +96,18 @@ func (ch *Clickhouse) AddTransaction(tx common.TxIn) error {
 		return fmt.Errorf("failed to parse transaction: %w", err)
 	}
 
-	// If the current batch is full, send it to Clickhouse
-	if len(ch.currentTxBatch) >= clickhouseBatchSize {
-		ch.saveAndResetTransactionBatch()
-	}
-
 	// Add item to current batch
 	ch.batchLock.Lock()
+	defer ch.batchLock.Unlock()
 	ch.currentTxBatch = append(ch.currentTxBatch, txSummary)
-	ch.batchLock.Unlock()
-	return nil
-}
 
-// saveAndResetTransactionBatch saves the current batch of transactions to Clickhouse, with retries. A copy of the data is made and the batch is cleared before
-// saving it to Clickhouse in a background goroutine.
-func (ch *Clickhouse) saveAndResetTransactionBatch() {
-	ch.batchLock.Lock()
-	txs := slices.Clone(ch.currentTxBatch)
-	ch.currentTxBatch = ch.currentTxBatch[:0] // Clear the slice without reallocating
-	ch.batchLock.Unlock()
-	if len(txs) > 0 {
+	// Saving if enough entries
+	if len(ch.currentTxBatch) >= clickhouseBatchSize {
+		txs := slices.Clone(ch.currentTxBatch)
+		ch.currentTxBatch = ch.currentTxBatch[:0] // Clear the slice without reallocating
 		go ch.saveTransactionBatch(txs)
 	}
+	return nil
 }
 
 func (ch *Clickhouse) saveTransactionBatch(txs []common.TxSummaryEntry) {
@@ -164,29 +154,20 @@ func (ch *Clickhouse) saveTransactionBatch(txs []common.TxSummaryEntry) {
 
 // AddSourceLog adds a source log to the Clickhouse batch. If the batch size exceeds the configured limit, it sends the batch to Clickhouse. This function is thread-safe.
 func (ch *Clickhouse) AddSourceLog(timeReceived time.Time, hash, source, location string) {
-	if len(ch.currentSourcelogBatch) >= clickhouseBatchSize {
-		ch.saveAndResetSourcelogs()
-	}
-
 	// Add item to current batch
 	ch.batchLock.Lock()
+	defer ch.batchLock.Unlock()
 	ch.currentSourcelogBatch = append(ch.currentSourcelogBatch, SourceLogEntry{
 		ReceivedAt: timeReceived,
 		Hash:       hash,
 		Source:     source,
 		Location:   location,
 	})
-	ch.batchLock.Unlock()
-}
 
-// saveAndResetSourcelogs saves the current batch of sourcelogs to Clickhouse, with retries. A copy of the data is made and the batch is cleared before
-// saving it to Clickhouse in a background goroutine.
-func (ch *Clickhouse) saveAndResetSourcelogs() {
-	ch.batchLock.Lock()
-	sourcelogs := slices.Clone(ch.currentSourcelogBatch)
-	ch.currentSourcelogBatch = ch.currentSourcelogBatch[:0] // Clear the slice without reallocating
-	ch.batchLock.Unlock()
-	if len(sourcelogs) > 0 {
+	// Save to Clickhouse (if full batch)
+	if len(ch.currentSourcelogBatch) >= clickhouseBatchSize {
+		sourcelogs := slices.Clone(ch.currentSourcelogBatch)
+		ch.currentSourcelogBatch = ch.currentSourcelogBatch[:0] // Clear the slice without reallocating
 		go ch.saveSourcelogs(sourcelogs)
 	}
 }
