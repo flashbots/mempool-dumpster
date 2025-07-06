@@ -102,7 +102,7 @@ func (s *Server) removeSubscriber(sub *SSESubscription) {
 	s.sseConnectionLock.Lock()
 	defer s.sseConnectionLock.Unlock()
 	delete(s.sseConnectionMap, sub.uid)
-	s.log.With("subscribers", len(s.sseConnectionMap)).Info("removed subscriber")
+	s.log.With("subscribers", len(s.sseConnectionMap)).Debug("removed subscriber")
 }
 
 func (s *Server) SendTx(ctx context.Context, tx *common.TxIn) error {

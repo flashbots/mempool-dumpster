@@ -115,7 +115,8 @@ var cliFlags = []cli.Flag{
 	&cli.StringSliceFlag{
 		Name:     "tx-receivers-allowed-sources",
 		EnvVars:  []string{"TX_RECEIVERS_ALLOWED_SOURCES"},
-		Usage:    "sources of txs to send to receivers",
+		Value:    cli.NewStringSlice("all"),
+		Usage:    "sources of txs to send to receivers, or 'all' for all sources",
 		Category: "Tx Receivers Configuration",
 	},
 }
@@ -170,7 +171,7 @@ func runCollector(cCtx *cli.Context) error {
 	}
 
 	// Start service components
-	opts := collector.CollectorOpts{
+	collector := collector.New(collector.CollectorOpts{
 		Log:                     log,
 		UID:                     uid,
 		Location:                location,
@@ -186,14 +187,19 @@ func runCollector(cCtx *cli.Context) error {
 		APIListenAddr:           apiListenAddr,
 		MetricsListenAddr:       metricsListenAddr,
 		EnablePprof:             enablePprof,
-	}
-
-	collector.Start(&opts)
+	})
+	collector.Start()
 
 	// Wait for termination signal
 	exit := make(chan os.Signal, 1)
 	signal.Notify(exit, os.Interrupt, syscall.SIGTERM)
 	<-exit
+
+	// Shutdown collector gracefully
+	log.Info("Received termination signal, shutting down collector...")
+	collector.Shutdown()
+
+	// All done, log goodbye message
 	log.Info("bye")
 	return nil
 }
