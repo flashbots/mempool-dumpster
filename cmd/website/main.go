@@ -230,8 +230,8 @@ func getFoldersFromS3(dir string) ([]string, error) {
 	}
 
 	// Print the output
-	lines := strings.Split(string(stdout), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(stdout), "\n")
+	for line := range lines {
 		if line != "" && strings.HasPrefix(line, "20") {
 			folders = append(folders, strings.TrimSuffix(line, "/"))
 		}
@@ -250,8 +250,8 @@ func getFilesFromS3(month string) ([]website.FileEntry, error) {
 	}
 
 	space := regexp.MustCompile(`\s+`)
-	lines := strings.Split(string(stdout), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(stdout), "\n")
+	for line := range lines {
 		if line != "" {
 			line = space.ReplaceAllString(line, " ")
 			parts := strings.Split(line, " ")

@@ -124,8 +124,8 @@ func SourceAliasesFromEnv() map[string]string {
 	aliases := make(map[string]string)
 	aliasesRaw := os.Getenv("SRC_ALIASES") // format: alias=url,alias=url
 	if aliasesRaw != "" {
-		entries := strings.Split(aliasesRaw, ",")
-		for _, entry := range entries {
+		entries := strings.SplitSeq(aliasesRaw, ",")
+		for entry := range entries {
 			parts := strings.Split(entry, "=")
 			if len(parts) != 2 {
 				continue
