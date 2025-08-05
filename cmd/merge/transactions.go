@@ -32,11 +32,18 @@ func mergeTransactions(cCtx *cli.Context) error {
 	writeSummary := cCtx.Bool("write-summary")
 	inputFiles := cCtx.Args().Slice()
 
+	clickhouseDSN := cCtx.String("clickhouse-dsn")
+	dateFrom := cCtx.String("date-from")
+	dateTo := cCtx.String("date-to")
+
 	log = common.GetLogger(false, false)
 	defer func() { _ = log.Sync() }()
 
-	if cCtx.NArg() == 0 {
-		log.Fatal("no input files specified as arguments")
+	if len(inputFiles) == 0 && len(clickhouseDSN) == 0 {
+		log.Fatal("no input files or clickhouse DSN specified")
+	}
+	if len(clickhouseDSN) > 0 && (len(dateFrom) == 0 || len(dateTo) == 0) {
+		log.Fatal("clickhouseDSN needs date-from and date-to arguments")
 	}
 
 	log.Infow("Merge transactions",
@@ -75,27 +82,39 @@ func mergeTransactions(cCtx *cli.Context) error {
 		log.Infof("Output transactions CSV file: %s", fnCSVTxs)
 	}
 
-	// Check input files
-	for _, fn := range append(inputFiles, sourcelogFiles...) {
-		common.MustBeCSVFile(log, fn)
+	var (
+		txs       map[string]*common.TxSummaryEntry
+		sourcelog map[string]map[string]int64
+	)
+
+	if len(inputFiles) > 0 {
+		// Check input files
+		for _, fn := range append(inputFiles, sourcelogFiles...) {
+			common.MustBeCSVFile(log, fn)
+		}
+
+		// Load input files
+		txs, sourcelog, err = loadInputFiles(inputFiles, sourcelogFiles, txBlacklistFiles)
+		if err != nil {
+			return fmt.Errorf("loadInputFiles: %w", err)
+		}
+	} else {
+		dateFrom, err := common.ParseDateString(dateFrom)
+		if err != nil {
+			return fmt.Errorf("ParseDateString dateFrom: %w", err)
+		}
+		dateTo, err := common.ParseDateString(dateTo)
+		if err != nil {
+			return fmt.Errorf("ParseDateString dateTo: %w", err)
+		}
+		log.Infow("Using Clickhouse data source", "dateFrom", dateFrom, "dateTo", dateTo)
+
+		return fmt.Errorf("loading from Clickhouse not implemented yet") //nolint:err113
+		// txs, sourcelog, err = loadDataFromClickhouse(clickhouseDSN)
+		// if err != nil {
+		// 	return fmt.Errorf("loadDataFromClickhouse: %w", err)
+		// }
 	}
-
-	//
-	// Load sourcelog files
-	//
-	log.Infow("Loading sourcelog files...", "files", sourcelogFiles)
-	sourcelog, _ := common.LoadSourcelogFiles(log, sourcelogFiles)
-	log.Infow("Loaded sourcelog files", "memUsed", common.GetMemUsageHuman())
-
-	//
-	// Load input files
-	//
-	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, txBlacklistFiles)
-	if err != nil {
-		return fmt.Errorf("LoadTransactionCSVFiles: %w", err)
-	}
-
-	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsed", common.GetMemUsageHuman())
 
 	// Attach sources (sorted by timestamp) to transactions
 	cntUpdated := 0
@@ -283,3 +302,38 @@ func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta 
 
 	return cntTxWritten
 }
+
+func loadInputFiles(inputFiles, sourcelogFiles, txBlacklistFiles []string) (txs map[string]*common.TxSummaryEntry, sourcelog map[string]map[string]int64, err error) {
+	//
+	// Load sourcelog files
+	//
+	log.Infow("Loading sourcelog files...", "files", sourcelogFiles)
+	sourcelog, _ = common.LoadSourcelogFiles(log, sourcelogFiles)
+	log.Infow("Loaded sourcelog files", "memUsed", common.GetMemUsageHuman())
+
+	//
+	// Load input files
+	//
+	txs, err = common.LoadTransactionCSVFiles(log, inputFiles, txBlacklistFiles)
+	if err != nil {
+		return txs, sourcelog, fmt.Errorf("LoadTransactionCSVFiles: %w", err)
+	}
+
+	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsed", common.GetMemUsageHuman())
+	return txs, sourcelog, nil
+}
+
+// func loadDataFromClickhouse(clickhouseDSN string) (txs map[string]*common.TxSummaryEntry, sourcelog map[string]map[string]int64, err error) {
+// 	log.Info("Connecting to Clickhouse...")
+// 	clickhouse, err := NewClickhouse(ClickhouseOpts{
+// 		Log: log,
+// 		DSN: clickhouseDSN,
+// 	})
+// 	if err != nil {
+// 		log.Fatalw("failed to connect to Clickhouse", "error", err)
+// 	}
+// 	log.Info("Connected to Clickhouse!")
+
+// 	_ = clickhouse
+// 	return txs, sourcelog, fmt.Errorf("loading from Clickhouse not implemented yet")
+// }
