@@ -335,7 +335,7 @@ func loadDataFromClickhouse(clickhouseDSN string, timeStart, timeEnd time.Time) 
 		log.Fatalw("failed to connect to Clickhouse", "error", err)
 	}
 
-	loadSecPerMin := 0.45
+	loadSecPerMin := 0.45 // estimated load speed in seconds per minute of data, based on previous runs
 	estimatedLoadSec := int64(timeEnd.Sub(timeStart).Minutes() * loadSecPerMin)
 	log.Infow("Connected to Clickhouse. Loading data...", "ETA", (time.Duration(estimatedLoadSec) * time.Second).String())
 

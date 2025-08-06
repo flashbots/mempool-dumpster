@@ -18,13 +18,6 @@ type ClickhouseOpts struct {
 	DSN string
 }
 
-type SourceLogEntry struct {
-	ReceivedAt time.Time
-	Hash       string
-	Source     string
-	Location   string
-}
-
 type Clickhouse struct {
 	opts ClickhouseOpts
 
