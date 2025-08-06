@@ -48,3 +48,24 @@ func TestDateFmtDay(t *testing.T) {
 	d := t2.Sub(t1)
 	require.Equal(t, "1h 8m 54s", FmtDuration(d))
 }
+
+func TestParseDateString(t *testing.T) {
+	dateStr := "2021-04-29"
+	tm, err := ParseDateString(dateStr)
+	require.NoError(t, err)
+	require.Equal(t, "2021-04-29 00:00:00 +0000 UTC", tm.String())
+
+	dateStr = "2021-04-29 16:00:00"
+	tm, err = ParseDateString(dateStr)
+	require.NoError(t, err)
+	require.Equal(t, "2021-04-29 16:00:00 +0000 UTC", tm.String())
+
+	dateStr = "2021-04-29T16:00:00Z"
+	tm, err = ParseDateString(dateStr)
+	require.NoError(t, err)
+	require.Equal(t, "2021-04-29 16:00:00 +0000 UTC", tm.String())
+
+	// Invalid date string
+	_, err = ParseDateString("invalid-date")
+	require.Error(t, err)
+}

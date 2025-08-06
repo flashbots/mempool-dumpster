@@ -32,11 +32,18 @@ func mergeTransactions(cCtx *cli.Context) error {
 	writeSummary := cCtx.Bool("write-summary")
 	inputFiles := cCtx.Args().Slice()
 
+	clickhouseDSN := cCtx.String("clickhouse-dsn")
+	dateFrom := cCtx.String("date-from")
+	dateTo := cCtx.String("date-to")
+
 	log = common.GetLogger(false, false)
 	defer func() { _ = log.Sync() }()
 
-	if cCtx.NArg() == 0 {
-		log.Fatal("no input files specified as arguments")
+	if len(inputFiles) == 0 && len(clickhouseDSN) == 0 {
+		log.Fatal("no input files or clickhouse DSN specified")
+	}
+	if len(clickhouseDSN) > 0 && (len(dateFrom) == 0 || len(dateTo) == 0) {
+		log.Fatal("clickhouseDSN needs date-from and date-to arguments")
 	}
 
 	log.Infow("Merge transactions",
@@ -75,27 +82,37 @@ func mergeTransactions(cCtx *cli.Context) error {
 		log.Infof("Output transactions CSV file: %s", fnCSVTxs)
 	}
 
-	// Check input files
-	for _, fn := range append(inputFiles, sourcelogFiles...) {
-		common.MustBeCSVFile(log, fn)
+	var (
+		txs       map[string]*common.TxSummaryEntry
+		sourcelog map[string]map[string]int64
+	)
+
+	if len(inputFiles) > 0 {
+		// Check input files
+		for _, fn := range append(inputFiles, sourcelogFiles...) {
+			common.MustBeCSVFile(log, fn)
+		}
+
+		// Load input files
+		txs, sourcelog, err = loadInputFiles(inputFiles, sourcelogFiles, txBlacklistFiles)
+		if err != nil {
+			return fmt.Errorf("loadInputFiles: %w", err)
+		}
+	} else {
+		dateFrom, err := common.ParseDateString(dateFrom)
+		if err != nil {
+			return fmt.Errorf("ParseDateString dateFrom: %w", err)
+		}
+		dateTo, err := common.ParseDateString(dateTo)
+		if err != nil {
+			return fmt.Errorf("ParseDateString dateTo: %w", err)
+		}
+		log.Infow("Using Clickhouse data source", "dateFrom", dateFrom.String(), "dateTo", dateTo.String())
+
+		// return fmt.Errorf("loading from Clickhouse not implemented yet") //nolint:err113
+		txs = loadDataFromClickhouse(clickhouseDSN, dateFrom, dateTo)
+		sourcelog = make(map[string]map[string]int64) // empty sourcelog
 	}
-
-	//
-	// Load sourcelog files
-	//
-	log.Infow("Loading sourcelog files...", "files", sourcelogFiles)
-	sourcelog, _ := common.LoadSourcelogFiles(log, sourcelogFiles)
-	log.Infow("Loaded sourcelog files", "memUsed", common.GetMemUsageHuman())
-
-	//
-	// Load input files
-	//
-	txs, err := common.LoadTransactionCSVFiles(log, inputFiles, txBlacklistFiles)
-	if err != nil {
-		return fmt.Errorf("LoadTransactionCSVFiles: %w", err)
-	}
-
-	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsed", common.GetMemUsageHuman())
 
 	// Attach sources (sorted by timestamp) to transactions
 	cntUpdated := 0
@@ -127,9 +144,13 @@ func mergeTransactions(cCtx *cli.Context) error {
 	//
 	// Update txs with inclusion status
 	//
-	err = updateInclusionStatus(log, checkNodeURIs, txs)
-	if err != nil {
-		return fmt.Errorf("updateInclusionStatus: %w", err)
+	if len(checkNodeURIs) == 0 {
+		log.Info("No check-node specified, skipping inclusion status update")
+	} else {
+		err = updateInclusionStatus(log, checkNodeURIs, txs)
+		if err != nil {
+			return fmt.Errorf("updateInclusionStatus: %w", err)
+		}
 	}
 
 	//
@@ -225,7 +246,7 @@ func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta 
 		// Skip transactions that were included before they were received
 		if tx.WasIncludedBeforeReceived() {
 			cntTxAlreadyIncluded += 1
-			log.Infow("Skipping already included tx", "tx", tx.Hash, "src", tx.Sources, "block", tx.IncludedAtBlockHeight, "blockTs", tx.IncludedBlockTimestamp, "receivedAt", tx.Timestamp, "inclusionDelayMs", tx.InclusionDelayMs)
+			log.Debugw("Skipping already included tx", "tx", tx.Hash, "src", tx.Sources, "block", tx.IncludedAtBlockHeight, "blockTs", tx.IncludedBlockTimestamp, "receivedAt", tx.Timestamp, "inclusionDelayMs", tx.InclusionDelayMs)
 			continue
 		}
 
@@ -282,4 +303,47 @@ func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta 
 	fw.Close()
 
 	return cntTxWritten
+}
+
+func loadInputFiles(inputFiles, sourcelogFiles, txBlacklistFiles []string) (txs map[string]*common.TxSummaryEntry, sourcelog map[string]map[string]int64, err error) {
+	//
+	// Load sourcelog files
+	//
+	log.Infow("Loading sourcelog files...", "files", sourcelogFiles)
+	sourcelog, _ = common.LoadSourcelogFiles(log, sourcelogFiles)
+	log.Infow("Loaded sourcelog files", "memUsed", common.GetMemUsageHuman())
+
+	//
+	// Load input files
+	//
+	txs, err = common.LoadTransactionCSVFiles(log, inputFiles, txBlacklistFiles)
+	if err != nil {
+		return txs, sourcelog, fmt.Errorf("LoadTransactionCSVFiles: %w", err)
+	}
+
+	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsed", common.GetMemUsageHuman())
+	return txs, sourcelog, nil
+}
+
+func loadDataFromClickhouse(clickhouseDSN string, timeStart, timeEnd time.Time) (txs map[string]*common.TxSummaryEntry) {
+	log.Info("Connecting to Clickhouse...")
+	clickhouse, err := NewClickhouse(ClickhouseOpts{
+		Log: log,
+		DSN: clickhouseDSN,
+	})
+	if err != nil {
+		log.Fatalw("failed to connect to Clickhouse", "error", err)
+	}
+
+	loadSecPerMin := 0.45 // estimated load speed in seconds per minute of data, based on previous runs
+	estimatedLoadSec := int64(timeEnd.Sub(timeStart).Minutes() * loadSecPerMin)
+	log.Infow("Connected to Clickhouse. Loading data...", "ETA", (time.Duration(estimatedLoadSec) * time.Second).String())
+
+	tStart := time.Now().UTC()
+	txs, err = clickhouse.loadTransactions(timeStart, timeEnd)
+	if err != nil {
+		log.Fatalw("clickhouse.loadTransactions", "error", err)
+	}
+	log.Infow("Loaded transactions from Clickhouse", "txs", printer.Sprintf("%d", len(txs)), "duration", time.Since(tStart).String(), "memUsed", common.GetMemUsageHuman())
+	return txs
 }

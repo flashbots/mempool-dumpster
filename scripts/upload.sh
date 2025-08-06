@@ -60,7 +60,7 @@ echo "Merging transactions..."
   --write-tx-csv \
   --write-summary \
   --check-node /mnt/data/geth/geth.ipc \
-  --tx-blacklist "$1/../${yesterday}/${yesterday}.csv.zip" \
+  # --tx-blacklist "$1/../${yesterday}/${yesterday}.csv.zip" \
   --sourcelog "$1/${date}_sourcelog.csv" \
   $1/transactions/*.csv
 
