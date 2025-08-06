@@ -107,13 +107,11 @@ func mergeTransactions(cCtx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("ParseDateString dateTo: %w", err)
 		}
-		log.Infow("Using Clickhouse data source", "dateFrom", dateFrom, "dateTo", dateTo)
+		log.Infow("Using Clickhouse data source", "dateFrom", dateFrom.String(), "dateTo", dateTo.String())
 
-		return fmt.Errorf("loading from Clickhouse not implemented yet") //nolint:err113
-		// txs, sourcelog, err = loadDataFromClickhouse(clickhouseDSN)
-		// if err != nil {
-		// 	return fmt.Errorf("loadDataFromClickhouse: %w", err)
-		// }
+		// return fmt.Errorf("loading from Clickhouse not implemented yet") //nolint:err113
+		txs = loadDataFromClickhouse(clickhouseDSN, dateFrom, dateTo)
+		sourcelog = make(map[string]map[string]int64) // empty sourcelog
 	}
 
 	// Attach sources (sorted by timestamp) to transactions
@@ -146,9 +144,13 @@ func mergeTransactions(cCtx *cli.Context) error {
 	//
 	// Update txs with inclusion status
 	//
-	err = updateInclusionStatus(log, checkNodeURIs, txs)
-	if err != nil {
-		return fmt.Errorf("updateInclusionStatus: %w", err)
+	if len(checkNodeURIs) == 0 {
+		log.Info("No check-node specified, skipping inclusion status update")
+	} else {
+		err = updateInclusionStatus(log, checkNodeURIs, txs)
+		if err != nil {
+			return fmt.Errorf("updateInclusionStatus: %w", err)
+		}
 	}
 
 	//
@@ -244,7 +246,7 @@ func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta 
 		// Skip transactions that were included before they were received
 		if tx.WasIncludedBeforeReceived() {
 			cntTxAlreadyIncluded += 1
-			log.Infow("Skipping already included tx", "tx", tx.Hash, "src", tx.Sources, "block", tx.IncludedAtBlockHeight, "blockTs", tx.IncludedBlockTimestamp, "receivedAt", tx.Timestamp, "inclusionDelayMs", tx.InclusionDelayMs)
+			log.Debugw("Skipping already included tx", "tx", tx.Hash, "src", tx.Sources, "block", tx.IncludedAtBlockHeight, "blockTs", tx.IncludedBlockTimestamp, "receivedAt", tx.Timestamp, "inclusionDelayMs", tx.InclusionDelayMs)
 			continue
 		}
 
@@ -323,17 +325,25 @@ func loadInputFiles(inputFiles, sourcelogFiles, txBlacklistFiles []string) (txs 
 	return txs, sourcelog, nil
 }
 
-// func loadDataFromClickhouse(clickhouseDSN string) (txs map[string]*common.TxSummaryEntry, sourcelog map[string]map[string]int64, err error) {
-// 	log.Info("Connecting to Clickhouse...")
-// 	clickhouse, err := NewClickhouse(ClickhouseOpts{
-// 		Log: log,
-// 		DSN: clickhouseDSN,
-// 	})
-// 	if err != nil {
-// 		log.Fatalw("failed to connect to Clickhouse", "error", err)
-// 	}
-// 	log.Info("Connected to Clickhouse!")
+func loadDataFromClickhouse(clickhouseDSN string, timeStart, timeEnd time.Time) (txs map[string]*common.TxSummaryEntry) {
+	log.Info("Connecting to Clickhouse...")
+	clickhouse, err := NewClickhouse(ClickhouseOpts{
+		Log: log,
+		DSN: clickhouseDSN,
+	})
+	if err != nil {
+		log.Fatalw("failed to connect to Clickhouse", "error", err)
+	}
 
-// 	_ = clickhouse
-// 	return txs, sourcelog, fmt.Errorf("loading from Clickhouse not implemented yet")
-// }
+	loadSecPerMin := 0.45
+	estimatedLoadSec := int64(timeEnd.Sub(timeStart).Minutes() * loadSecPerMin)
+	log.Infow("Connected to Clickhouse. Loading data...", "ETA", (time.Duration(estimatedLoadSec) * time.Second).String())
+
+	tStart := time.Now().UTC()
+	txs, err = clickhouse.loadTransactions(timeStart, timeEnd)
+	if err != nil {
+		log.Fatalw("clickhouse.loadTransactions", "error", err)
+	}
+	log.Infow("Loaded transactions from Clickhouse", "txs", printer.Sprintf("%d", len(txs)), "duration", time.Since(tStart).String(), "memUsed", common.GetMemUsageHuman())
+	return txs
+}

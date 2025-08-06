@@ -251,8 +251,8 @@ func (a *Analyzer2) Sprint() string {
 	}
 
 	out += fmt.Sprintln("")
-	out += fmt.Sprintf("Sources: %s \n", strings.Join(TitleStrings(a.sources), ", "))
-	out += fmt.Sprintln("")
+	// out += fmt.Sprintf("Sources: %s \n", strings.Join(TitleStrings(a.sources), ", "))
+	// out += fmt.Sprintln("")
 
 	out += fmt.Sprintln("-----------------")
 	out += fmt.Sprintln("Transaction Stats")
@@ -276,105 +276,106 @@ func (a *Analyzer2) Sprint() string {
 	}
 	table.Render()
 	out += buff.String()
-
-	// Add per-source tx stats
-	out += fmt.Sprintln("")
-	out += fmt.Sprintln("------------")
-	out += fmt.Sprintln("Source Stats")
-	out += fmt.Sprintln("------------")
-	out += fmt.Sprintln("")
-	buff = bytes.Buffer{}
-	table = tablewriter.NewWriter(&buff)
-	SetupMarkdownTableWriter(table)
-	table.SetHeader([]string{"Source", "Transactions", "Included on-chain", "Not included"})
-	for _, src := range a.sources {
-		nTx := a.nTransactionsPerSource[src]
-		nOnChain := a.nTxOnChainBySource[src]
-		nNotIncluded := a.nTxNotOnChainBySource[src]
-
-		strTx := PrettyInt64(nTx)
-		strOnChain := Printer.Sprintf("%10d (%5s)", nOnChain, Int64DiffPercentFmt(nOnChain, nTx, 1))
-		strNotIncluded := Printer.Sprintf("%10d (%5s)", nNotIncluded, Int64DiffPercentFmt(nNotIncluded, nTx, 1))
-		row := []string{Title(src), strTx, strOnChain, strNotIncluded}
-		table.Append(row)
-	}
-	table.Render()
-	out += buff.String()
-
-	// Exclusive orderflow
-	out += fmt.Sprintln("")
-	out += fmt.Sprintln("----------------------")
-	out += fmt.Sprintln("Exclusive Transactions")
-	out += fmt.Sprintln("----------------------")
-	out += fmt.Sprintln("")
-
-	out += Printer.Sprintf("%d of %d exclusive transactions were included on-chain (%s). \n", a.nTxExclusiveIncludedCnt, a.nExclusiveOrderflow, Int64DiffPercentFmt(a.nTxExclusiveIncludedCnt, a.nExclusiveOrderflow, 2))
-	out += fmt.Sprintln("")
-
-	buff = bytes.Buffer{}
-	table = tablewriter.NewWriter(&buff)
-	SetupMarkdownTableWriter(table)
-	table.SetHeader([]string{"Source", "Transactions", "Included on-chain", "Not included"})
-
-	for _, src := range a.sources {
-		if a.nTxExclusiveIncluded[src] == nil {
-			continue
-		}
-
-		nIncluded := a.nTxExclusiveIncluded[src][true]
-		nNotIncluded := a.nTxExclusiveIncluded[src][false]
-		nExclusive := nIncluded + nNotIncluded
-		sExclusive := PrettyInt64(nExclusive)
-		sIncluded := Printer.Sprintf("%10d (%5s)", nIncluded, Int64DiffPercentFmt(nIncluded, nExclusive, 1))
-		sNotIncluded := Printer.Sprintf("%10d (%6s)", nNotIncluded, Int64DiffPercentFmt(nNotIncluded, nExclusive, 1))
-		row := []string{Title(src), sExclusive, sIncluded, sNotIncluded}
-		table.Append(row)
-	}
-	table.Render()
-	out += buff.String()
-
-	// latency analysis for various sources:
-	out += fmt.Sprintln("")
-	out += fmt.Sprintln("------------------")
-	out += fmt.Sprintln("Latency Comparison")
-	out += fmt.Sprintln("------------------")
-
-	for _, comp := range a.SourceComps {
-		buff = bytes.Buffer{}
-		table = tablewriter.NewWriter(&buff)
-		SetupMarkdownTableWriter(table)
-		table.SetAlignment(tablewriter.ALIGN_RIGHT)
-		table.SetHeader([]string{"", comp.Source + " first", comp.Reference + " first"})
-
-		srcH, refH, totalSeenByBoth := a.latencyComp(comp.Source, comp.Reference)
-		if totalSeenByBoth == 0 {
-			continue
-		}
-
-		out += fmt.Sprintln("")
-		out += fmt.Sprintf("### %s - %s \n\n%s shared included transactions. \n", Caser.String(comp.Source), Caser.String(comp.Reference), PrettyInt(totalSeenByBoth))
-		out += fmt.Sprintln("")
-
-		table.Append([]string{
-			"count",
-			Printer.Sprintf("%d", srcH.TotalCount()),
-			Printer.Sprintf("%d", refH.TotalCount()),
-		})
-		table.Append([]string{
-			"percent",
-			Printer.Sprintf("%5s", Int64DiffPercentFmtC(srcH.TotalCount(), int64(totalSeenByBoth), 1, " %%")),
-			Printer.Sprintf("%5s", Int64DiffPercentFmtC(refH.TotalCount(), int64(totalSeenByBoth), 1, " %%")),
-		})
-		table.Append([]string{"median", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(50.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(50.0))})
-		table.Append([]string{"p90", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(90.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(90.0))})
-		table.Append([]string{"p95", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(95.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(95.0))})
-		table.Append([]string{"p99", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(99.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(99.0))})
-
-		table.Render()
-		out += buff.String()
-	}
-
 	return out
+
+	// // Add per-source tx stats
+	// out += fmt.Sprintln("")
+	// out += fmt.Sprintln("------------")
+	// out += fmt.Sprintln("Source Stats")
+	// out += fmt.Sprintln("------------")
+	// out += fmt.Sprintln("")
+	// buff = bytes.Buffer{}
+	// table = tablewriter.NewWriter(&buff)
+	// SetupMarkdownTableWriter(table)
+	// table.SetHeader([]string{"Source", "Transactions", "Included on-chain", "Not included"})
+	// for _, src := range a.sources {
+	// 	nTx := a.nTransactionsPerSource[src]
+	// 	nOnChain := a.nTxOnChainBySource[src]
+	// 	nNotIncluded := a.nTxNotOnChainBySource[src]
+
+	// 	strTx := PrettyInt64(nTx)
+	// 	strOnChain := Printer.Sprintf("%10d (%5s)", nOnChain, Int64DiffPercentFmt(nOnChain, nTx, 1))
+	// 	strNotIncluded := Printer.Sprintf("%10d (%5s)", nNotIncluded, Int64DiffPercentFmt(nNotIncluded, nTx, 1))
+	// 	row := []string{Title(src), strTx, strOnChain, strNotIncluded}
+	// 	table.Append(row)
+	// }
+	// table.Render()
+	// out += buff.String()
+
+	// // Exclusive orderflow
+	// out += fmt.Sprintln("")
+	// out += fmt.Sprintln("----------------------")
+	// out += fmt.Sprintln("Exclusive Transactions")
+	// out += fmt.Sprintln("----------------------")
+	// out += fmt.Sprintln("")
+
+	// out += Printer.Sprintf("%d of %d exclusive transactions were included on-chain (%s). \n", a.nTxExclusiveIncludedCnt, a.nExclusiveOrderflow, Int64DiffPercentFmt(a.nTxExclusiveIncludedCnt, a.nExclusiveOrderflow, 2))
+	// out += fmt.Sprintln("")
+
+	// buff = bytes.Buffer{}
+	// table = tablewriter.NewWriter(&buff)
+	// SetupMarkdownTableWriter(table)
+	// table.SetHeader([]string{"Source", "Transactions", "Included on-chain", "Not included"})
+
+	// for _, src := range a.sources {
+	// 	if a.nTxExclusiveIncluded[src] == nil {
+	// 		continue
+	// 	}
+
+	// 	nIncluded := a.nTxExclusiveIncluded[src][true]
+	// 	nNotIncluded := a.nTxExclusiveIncluded[src][false]
+	// 	nExclusive := nIncluded + nNotIncluded
+	// 	sExclusive := PrettyInt64(nExclusive)
+	// 	sIncluded := Printer.Sprintf("%10d (%5s)", nIncluded, Int64DiffPercentFmt(nIncluded, nExclusive, 1))
+	// 	sNotIncluded := Printer.Sprintf("%10d (%6s)", nNotIncluded, Int64DiffPercentFmt(nNotIncluded, nExclusive, 1))
+	// 	row := []string{Title(src), sExclusive, sIncluded, sNotIncluded}
+	// 	table.Append(row)
+	// }
+	// table.Render()
+	// out += buff.String()
+
+	// // latency analysis for various sources:
+	// out += fmt.Sprintln("")
+	// out += fmt.Sprintln("------------------")
+	// out += fmt.Sprintln("Latency Comparison")
+	// out += fmt.Sprintln("------------------")
+
+	// for _, comp := range a.SourceComps {
+	// 	buff = bytes.Buffer{}
+	// 	table = tablewriter.NewWriter(&buff)
+	// 	SetupMarkdownTableWriter(table)
+	// 	table.SetAlignment(tablewriter.ALIGN_RIGHT)
+	// 	table.SetHeader([]string{"", comp.Source + " first", comp.Reference + " first"})
+
+	// 	srcH, refH, totalSeenByBoth := a.latencyComp(comp.Source, comp.Reference)
+	// 	if totalSeenByBoth == 0 {
+	// 		continue
+	// 	}
+
+	// 	out += fmt.Sprintln("")
+	// 	out += fmt.Sprintf("### %s - %s \n\n%s shared included transactions. \n", Caser.String(comp.Source), Caser.String(comp.Reference), PrettyInt(totalSeenByBoth))
+	// 	out += fmt.Sprintln("")
+
+	// 	table.Append([]string{
+	// 		"count",
+	// 		Printer.Sprintf("%d", srcH.TotalCount()),
+	// 		Printer.Sprintf("%d", refH.TotalCount()),
+	// 	})
+	// 	table.Append([]string{
+	// 		"percent",
+	// 		Printer.Sprintf("%5s", Int64DiffPercentFmtC(srcH.TotalCount(), int64(totalSeenByBoth), 1, " %%")),
+	// 		Printer.Sprintf("%5s", Int64DiffPercentFmtC(refH.TotalCount(), int64(totalSeenByBoth), 1, " %%")),
+	// 	})
+	// 	table.Append([]string{"median", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(50.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(50.0))})
+	// 	table.Append([]string{"p90", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(90.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(90.0))})
+	// 	table.Append([]string{"p95", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(95.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(95.0))})
+	// 	table.Append([]string{"p99", Printer.Sprintf("%d ms", srcH.ValueAtQuantile(99.0)), Printer.Sprintf("%d ms", refH.ValueAtQuantile(99.0))})
+
+	// 	table.Render()
+	// 	out += buff.String()
+	// }
+
+	// return out
 }
 
 func (a *Analyzer2) WriteToFile(filename string) error {

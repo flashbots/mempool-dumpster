@@ -7,7 +7,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"github.com/flashbots/mempool-dumpster/metrics"
+	"github.com/flashbots/mempool-dumpster/common"
 	"go.uber.org/zap"
 )
 
@@ -57,7 +57,6 @@ func (ch *Clickhouse) connect() error {
 	// Parse the DSN to extract address and authentication details
 	options, err := clickhouse.ParseDSN(ch.opts.DSN)
 	if err != nil {
-		metrics.IncClickhouseError()
 		return fmt.Errorf("failed to parse Clickhouse DSN: %w", err)
 	}
 
@@ -71,10 +70,35 @@ func (ch *Clickhouse) connect() error {
 	}
 
 	if err := ch.conn.Ping(ctx); err != nil {
-		metrics.IncClickhouseError()
 		ch.log.Errorw("Failed to connect to Clickhouse", "error", err)
 		return err
 	}
 
 	return nil
+}
+
+// loadTransactions retrieves transactions from the Clickhouse database within the specified time range (timeStart inclusive, timeEnd exclusive).
+func (ch *Clickhouse) loadTransactions(timeStart, timeEnd time.Time) (txs map[string]*common.TxSummaryEntry, err error) {
+	ctx := context.Background()
+	rows, err := ch.conn.Query(ctx, `SELECT
+		min(received_at), hash, chain_id, tx_type, from, to, value, nonce, gas, gas_price, gas_tip_cap, gas_fee_cap, data_size, data_4bytes, any(raw_tx)
+	FROM transactions WHERE received_at >= ? AND received_at < ?
+	GROUP BY (hash, chain_id, tx_type, from, to, value, nonce, gas, gas_price, gas_tip_cap, gas_fee_cap, data_size, data_4bytes)
+	SETTINGS max_threads = 8,
+			max_block_size = 65536,
+			group_by_two_level_threshold = 100000`, timeStart, timeEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	txs = make(map[string]*common.TxSummaryEntry)
+	for rows.Next() {
+		entry := common.TxSummaryEntry{}
+		if err := rows.Scan(&entry.Timestamp, &entry.Hash, &entry.ChainID, &entry.TxType, &entry.From, &entry.To, &entry.Value, &entry.Nonce, &entry.Gas, &entry.GasPrice, &entry.GasTipCap, &entry.GasFeeCap, &entry.DataSize, &entry.Data4Bytes, &entry.RawTx); err != nil {
+			return nil, err
+		}
+		txs[entry.Hash] = &entry
+	}
+
+	return txs, nil
 }
