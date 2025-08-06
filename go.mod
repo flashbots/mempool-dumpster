@@ -6,7 +6,6 @@ toolchain go1.24.2
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.37.1
-	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/NYTimes/gziphandler v1.1.1
 	github.com/VictoriaMetrics/metrics v1.37.0
 	github.com/bloXroute-Labs/gateway/v2 v2.127.42

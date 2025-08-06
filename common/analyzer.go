@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/olekukonko/tablewriter"
 )
 
@@ -151,70 +150,70 @@ func (a *Analyzer2) init() {
 }
 
 // latencyComp returns arrays of latency differences for the node that was faster
-func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histogram, totalSeenByBoth int) {
-	srcH = hdrhistogram.New(1, 5000000, 3)
-	refH = hdrhistogram.New(1, 5000000, 3)
+// func (a *Analyzer2) latencyComp(src, ref string) (srcH, refH *hdrhistogram.Histogram, totalSeenByBoth int) {
+// 	srcH = hdrhistogram.New(1, 5000000, 3)
+// 	refH = hdrhistogram.New(1, 5000000, 3)
 
-	// 1. Find all txs that were seen by both source and reference and were included on-chain
-	txHashes := make(map[string]map[string]int64) // [txHash][source] = timestampMs
-	for txHash, tx := range a.Transactions {
-		txHashLower := strings.ToLower(txHash)
-		if len(tx.Sources) == 1 {
-			continue
-		}
+// 	// 1. Find all txs that were seen by both source and reference and were included on-chain
+// 	txHashes := make(map[string]map[string]int64) // [txHash][source] = timestampMs
+// 	for txHash, tx := range a.Transactions {
+// 		txHashLower := strings.ToLower(txHash)
+// 		if len(tx.Sources) == 1 {
+// 			continue
+// 		}
 
-		// Only count transactions included on-chain
-		if tx.IncludedAtBlockHeight == 0 {
-			continue
-		}
+// 		// Only count transactions included on-chain
+// 		if tx.IncludedAtBlockHeight == 0 {
+// 			continue
+// 		}
 
-		// ensure tx was seen by both source and reference
-		if !tx.HasSource(src) || !tx.HasSource(ref) {
-			continue
-		}
+// 		// ensure tx was seen by both source and reference
+// 		if !tx.HasSource(src) || !tx.HasSource(ref) {
+// 			continue
+// 		}
 
-		txHashes[txHashLower] = make(map[string]int64)
-	}
+// 		txHashes[txHashLower] = make(map[string]int64)
+// 	}
 
-	// 2. Iterate over sourcelog and find the first timestamp for each source
-	for txHash, sources := range a.Sourcelog {
-		txHashLower := strings.ToLower(txHash)
-		if _, ok := txHashes[txHashLower]; !ok {
-			continue
-		}
+// 	// 2. Iterate over sourcelog and find the first timestamp for each source
+// 	for txHash, sources := range a.Sourcelog {
+// 		txHashLower := strings.ToLower(txHash)
+// 		if _, ok := txHashes[txHashLower]; !ok {
+// 			continue
+// 		}
 
-		_, seenBySrc := sources[src]
-		_, seenByRef := sources[ref]
-		if !seenBySrc || !seenByRef {
-			continue
-		}
+// 		_, seenBySrc := sources[src]
+// 		_, seenByRef := sources[ref]
+// 		if !seenBySrc || !seenByRef {
+// 			continue
+// 		}
 
-		// Set the lowest timestamp for each source
-		if txHashes[txHashLower][src] == 0 || sources[src] < txHashes[txHashLower][src] {
-			txHashes[txHashLower][src] = sources[src]
-		}
-		if txHashes[txHashLower][ref] == 0 || sources[ref] < txHashes[txHashLower][ref] {
-			txHashes[txHashLower][ref] = sources[ref]
-		}
-	}
+// 		// Set the lowest timestamp for each source
+// 		if txHashes[txHashLower][src] == 0 || sources[src] < txHashes[txHashLower][src] {
+// 			txHashes[txHashLower][src] = sources[src]
+// 		}
+// 		if txHashes[txHashLower][ref] == 0 || sources[ref] < txHashes[txHashLower][ref] {
+// 			txHashes[txHashLower][ref] = sources[ref]
+// 		}
+// 	}
 
-	// 3. For each mutual transaction, add latency difference to histogram
-	for _, sources := range txHashes {
-		srcTS := sources[src]
-		localTS := sources[ref]
-		diff := localTS - srcTS
+// 	// 3. For each mutual transaction, add latency difference to histogram
+// 	for _, sources := range txHashes {
+// 		srcTS := sources[src]
+// 		localTS := sources[ref]
+// 		diff := localTS - srcTS
 
-		if diff == 0 {
-			// equal, do nothing
-		} else if diff > 0 {
-			srcH.RecordValue(diff) //nolint:errcheck
-		} else {
-			refH.RecordValue(-diff) //nolint:errcheck
-		}
-	}
+// 		if diff == 0 {
+// 			// equal, do nothing
+// 		} else if diff > 0 {
+// 			srcH.RecordValue(diff) //nolint:errcheck
+// 		} else {
+// 			refH.RecordValue(-diff) //nolint:errcheck
+// 		}
+// 	}
 
-	return srcH, refH, len(txHashes)
-}
+// 	return srcH, refH, len(txHashes)
+// }
 
 func (a *Analyzer2) Print() {
 	fmt.Println(a.Sprint())
