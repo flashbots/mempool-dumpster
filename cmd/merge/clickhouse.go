@@ -35,8 +35,7 @@ func NewClickhouse(opts ClickhouseOpts) (*Clickhouse, error) {
 		return nil, ErrNoDSN
 	}
 
-	err := ch.connect()
-	if err != nil {
+	if err := ch.connect(); err != nil {
 		return nil, err
 	}
 	return ch, nil

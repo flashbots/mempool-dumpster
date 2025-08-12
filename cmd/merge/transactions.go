@@ -88,11 +88,6 @@ func mergeTransactions(cCtx *cli.Context) error {
 	)
 
 	if len(inputFiles) > 0 {
-		// Check input files
-		for _, fn := range append(inputFiles, sourcelogFiles...) {
-			common.MustBeCSVFile(log, fn)
-		}
-
 		// Load input files
 		txs, sourcelog, err = loadInputFiles(inputFiles, sourcelogFiles, txBlacklistFiles)
 		if err != nil {
@@ -109,7 +104,6 @@ func mergeTransactions(cCtx *cli.Context) error {
 		}
 		log.Infow("Using Clickhouse data source", "dateFrom", dateFrom.String(), "dateTo", dateTo.String())
 
-		// return fmt.Errorf("loading from Clickhouse not implemented yet") //nolint:err113
 		txs = loadDataFromClickhouse(clickhouseDSN, dateFrom, dateTo)
 		sourcelog = make(map[string]map[string]int64) // empty sourcelog
 	}
@@ -306,9 +300,12 @@ func writeFiles(txs []*common.TxSummaryEntry, fnParquetTxs, fnCSVTxs, fnCSVMeta 
 }
 
 func loadInputFiles(inputFiles, sourcelogFiles, txBlacklistFiles []string) (txs map[string]*common.TxSummaryEntry, sourcelog map[string]map[string]int64, err error) {
-	//
+	// Check input files
+	for _, fn := range append(inputFiles, sourcelogFiles...) {
+		common.MustBeCSVFile(log, fn)
+	}
+
 	// Load sourcelog files
-	//
 	log.Infow("Loading sourcelog files...", "files", sourcelogFiles)
 	sourcelog, _ = common.LoadSourcelogFiles(log, sourcelogFiles)
 	log.Infow("Loaded sourcelog files", "memUsed", common.GetMemUsageHuman())
@@ -318,10 +315,9 @@ func loadInputFiles(inputFiles, sourcelogFiles, txBlacklistFiles []string) (txs 
 	//
 	txs, err = common.LoadTransactionCSVFiles(log, inputFiles, txBlacklistFiles)
 	if err != nil {
-		return txs, sourcelog, fmt.Errorf("LoadTransactionCSVFiles: %w", err)
+		return nil, nil, fmt.Errorf("LoadTransactionCSVFiles: %w", err)
 	}
 
-	log.Infow("Processed all input tx files", "txTotal", printer.Sprintf("%d", len(txs)), "memUsed", common.GetMemUsageHuman())
 	return txs, sourcelog, nil
 }
 
@@ -335,12 +331,27 @@ func loadDataFromClickhouse(clickhouseDSN string, timeStart, timeEnd time.Time) 
 		log.Fatalw("failed to connect to Clickhouse", "error", err)
 	}
 
-	loadSecPerMin := 0.45 // estimated load speed in seconds per minute of data, based on previous runs
-	estimatedLoadSec := int64(timeEnd.Sub(timeStart).Minutes() * loadSecPerMin)
-	log.Infow("Connected to Clickhouse. Loading data...", "ETA", (time.Duration(estimatedLoadSec) * time.Second).String())
+	log.Infow("Connected to Clickhouse. Loading data, this may take a while...")
+
+	// until loading is done, show a reminder every 30 seconds
+	ticker := time.NewTicker(30 * time.Second)
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				log.Infow("- still loading data from Clickhouse, please wait...")
+			case <-done:
+				return
+			}
+		}
+	}()
 
 	tStart := time.Now().UTC()
 	txs, err = clickhouse.loadTransactions(timeStart, timeEnd)
+	ticker.Stop()
+	close(done)
+
 	if err != nil {
 		log.Fatalw("clickhouse.loadTransactions", "error", err)
 	}
