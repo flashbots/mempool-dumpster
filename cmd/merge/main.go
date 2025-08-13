@@ -55,6 +55,25 @@ var (
 			Name:  "write-summary",
 			Usage: "run analyzer and write summary",
 		},
+
+		&cli.StringFlag{
+			Name:     "clickhouse-dsn",
+			EnvVars:  []string{"CLICKHOUSE_DSN"},
+			Usage:    "ClickHouse server DSN (e.g. clickhouse://user:password@host:9440/dbname?secure=true or clickhouse://default:password@clickhouse:9000/default)",
+			Category: "Data Source: Clickhouse",
+		},
+		&cli.StringFlag{
+			Name:     "date-from",
+			EnvVars:  []string{"DATE_FROM"},
+			Usage:    "Start date (inclusive) for data extraction (e.g. 2022-01-01 or 2022-01-01T00:00:00Z)",
+			Category: "Data Source: Clickhouse",
+		},
+		&cli.StringFlag{
+			Name:     "date-to",
+			EnvVars:  []string{"DATE_TO"},
+			Usage:    "End date (exclusive) for data extraction (e.g. 2022-01-02 or 2022-01-02T00:00:00Z)",
+			Category: "Data Source: Clickhouse",
+		},
 	}
 )
 

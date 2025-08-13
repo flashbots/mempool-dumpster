@@ -24,6 +24,7 @@ import (
 
 var (
 	ErrUnsupportedFileFormat = errors.New("unsupported file format")
+	ErrUnableToParseDate     = errors.New("unable to parse date")
 
 	Printer = message.NewPrinter(language.English)
 	Caser   = cases.Title(language.English)
@@ -194,4 +195,15 @@ func GetAuthTokenAndURL(auth string) (string, string) {
 		return auth, ""
 	}
 	return parts[0], parts[1]
+}
+
+func ParseDateString(d string) (time.Time, error) {
+	parseAs := []string{time.DateOnly, time.DateTime, time.RFC3339}
+	for _, format := range parseAs {
+		t, err := time.Parse(format, d)
+		if err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, ErrUnableToParseDate
 }
