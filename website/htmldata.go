@@ -1,10 +1,14 @@
 package website
 
 import (
+	"embed"
 	"text/template"
 
 	"github.com/flashbots/mempool-dumpster/common"
 )
+
+//go:embed templates/base.html templates/index_root.html templates/index_files.html
+var templatesFS embed.FS
 
 type HTMLData struct {
 	Title string
@@ -75,9 +79,9 @@ var funcMap = template.FuncMap{
 }
 
 func ParseIndexTemplate() (*template.Template, error) {
-	return template.New("index.html").Funcs(funcMap).ParseFiles("website/templates/index_root.html", "website/templates/base.html")
+	return template.New("index.html").Funcs(funcMap).ParseFS(templatesFS, "templates/index_root.html", "templates/base.html")
 }
 
 func ParseFilesTemplate() (*template.Template, error) {
-	return template.New("index.html").Funcs(funcMap).ParseFiles("website/templates/index_files.html", "website/templates/base.html")
+	return template.New("index.html").Funcs(funcMap).ParseFS(templatesFS, "templates/index_files.html", "templates/base.html")
 }

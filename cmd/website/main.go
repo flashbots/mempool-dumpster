@@ -1,22 +1,28 @@
-// Website dev server (-dev) and prod build/upload tool (-build and -upload)
+// Website dev server (-dev) and prod build tool
 package cmd_website //nolint:stylecheck
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/flashbots/mempool-dumpster/common"
 	"github.com/flashbots/mempool-dumpster/website"
 	"github.com/tdewolff/minify"
 	"github.com/tdewolff/minify/css"
 	"github.com/tdewolff/minify/html"
 	"github.com/urfave/cli/v2"
+)
+
+const (
+	defaultS3Bucket = "flashbots-mempool-dumpster"
+	defaultS3Prefix = "ethereum/mainnet/"
 )
 
 var Command = cli.Command{
@@ -38,23 +44,63 @@ var Command = cli.Command{
 			Action: runDevServer,
 		},
 		{
-			Name:  "build",
-			Usage: "build prod output",
+			Name:  "build-index",
+			Usage: "build root index page",
 			Flags: []cli.Flag{
-				&cli.BoolFlag{
-					Name:    "upload",
-					Aliases: []string{"u"},
-					Usage:   "upload prod output to S3",
-					Value:   false,
+				&cli.StringFlag{
+					Name:     "out",
+					Aliases:  []string{"o"},
+					Usage:    "output file path",
+					Required: true,
 				},
 				&cli.StringFlag{
-					Name:    "out",
-					Aliases: []string{"o"},
-					Usage:   "where to save output files",
-					Value:   "./build/website-html",
+					Name:    "aws-profile",
+					Aliases: []string{"p"},
+					Usage:   "AWS profile to use for S3 access",
+					Value:   "",
+				},
+				&cli.StringFlag{
+					Name:  "s3-bucket",
+					Usage: "S3 bucket name",
+					Value: defaultS3Bucket,
+				},
+				&cli.StringFlag{
+					Name:  "s3-prefix",
+					Usage: "S3 prefix path",
+					Value: defaultS3Prefix,
 				},
 			},
-			Action: buildWebsite,
+			Action: buildIndex,
+		},
+		{
+			Name:      "build-month",
+			Usage:     "build page for a specific month",
+			ArgsUsage: "<month>",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:     "out",
+					Aliases:  []string{"o"},
+					Usage:    "output file path",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:    "aws-profile",
+					Aliases: []string{"p"},
+					Usage:   "AWS profile to use for S3 access",
+					Value:   "",
+				},
+				&cli.StringFlag{
+					Name:  "s3-bucket",
+					Usage: "S3 bucket name",
+					Value: defaultS3Bucket,
+				},
+				&cli.StringFlag{
+					Name:  "s3-prefix",
+					Usage: "S3 prefix path",
+					Value: defaultS3Prefix,
+				},
+			},
+			Action: buildMonth,
 		},
 	},
 }
@@ -79,23 +125,111 @@ func runDevServer(cCtx *cli.Context) error {
 	return err
 }
 
-func buildWebsite(cCtx *cli.Context) error {
-	outDir := cCtx.String("out")
-	upload := cCtx.Bool("upload")
-	if outDir == "" {
-		return fmt.Errorf("output directory is required") //nolint:err113
+func newS3Client(ctx context.Context, profile string) (*s3.Client, error) {
+	var cfg aws.Config
+	var err error
+
+	if profile != "" {
+		cfg, err = config.LoadDefaultConfig(ctx, config.WithSharedConfigProfile(profile))
+	} else {
+		cfg, err = config.LoadDefaultConfig(ctx)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+	}
+
+	return s3.NewFromConfig(cfg), nil
+}
+
+func listMonths(ctx context.Context, client *s3.Client, bucket, prefix string) ([]string, error) {
+	var months []string
+
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+		Bucket:    aws.String(bucket),
+		Prefix:    aws.String(prefix),
+		Delimiter: aws.String("/"),
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list S3 objects: %w", err)
+		}
+
+		for _, p := range page.CommonPrefixes {
+			if p.Prefix == nil {
+				continue
+			}
+			// Extract month from prefix like "ethereum/mainnet/2023-08/"
+			month := strings.TrimPrefix(*p.Prefix, prefix)
+			month = strings.TrimSuffix(month, "/")
+			months = append(months, month)
+		}
+	}
+
+	return months, nil
+}
+
+func listFilesInMonth(ctx context.Context, client *s3.Client, bucket, s3Prefix, month string) ([]website.FileEntry, error) {
+	var files []website.FileEntry
+	prefix := s3Prefix + month + "/"
+
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	})
+
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list S3 objects: %w", err)
+		}
+
+		for _, obj := range page.Contents {
+			if obj.Key == nil || obj.Size == nil || obj.LastModified == nil {
+				continue
+			}
+
+			filename := strings.TrimPrefix(*obj.Key, prefix)
+
+			// Skip index.html and .csv.gz files
+			if filename == "index.html" || strings.HasSuffix(filename, ".csv.gz") {
+				continue
+			}
+
+			// Skip if it's just the directory itself
+			if filename == "" {
+				continue
+			}
+
+			files = append(files, website.FileEntry{
+				Filename: filename,
+				Size:     uint64(*obj.Size),
+				Modified: obj.LastModified.Format("15:04:05 2006-01-02"),
+			})
+		}
+	}
+
+	return files, nil
+}
+
+func buildIndex(cCtx *cli.Context) error {
+	outPath := cCtx.String("out")
+	awsProfile := cCtx.String("aws-profile")
+	s3Bucket := cCtx.String("s3-bucket")
+	s3Prefix := cCtx.String("s3-prefix")
 
 	log := common.GetLogger(false, false)
 	defer func() { _ = log.Sync() }()
 
-	log.Infof("Starting HTML build, will output to %s", outDir)
-	err := os.MkdirAll(outDir, os.ModePerm)
+	ctx := context.Background()
+
+	// Create S3 client
+	log.Infof("Creating S3 client (profile: %s)...", awsProfile)
+	client, err := newS3Client(ctx, awsProfile)
 	if err != nil {
 		return err
 	}
-
-	dir := "ethereum/mainnet/"
 
 	// Setup minifier
 	minifier := minify.New()
@@ -103,15 +237,15 @@ func buildWebsite(cCtx *cli.Context) error {
 	minifier.AddFunc("text/css", css.Minify)
 
 	// Load month folders from S3
-	log.Infof("Getting folders from S3 for %s ...", dir)
-	months, err := getFoldersFromS3(dir)
+	log.Infof("Getting months from S3 (bucket: %s, prefix: %s)...", s3Bucket, s3Prefix)
+	months, err := listMonths(ctx, client, s3Bucket, s3Prefix)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Months:", months)
+	log.Infof("Found months: %v", months)
 
-	// build root page
-	log.Infof("Building root page ...")
+	// Build root page
+	log.Infof("Building root page...")
 	rootPageData := website.HTMLData{ //nolint:exhaustruct
 		Title:            "",
 		Path:             "/index.html",
@@ -129,153 +263,105 @@ func buildWebsite(cCtx *cli.Context) error {
 		return err
 	}
 
-	// minify
+	// Minify
 	mBytes, err := minifier.Bytes("text/html", buf.Bytes())
 	if err != nil {
 		return err
 	}
 
-	// write to file
-	fn := filepath.Join(outDir, "index.html")
-	log.Infof("Writing to %s ...", fn)
-	err = os.WriteFile(fn, mBytes, 0o0600)
+	// Ensure output directory exists
+	outDir := filepath.Dir(outPath)
+	if err := os.MkdirAll(outDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	// Write to file
+	log.Infof("Writing to %s...", outPath)
+	err = os.WriteFile(outPath, mBytes, 0o0600)
 	if err != nil {
 		return err
 	}
 
-	toUpload := []struct{ from, to string }{
-		{fn, "/"},
-	}
-
-	// build files pages
-	for _, month := range months {
-		dir := "ethereum/mainnet/" + month + "/"
-		log.Infof("Getting files from S3 for %s ...", dir)
-		files, err := getFilesFromS3(dir)
-		if err != nil {
-			return err
-		}
-
-		rootPageData := website.HTMLData{ //nolint:exhaustruct
-			Title: month,
-			Path:  fmt.Sprintf("ethereum/mainnet/%s/index.html", month),
-
-			CurrentNetwork: "Ethereum Mainnet",
-			CurrentMonth:   month,
-			Files:          files,
-		}
-
-		tpl, err := website.ParseFilesTemplate()
-		if err != nil {
-			return err
-		}
-
-		buf := new(bytes.Buffer)
-		err = tpl.ExecuteTemplate(buf, "base", rootPageData)
-		if err != nil {
-			return err
-		}
-
-		// minify
-		mBytes, err := minifier.Bytes("text/html", buf.Bytes())
-		if err != nil {
-			return err
-		}
-
-		// write to file
-		_outDir := filepath.Join(outDir, dir)
-		err = os.MkdirAll(_outDir, os.ModePerm)
-		if err != nil {
-			return err
-		}
-
-		fn := filepath.Join(_outDir, "index.html")
-		log.Infof("Writing to %s ...", fn)
-		err = os.WriteFile(fn, mBytes, 0o0600)
-		if err != nil {
-			return err
-		}
-
-		toUpload = append(toUpload, struct{ from, to string }{fn, "/" + dir})
-	}
-
-	if upload {
-		log.Infow("Uploading to S3 ...")
-		// for _, file := range toUpload {
-		// 	fmt.Printf("- %s -> %s\n", file.from, file.to)
-		// }
-
-		for _, file := range toUpload {
-			app := "./scripts/s3/upload-file-to-r2.sh"
-			cmd := exec.Command(app, file.from, file.to) //nolint:gosec
-			stdout, err := cmd.Output()
-			if err != nil {
-				return err
-			}
-			fmt.Println(string(stdout))
-		}
-	}
-
+	log.Infof("Done!")
 	return nil
 }
 
-func getFoldersFromS3(dir string) ([]string, error) {
-	folders := []string{}
+func buildMonth(cCtx *cli.Context) error {
+	outPath := cCtx.String("out")
+	awsProfile := cCtx.String("aws-profile")
+	s3Bucket := cCtx.String("s3-bucket")
+	s3Prefix := cCtx.String("s3-prefix")
+	month := cCtx.Args().First()
 
-	app := "./scripts/s3/get-folders.sh"
-	cmd := exec.Command(app, dir)
-	stdout, err := cmd.Output()
+	if month == "" {
+		return fmt.Errorf("month argument is required (e.g., 2023-08)") //nolint:err113
+	}
+
+	log := common.GetLogger(false, false)
+	defer func() { _ = log.Sync() }()
+
+	ctx := context.Background()
+
+	// Create S3 client
+	log.Infof("Creating S3 client (profile: %s)...", awsProfile)
+	client, err := newS3Client(ctx, awsProfile)
 	if err != nil {
-		return folders, err
+		return err
 	}
 
-	// Print the output
-	lines := strings.Split(string(stdout), "\n")
-	for _, line := range lines {
-		if line != "" && strings.HasPrefix(line, "20") {
-			folders = append(folders, strings.TrimSuffix(line, "/"))
-		}
-	}
-	return folders, nil
-}
+	// Setup minifier
+	minifier := minify.New()
+	minifier.AddFunc("text/html", html.Minify)
+	minifier.AddFunc("text/css", css.Minify)
 
-func getFilesFromS3(month string) ([]website.FileEntry, error) {
-	files := []website.FileEntry{}
-
-	app := "./scripts/s3/get-files.sh"
-	cmd := exec.Command(app, month)
-	stdout, err := cmd.Output()
+	// Get files for the month
+	log.Infof("Getting files from S3 for %s (bucket: %s, prefix: %s)...", month, s3Bucket, s3Prefix)
+	files, err := listFilesInMonth(ctx, client, s3Bucket, s3Prefix, month)
 	if err != nil {
-		return files, err
+		return err
+	}
+	log.Infof("Found %d files", len(files))
+
+	// Build month page
+	pageData := website.HTMLData{ //nolint:exhaustruct
+		Title: month,
+		Path:  fmt.Sprintf("ethereum/mainnet/%s/index.html", month),
+
+		CurrentNetwork: "Ethereum Mainnet",
+		CurrentMonth:   month,
+		Files:          files,
 	}
 
-	space := regexp.MustCompile(`\s+`)
-	lines := strings.Split(string(stdout), "\n")
-	for _, line := range lines {
-		if line != "" {
-			line = space.ReplaceAllString(line, " ")
-			parts := strings.Split(line, " ")
-
-			// parts[2] is the size
-			size, err := strconv.ParseUint(parts[2], 10, 64)
-			if err != nil {
-				return files, err
-			}
-
-			filename := parts[3]
-
-			if filename == "index.html" {
-				continue
-			} else if strings.HasSuffix(filename, ".csv.gz") {
-				continue
-			}
-
-			files = append(files, website.FileEntry{
-				Filename: filename,
-				Size:     size,
-				Modified: parts[1] + " " + parts[0],
-			})
-		}
+	tpl, err := website.ParseFilesTemplate()
+	if err != nil {
+		return err
 	}
-	return files, nil
+
+	buf := new(bytes.Buffer)
+	err = tpl.ExecuteTemplate(buf, "base", pageData)
+	if err != nil {
+		return err
+	}
+
+	// Minify
+	mBytes, err := minifier.Bytes("text/html", buf.Bytes())
+	if err != nil {
+		return err
+	}
+
+	// Ensure output directory exists
+	outDir := filepath.Dir(outPath)
+	if err := os.MkdirAll(outDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	// Write to file
+	log.Infof("Writing to %s...", outPath)
+	err = os.WriteFile(outPath, mBytes, 0o0600)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("Done!")
+	return nil
 }
