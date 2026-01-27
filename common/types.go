@@ -48,7 +48,7 @@ func NewSourceComps(args []string) (srcComp []SourceComp) {
 		})
 	}
 
-	return
+	return srcComp
 }
 
 var DefaultSourceComparisons = []SourceComp{
