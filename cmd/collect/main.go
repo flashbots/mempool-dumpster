@@ -50,6 +50,12 @@ var cliFlags = []cli.Flag{
 		Usage:    "ClickHouse server DSN (e.g. clickhouse://user:password@host:9440/dbname?secure=true or clickhouse://default:password@clickhouse:9000/default)",
 		Category: "Collector Configuration",
 	},
+	&cli.StringFlag{
+		Name:     "redis-endpoint",
+		EnvVars:  []string{"REDIS_ENDPOINT"},
+		Usage:    "Redis endpoint for tx hash export (e.g. redis://localhost:6379)",
+		Category: "Collector Configuration",
+	},
 
 	// Metrics API Endpoint
 	&cli.StringFlag{
@@ -145,6 +151,7 @@ func runCollector(cCtx *cli.Context) error {
 		metricsListenAddr       = cCtx.String("metrics-listen-addr")
 		enablePprof             = cCtx.Bool("pprof")
 		clickhouseDSN           = cCtx.String("clickhouse-dsn")
+		redisEndpoint           = cCtx.String("redis-endpoint")
 	)
 
 	// Logger setup
@@ -159,8 +166,8 @@ func runCollector(cCtx *cli.Context) error {
 		log.Fatal("No nodes, bloxroute, or eden token set (use -nodes <url1>,<url2> / -blx-token <token> / -eden-token <token>)")
 	}
 
-	if outDir == "" && clickhouseDSN == "" {
-		log.Fatal("Either --out or --clickhouse-dsn must be specified")
+	if outDir == "" && clickhouseDSN == "" && redisEndpoint == "" {
+		log.Fatal("Either --out, --clickhouse-dsn, or --redis-endpoint must be specified")
 	}
 
 	log.Infow("Starting mempool-collector", "version", common.Version, "outDir", outDir, "uid", uid, "enablePprof", enablePprof)
@@ -178,6 +185,7 @@ func runCollector(cCtx *cli.Context) error {
 		OutDir:                  outDir,
 		CheckNodeURI:            checkNodeURI,
 		ClickhouseDSN:           clickhouseDSN,
+		RedisEndpoint:           redisEndpoint,
 		Nodes:                   nodeURIs,
 		BloxrouteAuth:           blxAuth,
 		EdenAuth:                edenAuth,

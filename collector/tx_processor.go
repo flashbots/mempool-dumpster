@@ -40,6 +40,7 @@ type TxProcessorOpts struct {
 	Location                string // location of the collector, will be stored in sourcelogs
 	CheckNodeURI            string
 	ClickhouseDSN           string
+	RedisEndpoint           string
 	HTTPReceivers           []string
 	ReceiversAllowedSources []string
 	APIServer               *api.Server
@@ -74,6 +75,9 @@ type TxProcessor struct {
 
 	clickhouseDSN string
 	clickhouse    *Clickhouse
+
+	redisEndpoint string
+	redis         *Redis
 }
 
 type OutFiles struct {
@@ -109,6 +113,7 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 
 		checkNodeURI:  opts.CheckNodeURI,
 		clickhouseDSN: opts.ClickhouseDSN,
+		redisEndpoint: opts.RedisEndpoint,
 
 		receivers:                receivers,
 		receiversAllowedSources:  opts.ReceiversAllowedSources,
@@ -137,6 +142,15 @@ func (p *TxProcessor) Start() {
 			p.log.Fatalw("failed to connect to Clickhouse", "error", err)
 		}
 		p.log.Info("Connected to Clickhouse!")
+	}
+
+	if p.redisEndpoint != "" {
+		p.log.Info("Connecting to Redis...")
+		p.redis, err = NewRedis(p.log, p.redisEndpoint)
+		if err != nil {
+			p.log.Fatalw("failed to connect to Redis", "error", err)
+		}
+		p.log.Info("Connected to Redis!")
 	}
 
 	if p.checkNodeURI != "" {
@@ -280,6 +294,13 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		err = p.clickhouse.AddTransaction(txIn) // send to Clickhouse
 		if err != nil {
 			log.Errorw("failed to add transaction to Clickhouse", "error", err)
+		}
+	}
+
+	// Add tx hash to Redis too
+	if p.redis != nil {
+		if err := p.redis.AddTx(context.Background(), txHashLower); err != nil {
+			log.Errorw("failed to add tx to redis", "error", err)
 		}
 	}
 

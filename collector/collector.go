@@ -23,6 +23,7 @@ type CollectorOpts struct {
 
 	CheckNodeURI  string
 	ClickhouseDSN string
+	RedisEndpoint string
 
 	BloxrouteAuth  []string
 	EdenAuth       []string
@@ -64,6 +65,7 @@ func (c *Collector) Start() {
 		OutDir:                  c.opts.OutDir,
 		CheckNodeURI:            c.opts.CheckNodeURI,
 		ClickhouseDSN:           c.opts.ClickhouseDSN,
+		RedisEndpoint:           c.opts.RedisEndpoint,
 		HTTPReceivers:           c.opts.Receivers,
 		ReceiversAllowedSources: c.opts.ReceiversAllowedSources,
 		APIServer:               apiServer,
