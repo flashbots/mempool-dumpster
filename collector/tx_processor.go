@@ -123,6 +123,11 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 
 func (p *TxProcessor) Shutdown() {
 	p.log.Info("Shutting down TxProcessor ...")
+	if p.redis != nil {
+		if err := p.redis.Close(); err != nil {
+			p.log.Errorw("failed to close Redis", "error", err)
+		}
+	}
 	if p.clickhouse != nil {
 		p.clickhouse.FlushCurrentBatches()
 	}
