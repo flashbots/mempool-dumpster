@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	redisKeyPrefix = "mempool:"
+	redisKeyPrefix = "mempool-dumpster:"
 	redisTTL       = 5 * time.Minute
 )
 
