@@ -292,7 +292,7 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 	// Add tx hash to Redis first. Protect will check this to filter txs coming back through.
 	if p.redis != nil {
 		if err := p.redis.AddTx(context.Background(), txHashLower); err != nil {
-			log.Errorw("failed to add tx to redis", "error", err)
+			log.Errorw("failed to add tx to redis", "error", err, "tx", txHashLower)
 		}
 	}
 
