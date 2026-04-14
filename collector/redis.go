@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	redisKeyPrefix = "mempool-dumpster:"
-	redisTTL       = 5 * time.Minute
+	redisKeyPrefix      = "mempool-dumpster:"
+	redisTTL            = 5 * time.Minute
+	redisPingTimeout    = 30 * time.Second
+	redisAddTxTimeout   = 10 * time.Second
 )
 
 type Redis struct {
@@ -27,7 +29,11 @@ func NewRedis(log *zap.SugaredLogger, endpoint string) (*Redis, error) {
 
 	client := redis.NewClient(opts)
 
-	if err := client.Ping(context.Background()).Err(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), redisPingTimeout)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		client.Close()
 		return nil, fmt.Errorf("failed to ping redis: %w", err)
 	}
 
