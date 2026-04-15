@@ -10,10 +10,10 @@ import (
 )
 
 const (
-	redisKeyPrefix      = "mempool-dumpster:"
-	redisTTL            = 5 * time.Minute
-	redisPingTimeout    = 30 * time.Second
-	redisAddTxTimeout   = 10 * time.Second
+	redisKeyPrefix    = "mempool-dumpster:"
+	redisTTL          = 5 * time.Minute
+	redisPingTimeout  = 30 * time.Second
+	redisAddTxTimeout = 10 * time.Second
 )
 
 type Redis struct {
