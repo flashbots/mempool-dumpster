@@ -15,13 +15,12 @@ func TestRedis_AddTx(t *testing.T) {
 
 	r, err := NewRedis(log, "redis://"+mr.Addr())
 	require.NoError(t, err)
-	defer r.Close()
 
-	ctx := t.Context()
 	hash := "0xabc123"
+	r.AddTx(hash)
 
-	err = r.AddTx(ctx, hash)
-	require.NoError(t, err)
+	// Close flushes the queue and waits for workers to finish
+	require.NoError(t, r.Close())
 
 	// key exists with correct prefix
 	require.True(t, mr.Exists(redisKeyPrefix+hash))
@@ -42,13 +41,11 @@ func TestRedis_TTLExpiry(t *testing.T) {
 
 	r, err := NewRedis(log, "redis://"+mr.Addr())
 	require.NoError(t, err)
-	defer r.Close()
 
-	ctx := t.Context()
 	hash := "0xdef456"
+	r.AddTx(hash)
+	require.NoError(t, r.Close())
 
-	err = r.AddTx(ctx, hash)
-	require.NoError(t, err)
 	require.True(t, mr.Exists(redisKeyPrefix+hash))
 
 	// fast-forward past TTL
