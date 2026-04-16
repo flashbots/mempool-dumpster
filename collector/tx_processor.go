@@ -40,6 +40,7 @@ type TxProcessorOpts struct {
 	Location                string // location of the collector, will be stored in sourcelogs
 	CheckNodeURI            string
 	ClickhouseDSN           string
+	RedisEndpoint           string
 	HTTPReceivers           []string
 	ReceiversAllowedSources []string
 	APIServer               *api.Server
@@ -51,8 +52,9 @@ type TxProcessor struct {
 	uid      string
 	location string
 
-	outDir string
-	txC    chan common.TxIn // note: it's important that the value is sent in here instead of a pointer, otherwise there are memory race conditions
+	outDir  string
+	txC     chan common.TxIn // note: it's important that the value is sent in here instead of a pointer, otherwise there are memory race conditions
+	txCDone chan struct{}    // closed when startTransactionReceiverLoop exits
 
 	outFilesLock sync.RWMutex
 	outFiles     map[int64]OutFiles
@@ -74,6 +76,9 @@ type TxProcessor struct {
 
 	clickhouseDSN string
 	clickhouse    *Clickhouse
+
+	redisEndpoint string
+	redis         *Redis
 }
 
 type OutFiles struct {
@@ -95,8 +100,9 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 	}
 
 	return &TxProcessor{ //nolint:exhaustruct
-		log: opts.Log,
-		txC: make(chan common.TxIn, 100),
+		log:     opts.Log,
+		txC:     make(chan common.TxIn, 100),
+		txCDone: make(chan struct{}),
 
 		uid:      opts.UID,
 		location: opts.Location,
@@ -109,6 +115,7 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 
 		checkNodeURI:  opts.CheckNodeURI,
 		clickhouseDSN: opts.ClickhouseDSN,
+		redisEndpoint: opts.RedisEndpoint,
 
 		receivers:                receivers,
 		receiversAllowedSources:  opts.ReceiversAllowedSources,
@@ -118,6 +125,12 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 
 func (p *TxProcessor) Shutdown() {
 	p.log.Info("Shutting down TxProcessor ...")
+	p.stopTransactionReceiverLoop()
+	if p.redis != nil {
+		if err := p.redis.Close(); err != nil {
+			p.log.Errorw("failed to close Redis", "error", err)
+		}
+	}
 	if p.clickhouse != nil {
 		p.clickhouse.FlushCurrentBatches()
 	}
@@ -139,8 +152,17 @@ func (p *TxProcessor) Start() {
 		p.log.Info("Connected to Clickhouse!")
 	}
 
+	if p.redisEndpoint != "" {
+		p.log.Info("Connecting to Redis...")
+		p.redis, err = NewRedis(p.log, p.redisEndpoint)
+		if err != nil {
+			p.log.Fatalw("failed to connect to Redis", "error", err)
+		}
+		p.log.Info("Connected to Redis!")
+	}
+
 	if p.checkNodeURI != "" {
-		p.log.Infof("Conecting to check-node at %s ...", p.checkNodeURI)
+		p.log.Infof("Connecting to check-node at %s ...", p.checkNodeURI)
 		p.ethClient, err = ethclient.Dial(p.checkNodeURI)
 		if err != nil {
 			p.log.Fatal(err)
@@ -165,7 +187,13 @@ func (p *TxProcessor) Start() {
 	p.log.Info("TxProcessor started successfully")
 }
 
+func (p *TxProcessor) stopTransactionReceiverLoop() {
+	close(p.txC)
+	<-p.txCDone
+}
+
 func (p *TxProcessor) startTransactionReceiverLoop() {
+	defer close(p.txCDone)
 	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
 		if txIn.Tx == nil {
@@ -273,6 +301,12 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 			p.writeTrash(outFiles.FTrash, txIn, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			return
 		}
+	}
+
+	// Add tx hash to Redis asynchronously via background workers.
+	// Protect will check this to filter txs coming back through.
+	if p.redis != nil {
+		p.redis.AddTx(txHashLower)
 	}
 
 	// Add transaction to Clickhouse
