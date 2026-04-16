@@ -162,7 +162,7 @@ func (p *TxProcessor) Start() {
 	}
 
 	if p.checkNodeURI != "" {
-		p.log.Infof("Conecting to check-node at %s ...", p.checkNodeURI)
+		p.log.Infof("Connecting to check-node at %s ...", p.checkNodeURI)
 		p.ethClient, err = ethclient.Dial(p.checkNodeURI)
 		if err != nil {
 			p.log.Fatal(err)
