@@ -48,7 +48,7 @@ type TxProcessorOpts struct {
 	// EIP-4844 (type-3) txs whose BlobTxSidecar is nil. Standard EL JSON-RPC
 	// subscriptions return canonical encoding only (sidecar lives in the txpool's
 	// blob store, not exposed over RPC), so enabling this drops blob txs from
-	// observability — useful only if the collector is consuming a source that
+	// observability - useful only if the collector is consuming a source that
 	// guarantees full network-encoded blob txs.
 	RequireBlobSidecar bool
 }
