@@ -436,7 +436,7 @@ func (p *TxProcessor) validateTx(txIn common.TxIn) error { // inspired by https:
 	}
 
 	// Blob txs: by default (RequireBlobSidecar=false) we accept type-3 txs with or
-	// without a sidecar — standard EL JSON-RPC subscriptions deliver canonical encoding
+	// without a sidecar - standard EL JSON-RPC subscriptions deliver canonical encoding
 	// only, and we store raw_tx as canonical RLP via tx.MarshalBinary(). Setting
 	// RequireBlobSidecar restores the pre-v1.4 strict behavior of rejecting
 	// sidecar-less blob txs.
