@@ -44,6 +44,13 @@ type TxProcessorOpts struct {
 	HTTPReceivers           []string
 	ReceiversAllowedSources []string
 	APIServer               *api.Server
+	// RequireBlobSidecar, when true, restores the pre-v1.4 behavior of rejecting
+	// EIP-4844 (type-3) txs whose BlobTxSidecar is nil. Standard EL JSON-RPC
+	// subscriptions return canonical encoding only (sidecar lives in the txpool's
+	// blob store, not exposed over RPC), so enabling this drops blob txs from
+	// observability — useful only if the collector is consuming a source that
+	// guarantees full network-encoded blob txs.
+	RequireBlobSidecar bool
 }
 
 type TxProcessor struct {
@@ -79,6 +86,8 @@ type TxProcessor struct {
 
 	redisEndpoint string
 	redis         *Redis
+
+	requireBlobSidecar bool
 }
 
 type OutFiles struct {
@@ -120,6 +129,8 @@ func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 		receivers:                receivers,
 		receiversAllowedSources:  opts.ReceiversAllowedSources,
 		receiversAllowAllSources: len(opts.ReceiversAllowedSources) == 1 && opts.ReceiversAllowedSources[0] == "all",
+
+		requireBlobSidecar: opts.RequireBlobSidecar,
 	}
 }
 
@@ -424,7 +435,11 @@ func (p *TxProcessor) validateTx(txIn common.TxIn) error { // inspired by https:
 		return core.ErrTipAboveFeeCap
 	}
 
-	// Ensure blob txs are correctly formed
+	// Blob txs: by default (RequireBlobSidecar=false) we accept type-3 txs with or
+	// without a sidecar — standard EL JSON-RPC subscriptions deliver canonical encoding
+	// only, and we store raw_tx as canonical RLP via tx.MarshalBinary(). Setting
+	// RequireBlobSidecar restores the pre-v1.4 strict behavior of rejecting
+	// sidecar-less blob txs.
 	if err := p.validateBlobTx(tx); err != nil {
 		log.Debugw("error: invalid blob transaction", "reason", err)
 		return err
@@ -434,18 +449,16 @@ func (p *TxProcessor) validateTx(txIn common.TxIn) error { // inspired by https:
 	return nil
 }
 
-// validateBlobTx ensures that a blob tx is capable of being consumed
-// by our system.  Namely, the blob tx should be in the "full" PooledTransactions
-// network representation with the full sidecar available.
 func (p *TxProcessor) validateBlobTx(tx *types.Transaction) error {
+	if !p.requireBlobSidecar {
+		return nil
+	}
 	if tx.Type() != types.BlobTxType {
 		return nil
 	}
-
 	if tx.BlobTxSidecar() == nil {
 		return errBlobMissingSidecar
 	}
-
 	return nil
 }
 

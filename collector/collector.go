@@ -35,6 +35,8 @@ type CollectorOpts struct {
 	APIListenAddr     string
 	MetricsListenAddr string
 	EnablePprof       bool // if true, enables pprof on the metrics server
+
+	RequireBlobSidecar bool // if true, restores pre-v1.4 strict rejection of sidecar-less type-3 txs
 }
 
 type Collector struct {
@@ -69,6 +71,7 @@ func (c *Collector) Start() {
 		HTTPReceivers:           c.opts.Receivers,
 		ReceiversAllowedSources: c.opts.ReceiversAllowedSources,
 		APIServer:               apiServer,
+		RequireBlobSidecar:      c.opts.RequireBlobSidecar,
 	})
 
 	// Start the transaction processor, which kicks off background goroutines
