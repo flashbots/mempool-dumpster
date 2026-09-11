@@ -76,6 +76,15 @@ var cliFlags = []cli.Flag{
 		Category: "Collector Configuration",
 	},
 
+	// Blob (EIP-4844) tx handling
+	&cli.BoolFlag{
+		Name:     "require-blob-sidecar",
+		EnvVars:  []string{"REQUIRE_BLOB_SIDECAR"},
+		Value:    false,
+		Usage:    "Restore pre-v1.4 strict validation: reject EIP-4844 (type-3) txs whose blob sidecar is nil. Default is permissive (accept canonical-only blob txs as delivered by standard EL JSON-RPC subscriptions).",
+		Category: "Collector Configuration",
+	},
+
 	// SSE TX Subscription API
 	&cli.StringFlag{
 		Name:     "api-listen-addr",
@@ -152,6 +161,7 @@ func runCollector(cCtx *cli.Context) error {
 		enablePprof             = cCtx.Bool("pprof")
 		clickhouseDSN           = cCtx.String("clickhouse-dsn")
 		redisEndpoint           = cCtx.String("redis-endpoint")
+		requireBlobSidecar      = cCtx.Bool("require-blob-sidecar")
 	)
 
 	// Logger setup
@@ -195,6 +205,7 @@ func runCollector(cCtx *cli.Context) error {
 		APIListenAddr:           apiListenAddr,
 		MetricsListenAddr:       metricsListenAddr,
 		EnablePprof:             enablePprof,
+		RequireBlobSidecar:      requireBlobSidecar,
 	})
 	collector.Start()
 
