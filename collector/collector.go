@@ -30,6 +30,7 @@ type CollectorOpts struct {
 	ChainboundAuth []string
 
 	Receivers               []string
+	AdditionalReceivers     []TxReceiver
 	ReceiversAllowedSources []string
 
 	APIListenAddr     string
@@ -67,6 +68,7 @@ func (c *Collector) Start() {
 		ClickhouseDSN:           c.opts.ClickhouseDSN,
 		RedisEndpoint:           c.opts.RedisEndpoint,
 		HTTPReceivers:           c.opts.Receivers,
+		AdditionalReceivers:     c.opts.AdditionalReceivers,
 		ReceiversAllowedSources: c.opts.ReceiversAllowedSources,
 		APIServer:               apiServer,
 	})
