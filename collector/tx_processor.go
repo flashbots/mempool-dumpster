@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -25,7 +26,9 @@ import (
 )
 
 const (
-	receiverTimeout = 5 * time.Second
+	receiverTimeout   = 5 * time.Second
+	receiptTimeout    = time.Second
+	maxReceiptLookups = 32
 )
 
 var (
@@ -86,6 +89,41 @@ type OutFiles struct {
 	FTxs       *os.File
 	FSourcelog *os.File
 	FTrash     *os.File
+	users      *atomic.Int64
+}
+
+type receiptPipeline struct {
+	slots chan struct{}
+	mu    sync.Mutex
+	tails map[string]chan struct{}
+	jobs  sync.WaitGroup
+}
+
+func (r *receiptPipeline) submit(hash string, process func()) {
+	r.slots <- struct{}{}
+
+	r.mu.Lock()
+	previous := r.tails[hash]
+	done := make(chan struct{})
+	r.tails[hash] = done
+	r.mu.Unlock()
+
+	r.jobs.Add(1)
+	go func() {
+		defer r.jobs.Done()
+		if previous != nil {
+			<-previous
+		}
+		process()
+
+		r.mu.Lock()
+		if r.tails[hash] == done {
+			delete(r.tails, hash)
+		}
+		close(done)
+		r.mu.Unlock()
+		<-r.slots
+	}()
 }
 
 func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
@@ -196,24 +234,33 @@ func (p *TxProcessor) stopTransactionReceiverLoop() {
 
 func (p *TxProcessor) startTransactionReceiverLoop() {
 	defer close(p.txCDone)
+	var receipts *receiptPipeline
+	if p.ethClient != nil {
+		receipts = &receiptPipeline{
+			slots: make(chan struct{}, maxReceiptLookups),
+			tails: make(map[string]chan struct{}),
+		}
+		defer receipts.jobs.Wait()
+	}
 	p.log.Info("Waiting for transactions...")
 	for txIn := range p.txC {
 		if txIn.Tx == nil {
 			continue
 		}
-		p.processTx(txIn)
+		p.processTx(txIn, receipts)
 	}
 }
 
 func (p *TxProcessor) sendTxToReceivers(txIn common.TxIn) {
 	txAllowed := p.receiversAllowAllSources || slices.Contains(p.receiversAllowedSources, txIn.Source)
-	if !txAllowed {
+	if !txAllowed || len(p.receivers) == 0 {
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), receiverTimeout)
 	defer cancel()
 
+	metrics.ObserveTxDispatchAge(txIn.T)
 	var wg sync.WaitGroup
 	for _, r := range p.receivers {
 		wg.Add(1)
@@ -228,7 +275,7 @@ func (p *TxProcessor) sendTxToReceivers(txIn common.TxIn) {
 	wg.Wait()
 }
 
-func (p *TxProcessor) processTx(txIn common.TxIn) {
+func (p *TxProcessor) processTx(txIn common.TxIn, receipts *receiptPipeline) {
 	tx := txIn.Tx
 	txHashLower := strings.ToLower(tx.Hash().Hex())
 	log := p.log.With("tx_hash", txHashLower).With("source", txIn.Source)
@@ -249,7 +296,9 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		if err != nil {
 			log.Errorw("getOutputFiles", "error", err)
 			return
-		} else if isCreated {
+		}
+		defer outFiles.users.Dec()
+		if isCreated {
 			p.log.Infof("new file created: %s", outFiles.FTxs.Name())
 			p.log.Infof("new file created: %s", outFiles.FSourcelog.Name())
 			p.log.Infof("new file created: %s", outFiles.FTrash.Name())
@@ -267,44 +316,86 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 		p.clickhouse.AddSourceLog(txIn.T, txHashLower, txIn.Source, p.location)
 	}
 
-	// Process transactions only once
-	p.knownTxsLock.RLock()
-	_, isTxKnown := p.knownTxs[txHashLower]
-	p.knownTxsLock.RUnlock()
-	if isTxKnown {
+	if receipts == nil {
+		p.processCandidate(txIn, outFiles, txHashLower, log)
 		return
 	}
+	if p.isKnown(txHashLower) {
+		return
+	}
+	if outFiles.users != nil {
+		outFiles.users.Inc()
+	}
+	receipts.submit(txHashLower, func() {
+		if outFiles.users != nil {
+			defer outFiles.users.Dec()
+		}
+		p.processCandidate(txIn, outFiles, txHashLower, log)
+	})
+}
 
-	// Sanity check transaction
-	if err = p.validateTx(txIn); err != nil {
+func (p *TxProcessor) isKnown(hash string) bool {
+	p.knownTxsLock.RLock()
+	defer p.knownTxsLock.RUnlock()
+	_, known := p.knownTxs[hash]
+	return known
+}
+
+func (p *TxProcessor) processCandidate(txIn common.TxIn, outFiles OutFiles, hash string, log *zap.SugaredLogger) {
+	if p.isKnown(hash) {
+		return
+	}
+	if err := p.validateTx(txIn); err != nil {
 		p.writeInvalidTx(outFiles.FTrash, txIn, err)
 		metrics.IncTxReceivedTrash(txIn.Source)
 		p.srcMetrics.Inc(KeyStatsTxTrash, txIn.Source)
 		return
 	}
 
-	// Send tx to receivers
 	go p.sendTxToReceivers(txIn)
 
-	// Check if tx was already included
 	if p.ethClient != nil {
-		receipt, err := p.ethClient.TransactionReceipt(context.Background(), tx.Hash())
-		if err != nil {
-			if err.Error() == "not found" {
-				// all good, mempool tx
-			} else {
-				log.Errorw("ethClient.TransactionReceipt", "error", err)
-			}
-		} else if receipt != nil {
+		if receipt := p.lookupReceipt(txIn, log); receipt != nil {
 			p.srcMetrics.Inc(KeyStatsTxOnChain, txIn.Source)
 			p.srcMetrics.Inc(KeyStatsTxTrash, txIn.Source)
 			metrics.IncTxReceivedTrash(txIn.Source)
-			log.Debugw("transaction already included", "block", receipt.BlockNumber.Uint64())
+			log.Debugw("transaction already included", "block", receipt.BlockNumber)
 			p.writeTrash(outFiles.FTrash, txIn, common.TrashTxAlreadyOnChain, receipt.BlockNumber.String())
 			return
 		}
 	}
 
+	if p.archiveTx(txIn, outFiles, hash, log) {
+		p.knownTxsLock.Lock()
+		p.knownTxs[hash] = txIn.T
+		p.knownTxsLock.Unlock()
+	}
+}
+
+func (p *TxProcessor) lookupReceipt(txIn common.TxIn, log *zap.SugaredLogger) *types.Receipt {
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), receiptTimeout)
+	defer cancel()
+
+	receipt, err := p.ethClient.TransactionReceipt(ctx, txIn.Tx.Hash())
+	outcome := "not_found"
+	switch {
+	case err == nil:
+		outcome = "included"
+	case errors.Is(err, ethereum.NotFound):
+	default:
+		receipt = nil // a response can be partially decoded before an error
+		outcome = "error"
+		if errors.Is(err, context.DeadlineExceeded) {
+			outcome = "timeout"
+		}
+		log.Errorw("ethClient.TransactionReceipt", "error", err)
+	}
+	metrics.ObserveReceiptLookup(start, outcome)
+	return receipt
+}
+
+func (p *TxProcessor) archiveTx(txIn common.TxIn, outFiles OutFiles, txHashLower string, log *zap.SugaredLogger) bool {
 	// Add tx hash to Redis asynchronously via background workers.
 	// Protect will check this to filter txs coming back through.
 	if p.redis != nil {
@@ -313,7 +404,7 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 
 	// Add transaction to Clickhouse
 	if p.clickhouse != nil {
-		err = p.clickhouse.AddTransaction(txIn) // send to Clickhouse
+		err := p.clickhouse.AddTransaction(txIn) // send to Clickhouse
 		if err != nil {
 			log.Errorw("failed to add transaction to Clickhouse", "error", err)
 		}
@@ -329,23 +420,20 @@ func (p *TxProcessor) processTx(txIn common.TxIn) {
 	// write the transaction file (only if outDir is set)
 	if p.outDir != "" {
 		// create tx rlp
-		rlpHex, err := common.TxToRLPString(tx)
+		rlpHex, err := common.TxToRLPString(txIn.Tx)
 		if err != nil {
 			log.Errorw("failed to encode rlp", "error", err)
-			return
+			return false
 		}
 
 		_, err = fmt.Fprintf(outFiles.FTxs, "%d,%s,%s\n", txIn.T.UnixMilli(), txHashLower, rlpHex)
 		if err != nil {
 			log.Errorw("fmt.Fprintf", "error", err)
-			return
+			return false
 		}
 	}
 
-	// Remember that this transaction was processed
-	p.knownTxsLock.Lock()
-	p.knownTxs[txHashLower] = txIn.T
-	p.knownTxsLock.Unlock()
+	return true
 }
 
 func (p *TxProcessor) writeTrash(fTrash *os.File, txIn common.TxIn, message, notes string) {
@@ -461,6 +549,9 @@ func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (outFiles OutFiles, isC
 	// files may already be opened
 	p.outFilesLock.RLock()
 	outFiles, outFilesOk := p.outFiles[bucketTS]
+	if outFilesOk {
+		outFiles.users.Inc()
+	}
 	p.outFilesLock.RUnlock()
 
 	if outFilesOk {
@@ -509,6 +600,7 @@ func (p *TxProcessor) getOutputCSVFiles(timestamp int64) (outFiles OutFiles, isC
 		FTxs:       fTx,
 		FSourcelog: fSourcelog,
 		FTrash:     fTrash,
+		users:      atomic.NewInt64(1),
 	}
 	p.outFilesLock.Lock()
 	p.outFiles[bucketTS] = outFiles
@@ -534,21 +626,22 @@ func (p *TxProcessor) startHousekeeper() {
 		time.Sleep(time.Minute)
 
 		// Remove old transactions from cache
-		cachedBefore := len(p.knownTxs)
 		p.knownTxsLock.Lock()
+		cachedBefore := len(p.knownTxs)
 		for k, v := range p.knownTxs {
 			if time.Since(v) > txCacheTime {
 				delete(p.knownTxs, k)
 			}
 		}
+		cachedAfter := len(p.knownTxs)
 		p.knownTxsLock.Unlock()
 
 		// Remove old files from cache
-		filesBefore := len(p.outFiles)
 		p.outFilesLock.Lock()
+		filesBefore := len(p.outFiles)
 		for timestamp, outFiles := range p.outFiles {
 			usageSec := bucketMinutes * 60 * 2
-			if time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
+			if outFiles.users.Load() == 0 && time.Now().UTC().Unix()-timestamp > int64(usageSec) { // remove all handles from 2x usage seconds ago
 				p.log.Infow("closing output files", "timestamp", timestamp)
 				delete(p.outFiles, timestamp)
 				_ = outFiles.FTxs.Close()
@@ -556,6 +649,7 @@ func (p *TxProcessor) startHousekeeper() {
 				_ = outFiles.FTrash.Close()
 			}
 		}
+		filesAfter := len(p.outFiles)
 		p.outFilesLock.Unlock()
 
 		// Get memory stats
@@ -565,10 +659,10 @@ func (p *TxProcessor) startHousekeeper() {
 		// Print stats
 		p.log.Infow("stats",
 			"txcache_before", common.Printer.Sprint(cachedBefore),
-			"txcache_after", common.Printer.Sprint(len(p.knownTxs)),
-			"txcache_removed", common.Printer.Sprint(cachedBefore-len(p.knownTxs)),
+			"txcache_after", common.Printer.Sprint(cachedAfter),
+			"txcache_removed", common.Printer.Sprint(cachedBefore-cachedAfter),
 			"files_before", filesBefore,
-			"files_after", len(p.outFiles),
+			"files_after", filesAfter,
 			"goroutines", common.Printer.Sprint(runtime.NumGoroutine()),
 			"alloc_mb", m.Alloc/1024/1024,
 			"num_gc", common.Printer.Sprint(m.NumGC),

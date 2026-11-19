@@ -2,11 +2,13 @@ package metrics
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/VictoriaMetrics/metrics"
 )
 
 var (
+	txDispatchAge   = metrics.NewHistogram("mempool_dumpster_tx_receive_to_dispatch_seconds")
 	txReceived      = metrics.NewCounter("mempool_dumpster_tx_received_total")
 	txReceivedFirst = metrics.NewCounter("mempool_dumpster_tx_received_first")
 	txReceivedTrash = metrics.NewCounter("mempool_dumpster_tx_received_trash")
@@ -43,6 +45,15 @@ func IncTxReceivedTrash(source string) {
 	txReceivedTrash.Inc()
 	l := fmt.Sprintf(TxReceivedTrashLabel, source)
 	metrics.GetOrCreateCounter(l).Inc()
+}
+
+func ObserveTxDispatchAge(received time.Time) {
+	txDispatchAge.UpdateDuration(received)
+}
+
+func ObserveReceiptLookup(start time.Time, outcome string) {
+	label := fmt.Sprintf(`mempool_dumpster_receipt_lookup_duration_seconds{outcome=%q}`, outcome)
+	metrics.GetOrCreateHistogram(label).UpdateDuration(start)
 }
 
 func IncTxRPCReceiverOutcome(outcome string) {
