@@ -119,6 +119,18 @@ var cliFlags = []cli.Flag{
 		Category: "Tx Receivers Configuration",
 	},
 	&cli.StringSliceFlag{
+		Name:     "tx-rpc-receivers",
+		EnvVars:  []string{"TX_RPC_RECEIVERS"},
+		Usage:    "HTTPS JSON-RPC URLs for eth_sendRawTransaction with Flashbots v2 authentication",
+		Category: "Tx Receivers Configuration",
+	},
+	&cli.StringFlag{
+		Name:     "tx-rpc-signing-key-file",
+		EnvVars:  []string{"TX_RPC_SIGNING_KEY_FILE"},
+		Usage:    "file containing the hex-encoded private key for JSON-RPC receiver authentication",
+		Category: "Tx Receivers Configuration",
+	},
+	&cli.StringSliceFlag{
 		Name:     "tx-receivers-allowed-sources",
 		EnvVars:  []string{"TX_RECEIVERS_ALLOWED_SOURCES"},
 		Value:    cli.NewStringSlice("all"),
@@ -153,6 +165,11 @@ func runCollector(cCtx *cli.Context) error {
 		clickhouseDSN           = cCtx.String("clickhouse-dsn")
 		redisEndpoint           = cCtx.String("redis-endpoint")
 	)
+
+	rpcReceivers, err := collector.NewRPCReceivers(cCtx.StringSlice("tx-rpc-receivers"), cCtx.String("tx-rpc-signing-key-file"))
+	if err != nil {
+		return err
+	}
 
 	// Logger setup
 	log := common.GetLogger(debug, false)
@@ -191,6 +208,7 @@ func runCollector(cCtx *cli.Context) error {
 		EdenAuth:                edenAuth,
 		ChainboundAuth:          chainboundAuth,
 		Receivers:               receivers,
+		AdditionalReceivers:     rpcReceivers,
 		ReceiversAllowedSources: receiversAllowedSources,
 		APIListenAddr:           apiListenAddr,
 		MetricsListenAddr:       metricsListenAddr,

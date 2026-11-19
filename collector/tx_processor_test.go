@@ -34,9 +34,9 @@ func TestTxProcessor_sendTxToReceivers(t *testing.T) {
 		UID:                     "",
 		CheckNodeURI:            "",
 		HTTPReceivers:           nil,
+		AdditionalReceivers:     []TxReceiver{&receiver},
 		ReceiversAllowedSources: []string{"allowed"},
 	})
-	processor.receivers = append(processor.receivers, &receiver)
 
 	tx := common.TxIn{
 		T:      time.Now(),

@@ -45,6 +45,11 @@ func IncTxReceivedTrash(source string) {
 	metrics.GetOrCreateCounter(l).Inc()
 }
 
+func IncTxRPCReceiverOutcome(outcome string) {
+	label := fmt.Sprintf(`mempool_dumpster_tx_rpc_receiver_requests_total{outcome=%q}`, outcome)
+	metrics.GetOrCreateCounter(label).Inc()
+}
+
 func IncClickhouseError() {
 	clickhouseErrors.Inc()
 }

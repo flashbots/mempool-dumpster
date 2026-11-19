@@ -42,6 +42,7 @@ type TxProcessorOpts struct {
 	ClickhouseDSN           string
 	RedisEndpoint           string
 	HTTPReceivers           []string
+	AdditionalReceivers     []TxReceiver
 	ReceiversAllowedSources []string
 	APIServer               *api.Server
 }
@@ -89,10 +90,11 @@ type OutFiles struct {
 
 func NewTxProcessor(opts TxProcessorOpts) *TxProcessor {
 	// Build the list of (external) transaction receivers
-	receivers := make([]TxReceiver, 0, len(opts.HTTPReceivers))
+	receivers := make([]TxReceiver, 0, len(opts.HTTPReceivers)+len(opts.AdditionalReceivers))
 	for _, r := range opts.HTTPReceivers {
 		receivers = append(receivers, NewHTTPReceiver(r))
 	}
+	receivers = append(receivers, opts.AdditionalReceivers...)
 
 	// The API server is also a transaction receiver, so we add it to the list
 	if opts.APIServer != nil {
